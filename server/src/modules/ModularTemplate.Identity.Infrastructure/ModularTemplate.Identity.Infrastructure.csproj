@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
+    <ProjectReference Include="..\ModularTemplate.Identity.Contracts\ModularTemplate.Identity.Contracts.csproj" />
+  </ItemGroup>
+</Project>

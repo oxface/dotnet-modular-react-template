@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/orchestration/">
+    <Project Path="orchestration/ModularTemplate.Orchestration/ModularTemplate.Orchestration.csproj" />
+  </Folder>
+  <Folder Name="/server/" />
+  <Folder Name="/server/src/">
+    <Project Path="server/src/ModularTemplate.Host/ModularTemplate.Host.csproj" />
+    <Project Path="server/src/ModularTemplate.Migrator/ModularTemplate.Migrator.csproj" />
+    <Project Path="server/src/ModularTemplate.ServiceDefaults/ModularTemplate.ServiceDefaults.csproj" />
+    <Project Path="server/src/ModularTemplate.SharedKernel/ModularTemplate.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/server/src/modules/">
+    <Project Path="server/src/modules/ModularTemplate.Identity.Contracts/ModularTemplate.Identity.Contracts.csproj" />
+    <Project Path="server/src/modules/ModularTemplate.Identity.Infrastructure/ModularTemplate.Identity.Infrastructure.csproj" />
+    <Project Path="server/src/modules/ModularTemplate.Identity/ModularTemplate.Identity.csproj" />
+  </Folder>
+</Solution>

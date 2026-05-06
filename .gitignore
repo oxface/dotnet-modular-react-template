@@ -436,3 +436,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Codex / Spec Kit
+# Version the generated skills, but keep future local agent state private.
+.agents/*
+!.agents/skills/
+!.agents/skills/**

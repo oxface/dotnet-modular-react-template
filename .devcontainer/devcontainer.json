@@ -1,0 +1,48 @@
+{
+  "name": "ModularTemplate",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:dev-10.0-noble",
+  "features": {
+    "ghcr.io/devcontainers/features/dotnet:2": {},
+    "ghcr.io/microsoft/aspire-devcontainer-feature/aspire:2": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/powershell:2": {},
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "lts"
+    },
+    "ghcr.io/devcontainers-extra/features/pnpm:2": {},
+    "ghcr.io/devcontainers/features/python:1": {},
+    "ghcr.io/devcontainers-extra/features/uv:1": {},
+    "ghcr.io/devcontainers-extra/features/podman-homebrew:1": {},
+    "ghcr.io/schlich/devcontainer-features/playwright:0": {},
+    "ghcr.io/devcontainers-extra/features/ripgrep:1": {}
+  },
+  "hostRequirements": {
+    "cpus": 8,
+    "memory": "16gb",
+    "storage": "64gb"
+  },
+  "containerEnv": {
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_NOLOGO": "1"
+  },
+  "postStartCommand": "dotnet dev-certs https --trust || true",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "microsoft-aspire.aspire-vscode",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "ms-playwright.playwright",
+        "ms-azuretools.vscode-docker",
+        "HashiCorp.terraform",
+        "GitHub.copilot-chat",
+        "openai.chatgpt"
+      ]
+    }
+  },
+  "runArgs": ["--userns=keep-id"],
+  "containerUser": "vscode",
+  "remoteUser": "vscode"
+}

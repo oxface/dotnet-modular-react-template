@@ -12,5 +12,7 @@ Current project shells:
 - `src/modules/ModularTemplate.Identity`
 - `src/modules/ModularTemplate.Identity.Infrastructure`
 
-These projects are intentionally empty or near-empty. Domain behavior,
-persistence, auth/session plumbing, migrations, and tests come in later gates.
+These projects are intentionally empty or near-empty. The Host currently has
+only baseline service defaults, problem-details/error handling, and health
+endpoints. Domain behavior, persistence, auth/session plumbing, migrations, and
+tests come in later gates.

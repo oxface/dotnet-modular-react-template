@@ -1,6 +1,10 @@
 # Scripts
 
-Repository helper scripts will live here in later gates.
+Repository helper scripts live here.
 
-Expected future scripts include template rename and verification helpers. Gate 1
-intentionally does not include automation scripts.
+## Available Scripts
+
+- `setup-speckit.sh` installs the pinned Spec Kit CLI, initializes the Codex
+  integration, and installs the approved Archive and Refine extensions.
+
+Expected future scripts include template rename and verification helpers.

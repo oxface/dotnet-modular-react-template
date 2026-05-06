@@ -133,6 +133,35 @@ Build the template in small reviewable steps. Each step should update docs, code
 
 Reason: the previous broad implementation style produced too many files too quickly. This template should be built slowly enough that each decision can be reviewed, discussed, and corrected before later agents depend on it.
 
+### Use Spec Kit For Greenfield SDD
+
+Use Spec Kit rather than OpenSpec as the template's default spec-driven
+development tool.
+
+Initial approved stack:
+
+- Spec Kit core.
+- Codex integration.
+- Archive extension from `stn1slv/spec-kit-archive`, pinned to `v1.0.0`.
+- Refine extension from `Quratulain-bilal/spec-kit-refine`, pinned to `v1.0.0`.
+
+Reason: this template and its generated projects start greenfield. Spec Kit's
+constitution, feature-spec, plan, tasks, and implementation workflow fits that
+starting point better than OpenSpec's stronger brownfield posture. Archive adds
+the durable project-memory loop that Spec Kit core does not provide by itself,
+and Refine covers controlled spec changes without widening the initial
+extension surface.
+
+Guardrails:
+
+- Do not install broad extension bundles by default.
+- Do not install Spec Kit automatically from the devcontainer lifecycle.
+- Use a manual setup script so generated `.specify/` and `.agents/` files are
+  reviewable.
+- Pin Spec Kit and extension versions before committing generated setup files.
+- Treat community extension catalog inclusion as discoverability, not audit or
+  endorsement.
+
 ## Pending Decisions
 
 ### Rename Script Coverage

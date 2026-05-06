@@ -1,0 +1,5 @@
+.agents/
+.specify/extensions/
+.specify/templates/
+.specify/workflows/
+*.code-workspace

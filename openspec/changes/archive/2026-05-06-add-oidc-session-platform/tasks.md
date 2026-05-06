@@ -23,7 +23,7 @@
 
 - [x] 4.1 Update `docs/platform/auth-and-authorization.md` with the implemented OIDC/cookie/Redis session behavior and test-only status of header authentication.
 - [x] 4.2 Update `docs/platform/local-services.md` and `docs/architecture/orchestration.md` with local startup, resources, reset notes, and expected development configuration.
-- [x] 4.3 Update `docs/template/current-state.md` after implementation to record the completed gate and verification commands.
+- [x] 4.3 Update repository handoff documentation after implementation to record the completed gate and verification commands.
 
 ## 5. Tests And Verification
 

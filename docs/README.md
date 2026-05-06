@@ -1,11 +1,7 @@
 # Documentation
 
-This folder contains documentation intended to be useful in repositories created
-from the template.
-
-Planning notes for building the template itself live under
-[template/](template/README.md). Those notes are not stable product
-documentation and may be removed or rewritten by future scaffold/rename flows.
+This folder contains stable documentation intended to be useful in repositories
+created from the template.
 
 ## Index
 

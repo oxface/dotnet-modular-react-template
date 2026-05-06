@@ -12,5 +12,3 @@ Start with:
 - [docs/governance.md](docs/governance.md) for hard project rules.
 - [docs/openspec.md](docs/openspec.md) for the spec-driven development
   workflow.
-- [docs/template/README.md](docs/template/README.md) for template-building
-  planning context.

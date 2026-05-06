@@ -6,8 +6,6 @@ Start with:
 
 - [README.md](README.md) for repository status and entrypoints.
 - [docs/README.md](docs/README.md) for stable documentation.
-- [docs/template/README.md](docs/template/README.md) for template-building
-  planning context.
 
 Do not add domain behavior, auth/session plumbing, generated migrations,
 frontend apps, orchestration resources, CI workflows, or template automation

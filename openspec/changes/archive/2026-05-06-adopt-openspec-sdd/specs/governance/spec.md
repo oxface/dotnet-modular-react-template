@@ -24,7 +24,7 @@ Substantial runtime behavior MUST start from accepted OpenSpec artifacts or a du
 
 ### Requirement: Durable Decisions
 
-Durable project knowledge MUST live in versioned repository files, with stable architecture rules under `docs/`, template-construction reasoning under `docs/template/`, and accepted feature behavior under `openspec/specs/`.
+Durable project knowledge MUST live in versioned repository files, with stable architecture rules under `docs/` and accepted feature behavior under `openspec/specs/`.
 
 #### Scenario: Agent instruction contains an important rule
 

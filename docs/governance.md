@@ -28,10 +28,9 @@ The default SDD workflow is OpenSpec. Accepted current behavior lives under
 ### III. Durable Decisions Live In The Repository
 
 Durable project knowledge MUST live in versioned repository files. Stable
-architecture rules belong under `docs/`; template-construction reasoning
-belongs under `docs/template/`; accepted feature behavior belongs in
-`openspec/specs/`. Agent instructions MAY summarize or route to those files,
-but MUST NOT be the only source of an important rule.
+architecture rules belong under `docs/`; accepted feature behavior belongs in
+`openspec/specs/`. Agent instructions MAY summarize or route to those files, but
+MUST NOT be the only source of an important rule.
 
 ### IV. Explicit Modular-Monolith Boundaries
 
@@ -70,8 +69,8 @@ radius.
 ## Development Workflow
 
 Substantial behavior MUST start from an OpenSpec change before code is added.
-Architecture and template-building decisions MUST first be recorded in
-`docs/template/template-decisions.md` or the relevant stable architecture doc.
+Durable architecture and template decisions MUST first be recorded in the
+relevant stable architecture, platform, testing, module, or governance doc.
 OpenSpec planning MUST prefer repository docs as context over duplicating long
 architecture guidance in prompts.
 

@@ -1,16 +1,16 @@
 # Web
 
-Frontend apps and packages will live here in later gates.
+Frontend apps and packages live here.
 
-Planned shape:
+Current shape:
 
 - `apps/admin`
 - `apps/web`
-- `packages/api-client`
 - `packages/auth`
-- `packages/ui`
 - `packages/config`
 
-The repository now has a root `package.json`, `pnpm-lock.yaml`, and
-`pnpm-workspace.yaml` for package baselines. This folder still intentionally has
-no Vite apps, frontend packages, or frontend source code.
+Future shared packages may include `packages/api-client` and `packages/ui` once
+their scope is accepted.
+
+Local Vite apps proxy `/api/` and `/auth/` to the Host. Set `VITE_HOST_ORIGIN`
+to override the default target of `http://localhost:5162`.

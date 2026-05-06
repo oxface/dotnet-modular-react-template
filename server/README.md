@@ -20,5 +20,3 @@ and the initial Identity module boundary.
 `ModularTemplate.Persistence` contains the concrete EF Core DbContext shell.
 `ModularTemplate.Migrator` is wired to apply Host-owned migrations later, but
 the template does not include generated migrations yet.
-
-Use `docs/template/current-state.md` for gate progress and next scope.

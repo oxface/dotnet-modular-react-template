@@ -4,6 +4,7 @@
 .specify/templates/
 .specify/workflows/
 node_modules/
+.pnpm-store/
 dist/
 build/
 coverage/

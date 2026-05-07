@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using ModularTemplate.Identity.Contracts.CurrentUser;
 
 namespace ModularTemplate.Host.Features.CurrentUser;
@@ -11,7 +12,7 @@ public static class GetMeEndpoint
                 "/api/me",
                 async Task<Results<Ok<GetMeResponse>, UnauthorizedHttpResult>> (
                     HttpContext httpContext,
-                    ICurrentUserProvider currentUserProvider,
+                    [FromServices] ICurrentUserProvider currentUserProvider,
                     CancellationToken cancellationToken) =>
                 {
                     AuthenticatedIdentity? identity =
@@ -27,7 +28,11 @@ public static class GetMeEndpoint
 
                     return TypedResults.Ok(GetMeResponse.FromCurrentUser(currentUser));
                 })
-            .RequireAuthorization();
+            .RequireAuthorization()
+            .WithName("GetCurrentUser")
+            .WithTags("CurrentUser")
+            .Produces<GetMeResponse>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status401Unauthorized);
 
         return endpoints;
     }

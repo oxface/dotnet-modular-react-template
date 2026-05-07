@@ -1,12 +1,45 @@
 # Net React Modular Template Implementation Plan
 
-Status: Discussion Draft
+Status: Reconciled planning draft.
 
 Location note: this file lives under `docs/template/` because it is planning context for building the template, not product documentation that must survive unchanged in repositories created from the template.
 
-This document captures the starting implementation plan for a domain-neutral .NET + React modular-monolith template. It is intentionally written before scaffolding so architectural choices, defaults, and unresolved tradeoffs are visible instead of being hidden in generated code.
+This document captures the starting implementation plan for a domain-neutral .NET + React modular-monolith template. It began before scaffolding so architectural choices, defaults, and unresolved tradeoffs were visible instead of being hidden in generated code.
 
 Archived attempts were research context only. The implementation should be fresh code, not a bulk copy of an older project.
+
+For the current implemented checkpoint, prefer
+[current-state.md](current-state.md). This file remains useful as the forward
+plan and decision backlog, but accepted behavior lives in `openspec/specs/` and
+stable durable rules live under `docs/`.
+
+## Current Reconciliation
+
+Implemented and accepted:
+
+- Repository skeleton, docs indexes, solution infrastructure, devcontainer, and
+  OpenSpec tooling.
+- SharedKernel primitives, ServiceDefaults, Host error-handling foundation, and
+  shared PostgreSQL persistence composition.
+- Identity current-user and application-access behavior.
+- Host-owned OIDC browser login/logout, application cookie sessions, and
+  Redis-backed session tickets.
+- Local Aspire orchestration for PostgreSQL, Redis, Keycloak, Migrator, Host,
+  admin frontend, and web frontend.
+- Admin and web React/Vite app shells with shared browser-safe auth helpers,
+  access-state routing, and local proxying for `/api/` and `/auth/`.
+
+Still deferred:
+
+- OIDC/browser-session smoke UI in both frontend apps using generated clients.
+- Generated TanStack Query helpers once the app-facing query shape is proven.
+- Shared UI package conventions beyond current scaffolding.
+- CI workflows.
+- Generated EF migrations.
+- Mailpit and additional local services.
+- Durable intermodule messaging and outbox processing.
+- Template rename/bootstrap automation.
+- Identity-provider Admin API provisioning workflows.
 
 ## Current Goals
 
@@ -15,7 +48,8 @@ Archived attempts were research context only. The implementation should be fresh
 - Prefer explicit, inspectable architecture over framework magic.
 - Optimize for learning, replacement, and restartability rather than production longevity.
 - Document decisions as first-class artifacts before implementation.
-- Make future agent work easier through short AGENTS indexes, durable docs, Spec Kit, and reusable scripts/skills.
+- Make future agent work easier through short AGENTS indexes, durable docs,
+  OpenSpec, and reusable scripts/skills.
 
 These are current goals, not permanent product constraints. The template is expected to evolve as implementation pressure reveals better choices.
 
@@ -43,11 +77,8 @@ These are also current non-goals. They can be revisited when a later template ve
       server.md
       web.md
       orchestration.md
-    constitution.md
-    constitution/
-      server.md
-      web.md
-      docs-and-agents.md
+    governance.md
+    openspec.md
     modules/
       README.md
       identity.md
@@ -62,10 +93,13 @@ These are also current non-goals. They can be revisited when a later template ve
       web.md
       e2e.md
       eval.md
-    template-decisions.md
-  .specify/
+    template/
+      README.md
+      current-state.md
+      implementation-plan.md
+  openspec/
   .agents/
-  Template.slnx
+  ModularTemplate.slnx
   Directory.Build.props
   Directory.Packages.props
   server/
@@ -526,8 +560,9 @@ Documentation rules:
 - README files explain local folder purpose and commands.
 - Architecture docs describe current shape.
 - `docs/template/template-decisions.md` explains why template-building decisions were made.
-- Spec Kit feature artifacts describe accepted behavior and planned work.
-- Planning notes remain clearly marked until converted into architecture docs, the template decision ledger, or Spec Kit artifacts.
+- OpenSpec artifacts describe accepted behavior and planned work.
+- Planning notes remain clearly marked until converted into architecture docs,
+  the template decision ledger, or OpenSpec artifacts.
 
 Initial docs to create before or during scaffolding:
 
@@ -543,11 +578,13 @@ Skills:
 
 - Keep repo-local skills under `.codex/skills`.
 - Add skills only for workflows that repeat and benefit from instructions or scripts.
-- Likely first skills/scripts: initialize pinned Spec Kit tooling, add server module, run template rename/verification.
+- Likely next skills/scripts: add server module, run template
+  rename/verification, and maintain template checks.
 - Add ADR management skills as optional product-repo skills, even though this template does not ship its own ADR history.
 - Add a bootstrap skill or script for creating a fresh product repository from the template once the first delivery is stable.
 - Consider template-change export/import skills for flowing proven product improvements back into the template.
-- Spec Kit Codex skills should be initialized from the `specify init --integration codex` flow rather than hand-authored from scratch.
+- OpenSpec Codex skills are repository-local workflow helpers and should stay
+  aligned with `docs/openspec.md`.
 - Do not use ADR skills as the template's own decision ledger; use `docs/template/template-decisions.md` while building the template.
 
 Template evolution skill idea:
@@ -569,46 +606,38 @@ Manual packet flow:
 
 Do not build automatic template-update application for product repositories in the first version. A product can record its originating template version or commit, but newer template patterns should be ported into products manually and one scoped change at a time.
 
-## Spec Kit Strategy
+## OpenSpec Strategy
 
-Use Spec Kit for greenfield spec-driven development, not every architecture preference.
+Use OpenSpec for substantial runtime behavior, platform topology, frontend
+runtime integration, and other changes whose behavior should become accepted
+template contract. Do not use planning notes alone as implementation authority
+for those changes.
 
-Decision: pivot from OpenSpec to Spec Kit while the repository is still early.
-The former `openspec/` Gate 1 placeholder should be replaced by Spec Kit
-artifacts.
+Implemented OpenSpec baseline:
 
-Initial Spec Kit stack:
-
-- Spec Kit core, installed through the official `specify-cli` GitHub source and pinned to a reviewed version.
-- Codex integration, installed through `specify init --integration codex`.
-- Archive extension, pinned to `stn1slv/spec-kit-archive` `v1.0.0`.
-- Refine extension, pinned to `Quratulain-bilal/spec-kit-refine` `v1.0.0`.
-
-Do not auto-install Spec Kit from the devcontainer lifecycle. The devcontainer
-should provide prerequisites such as Python and `uv`; a repo script should run
-the actual Spec Kit initialization intentionally so generated files can be
-reviewed.
-
-Initial accepted specs should be small:
-
-- Backend auth/session context.
-- Identity current-user context.
-- Staff-admin bootstrap.
+- `openspec/specs/auth-session/spec.md`.
+- `openspec/specs/frontend-orchestration/spec.md`.
+- `openspec/specs/host-api/spec.md`.
+- `openspec/specs/identity-current-user/spec.md`.
+- `openspec/specs/local-oidc-session-platform/spec.md`.
+- `openspec/specs/web-app-foundation/spec.md`.
 
 Rules:
 
 - Do not implement substantial new behavior from planning notes alone.
-- Template architecture decisions go to `docs/template/template-decisions.md` first, then stable current-state rules are reflected in architecture docs.
-- Behavior contracts go to Spec Kit feature artifacts first.
+- Template architecture decisions go to stable docs first, then OpenSpec
+  artifacts capture behavior contracts when behavior is in scope.
+- Behavior contracts go to OpenSpec feature artifacts first.
 - If docs, specs, and code drift, call out the drift before extending it.
+- Archive accepted changes so `openspec/specs/` remains the current source of
+  truth.
 
-Planning decisions such as folder shape, `.Infrastructure` projects, `.slnx` placement, testing categories, and rename automation do not need Spec Kit feature specs. Auth/session behavior, `/api/me`, admin bootstrap, and future admin provisioning workflows do.
-
-The first setup script should be manual and reviewable, likely under
-`scripts/setup-speckit.sh`. It should install or verify `specify`, initialize
-the project with the Codex integration, add only the approved Archive and
-Refine extensions, print installed versions, and refuse to overwrite an
-existing `.specify/` setup unless an explicit force flag is provided.
+Planning decisions such as folder shape, `.Infrastructure` projects, `.slnx`
+placement, testing categories, documentation freshness, and verification-only
+cleanup do not need OpenSpec when they do not alter runtime behavior.
+Auth/session behavior, `/api/me`, admin bootstrap, generated API clients,
+frontend orchestration, CI workflows, template automation, generated
+migrations, and future admin provisioning workflows do.
 
 ## Copy-Paste Versus Opinionated Flows
 
@@ -638,22 +667,33 @@ Phase 3: Opinionated generator only if proven useful.
 
 ## Initial Scaffold Order
 
-1. Documentation skeleton and template decision ledger.
-2. Solution and repository infrastructure.
-3. Devcontainer and Spec Kit tooling.
-4. SharedKernel.
-5. ServiceDefaults.
-6. Host.
-7. Shared DbContext and Migrator.
-8. Identity.Contracts, Identity, and Identity.Infrastructure.
-9. Initial Spec Kit feature specs for auth/session, `/api/me`, and admin bootstrap.
-10. BFF auth with Keycloak and Redis ticket storage.
-11. Aspire orchestration with PostgreSQL, Redis, Keycloak, Mailpit, Host, Migrator, frontend.
-12. Admin and web frontend apps with shared auth package and `/api/me` integration.
-13. OpenAPI client generation after initial endpoint contracts settle.
-14. Tests and CI.
-15. Agent docs and first skills, including rename/verification.
-16. Dependabot and Release Please.
+1. Documentation skeleton and template decision ledger: done.
+2. Solution and repository infrastructure: done.
+3. Devcontainer and OpenSpec tooling: done.
+4. SharedKernel: done.
+5. ServiceDefaults: done.
+6. Host foundation: done.
+7. Shared DbContext and Migrator: done.
+8. Identity.Contracts, Identity, and Identity.Infrastructure: done for the
+   current-user/access slice, with `IIdentityStore` still transitional.
+9. Initial OpenSpec specs for auth/session, `/api/me`, admin bootstrap, web app
+   foundation, and frontend orchestration: done and archived into
+   `openspec/specs/`.
+10. BFF auth with Keycloak and Redis ticket storage: done.
+11. Aspire orchestration with PostgreSQL, Redis, Keycloak, Host, Migrator, and
+    frontend apps: done. Mailpit remains deferred.
+12. Admin and web frontend apps with shared auth package and `/api/me`
+    integration: done.
+13. OpenAPI client generation after initial endpoint contracts settle: done
+    under `add-generated-api-clients`.
+14. OIDC/browser-session smoke UI in both apps using generated clients:
+    proposed follow-up OpenSpec gate.
+15. Generated TanStack Query helpers: deferred until the smoke UI proves the
+    desired app-facing query shape.
+16. Tests and CI: focused backend/frontend tests exist; CI remains deferred.
+17. Agent docs and first skills, including rename/verification: OpenSpec and
+    Aspire skills exist; rename/verification automation remains deferred.
+18. Dependabot and Release Please: deferred.
 
 ## Proposed Template Decision Records
 
@@ -673,7 +713,7 @@ Record these in `docs/template/template-decisions.md`, not as ADRs inherited by 
 - Bootstrap one app-owned initial admin.
 - Generate OpenAPI clients as part of first delivery after initial endpoint contracts settle.
 - Provide rename automation plus a verification skill.
-- Use Spec Kit with Codex, Archive, and Refine for greenfield SDD.
+- Use OpenSpec with Codex skills for greenfield SDD.
 
 ## Open Discussion Items
 
@@ -706,17 +746,26 @@ Suggested gates:
 
 1. Repo skeleton and documentation indexes only.
 2. Central props, `.slnx`, empty projects, and package baselines.
-3. Devcontainer and Spec Kit tooling.
+3. Devcontainer and OpenSpec tooling.
 4. SharedKernel DDD primitives.
 5. ServiceDefaults.
 6. Host foundation without Identity behavior.
-7. Persistence foundation: shared DbContext, Migrator wiring, and event log
-   persistence.
+7. Persistence foundation: shared DbContext and Migrator wiring.
 8. Identity module contracts/domain/application, then infrastructure
    separately.
 9. Host auth/session plumbing, then `/api/me`.
-10. Aspire resources, then frontend apps, then auth package integration.
-11. OpenAPI generation, CI automation, rename script, and maintenance skills.
+10. Aspire resources, frontend apps, and auth package integration.
+11. OpenAPI generation.
+12. OIDC/browser-session smoke UI using generated clients.
+13. Generated TanStack Query helper decision.
+14. Planning-material reconciliation: preserve durable guidance in stable docs,
+    accepted OpenSpec specs, or template-only docs that the future bootstrap
+    script ignores.
+15. Prune obsolete plan documents.
+16. Code review.
+17. Testing and feedback.
+18. Final code review.
+19. CI automation, rename script, and maintenance skills.
 
 `docs/template/current-state.md` is the authoritative source for the latest
 completed gate and next step. This section is planning context and may lag if a
@@ -725,10 +774,10 @@ gate is split during implementation.
 Recommended split for implementation agents:
 
 - Repo foundation: solution, central package management, pnpm workspace, formatting, Husky, commitlint, CI, Dependabot, Release Please.
-- Backend foundation: SharedKernel, ServiceDefaults, Host, Migrator, shared DbContext, transaction pipeline, domain event persistence.
+- Backend foundation: SharedKernel, ServiceDefaults, Host, Migrator, shared DbContext.
 - Identity/auth: Identity module, lazy user creation, `/api/me`, app-owned admin authorization, Host OIDC/cookie/Redis session mechanics, Keycloak local setup.
-- Web foundation: `admin` and `web` apps, `web/packages/auth`, `web/packages/ui`, Vite proxying, TanStack Router/Query baseline.
-- Orchestration: Aspire topology with PostgreSQL, Redis, Keycloak, Mailpit, Host, Migrator, Vite apps.
+- Web foundation: `admin` and `web` apps, `web/packages/auth`, Vite proxying, TanStack Router/Query baseline.
+- Orchestration: Aspire topology with PostgreSQL, Redis, Keycloak, Host, Migrator, Vite apps. Mailpit remains deferred.
 - Verification: architecture tests, focused host/module tests, basic web tests, e2e smoke path when auth is runnable.
 
 Cross-agent coordination rules:

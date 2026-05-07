@@ -10,6 +10,7 @@ export default tseslint.config(
       "orchestration/**/bin/**",
       "orchestration/**/obj/**",
       "web/**/dist/**",
+      "web/packages/api-client/src/generated/**",
     ],
   },
   js.configs.recommended,

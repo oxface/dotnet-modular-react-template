@@ -12,6 +12,7 @@ builder.AddServiceDefaults();
 builder.AddPersistence();
 builder.AddHostAuthentication();
 builder.AddProblemDetails();
+builder.Services.AddOpenApi();
 builder.Services.AddIdentityModule();
 builder.Services.AddIdentityInfrastructure();
 builder.Services.AddApplicationAccessAuthorization();

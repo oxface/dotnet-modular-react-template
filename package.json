@@ -4,6 +4,10 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "api-client:check": "scripts/check-api-client.sh",
+    "api-client:generate": "scripts/generate-api-client.sh",
+    "openapi:generate": "scripts/generate-openapi.sh",
+    "prepare": "husky",
     "frontend:build": "pnpm --filter './web/apps/*' build",
     "frontend:lint": "eslint web --max-warnings 0",
     "frontend:test": "pnpm --filter './web/apps/*' --filter './web/packages/*' test",
@@ -13,6 +17,7 @@
     "@commitlint/cli": "20.5.3",
     "@commitlint/config-conventional": "20.5.3",
     "@eslint/js": "10.0.1",
+    "@hey-api/openapi-ts": "0.97.1",
     "@playwright/test": "1.59.1",
     "@tailwindcss/vite": "4.2.4",
     "@testing-library/jest-dom": "6.9.1",

@@ -19,3 +19,6 @@ created from the template.
 - [platform/README.md](platform/README.md) indexes platform concerns.
 - [testing.md](testing.md) summarizes the testing strategy.
 - [openspec.md](openspec.md) describes how this repository uses OpenSpec.
+- [template/template-decisions.md](template/template-decisions.md) records
+  template-building decisions that generated product repositories should not
+  inherit as ADR history.

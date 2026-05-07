@@ -8,6 +8,8 @@ node_modules/
 dist/
 build/
 coverage/
+web/packages/api-client/openapi/
+web/packages/api-client/src/generated/
 bin/
 obj/
 *.log

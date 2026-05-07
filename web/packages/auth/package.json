@@ -1,0 +1,23 @@
+{
+  "name": "@modular-template/auth",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modular-template/api-client": "workspace:*",
+    "@tanstack/react-query": "5.100.9",
+    "react": "19.2.6"
+  },
+  "devDependencies": {
+    "@modular-template/config": "workspace:*"
+  }
+}

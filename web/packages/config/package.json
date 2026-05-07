@@ -1,0 +1,13 @@
+{
+  "name": "@modular-template/config",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    "./vite-app": "./vite-app.ts",
+    "./vitest-app": "./vitest-app.ts",
+    "./vitest-package": "./vitest-package.ts"
+  }
+}

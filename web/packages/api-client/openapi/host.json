@@ -1,0 +1,96 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "ModularTemplate.Host | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/me": {
+      "get": {
+        "tags": [
+          "CurrentUser"
+        ],
+        "operationId": "GetCurrentUser",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetMeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GetMeApplicationAccessResponse": {
+        "required": [
+          "hasAccess"
+        ],
+        "type": "object",
+        "properties": {
+          "hasAccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GetMeResponse": {
+        "required": [
+          "isAuthenticated",
+          "user",
+          "applicationAccess"
+        ],
+        "type": "object",
+        "properties": {
+          "isAuthenticated": {
+            "type": "boolean"
+          },
+          "user": {
+            "$ref": "#/components/schemas/GetMeUserResponse"
+          },
+          "applicationAccess": {
+            "$ref": "#/components/schemas/GetMeApplicationAccessResponse"
+          }
+        }
+      },
+      "GetMeUserResponse": {
+        "required": [
+          "id",
+          "displayName",
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "CurrentUser"
+    }
+  ]
+}

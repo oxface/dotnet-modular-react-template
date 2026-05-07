@@ -17,3 +17,7 @@ Current validation entrypoints:
 - `pnpm frontend:test`
 - `pnpm frontend:build`
 - `pnpm frontend:lint`
+- `pnpm api-client:check`
+
+`pnpm api-client:check` is also wired into the local Husky pre-commit hook and
+should be included in future CI workflows.

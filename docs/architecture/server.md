@@ -30,6 +30,9 @@ Current direction:
 - Host composes minimal API authentication, the `GET /api/me` current-user
   endpoint, and an application-access authorization policy while Identity owns
   local identity and access decisions behind contracts.
+- Host registers ASP.NET Core OpenAPI metadata for template-owned `/api/`
+  endpoints. Build-time OpenAPI generation writes the checked-in client source
+  document used by the frontend API client package.
 
 ## Backend Feature Shape
 
@@ -37,6 +40,12 @@ Host API behavior should be organized as vertical feature slices under
 `ModularTemplate.Host/Features/{FeatureName}`. Endpoint mapping, endpoint-local
 response models, request/claim adapters, and feature-specific HTTP composition
 should stay close together unless another feature needs the same abstraction.
+
+Endpoints that are consumed by browser code should include stable names,
+response metadata, and tags so generated clients have durable operation names
+and schemas. Host-owned browser auth routes such as login, logout, callback,
+and signed-out callback routes are platform routes and should stay out of the
+generated API client surface.
 
 Modules should keep application behavior behind contracts. Contracts may expose
 provider-neutral DTOs and service/query abstractions, but they must not expose

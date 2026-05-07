@@ -8,7 +8,11 @@ packages exist.
 
 Current frontend validation entrypoints:
 
+- `pnpm api-client:check`
 - `pnpm frontend:typecheck`
 - `pnpm frontend:test`
 - `pnpm frontend:build`
 - `pnpm frontend:lint`
+
+`pnpm api-client:check` is wired into the local Husky pre-commit hook and should
+be part of future CI workflows.

@@ -1,5 +1,7 @@
 export type { AccessState, AuthenticatedAccessState } from "./access-state";
 export { resolveCurrentUserAccessState } from "./access-state";
+export type { BrowserSessionSmokeSurfaceProps } from "./BrowserSessionSmokeSurface";
+export { BrowserSessionSmokeSurface } from "./BrowserSessionSmokeSurface";
 export type {
   CurrentUserResponse,
   CurrentUserResult,

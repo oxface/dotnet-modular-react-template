@@ -26,6 +26,9 @@ Accepted behavior currently covers:
 - Frontend loading, unauthenticated, no-access, has-access, and error states.
 - Same-origin frontend `/api/` and `/auth/` proxying for local development.
 - Generated Host API client package consumed by frontend auth helpers.
+- Domain-neutral browser-session smoke surface in both frontend apps.
+- MVP 1 query helper decision: keep app-facing TanStack Query composition in
+  `web/packages/auth` and defer Hey API generated query helpers.
 
 ## Next Lanes
 
@@ -43,10 +46,8 @@ behavior:
 
 These lanes need accepted artifacts before implementation:
 
-- OIDC/browser-session smoke UI that consumes generated clients from both
-  frontend apps.
-- Generated TanStack Query helpers from Hey API, after the app-facing query
-  shape is proven by the smoke UI.
+- Generated TanStack Query helpers from Hey API, after additional Host API
+  operations prove the app-facing query shape.
 - Shared UI package conventions beyond simple scaffolding.
 - CI workflow definition.
 - Generated migrations.
@@ -56,11 +57,16 @@ These lanes need accepted artifacts before implementation:
 
 ## Suggested Next Gate
 
-The next runtime gate should add a small domain-neutral smoke surface in both
-apps that uses the generated clients for login/current-user/logout verification
-against the real Host OIDC session path.
+Review checkpoint on 2026-05-07: the browser-session smoke surface and MVP 1
+query helper decision are implemented through OpenSpec change
+`add-browser-session-smoke-and-query-decision`.
 
-After that smoke gate, reconcile planning material before deleting it: preserve
-durable guidance in stable docs, accepted OpenSpec specs, or template-only docs
-that the future bootstrap script ignores. Then prune obsolete plan documents,
-run code review, collect testing feedback, and review again.
+The next lightweight gate is planning-material reconciliation and pruning. Pure
+documentation freshness, stale-reference cleanup, formatting, restore, build,
+test, lint, and generated-client drift checks can continue directly when they
+do not change runtime behavior.
+
+The consolidated MVP 1 remaining-step list now lives in
+[implementation-plan.md](implementation-plan.md#mvp-1-remaining-steps). Add new
+candidate steps there first, then promote implementation-sized runtime work
+into OpenSpec changes when the scope is ready.

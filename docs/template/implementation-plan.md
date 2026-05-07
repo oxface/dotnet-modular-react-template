@@ -15,6 +15,12 @@ stable durable rules live under `docs/`.
 
 ## Current Reconciliation
 
+Review checkpoint on 2026-05-07: the filesystem, current OpenSpec specs,
+archived changes, package scripts, frontend packages, app shells, and Aspire
+orchestration were inspected. The repository had a clean worktree and no active
+OpenSpec changes. Verification commands were not rerun during this review; see
+`current-state.md` for the latest recorded passing command set.
+
 Implemented and accepted:
 
 - Repository skeleton, docs indexes, solution infrastructure, devcontainer, and
@@ -30,11 +36,13 @@ Implemented and accepted:
   access-state routing, and local proxying for `/api/` and `/auth/`.
 - Host OpenAPI generation and generated `web/packages/api-client` package
   consumed by frontend auth helpers.
+- Domain-neutral browser-session smoke surface in both frontend apps for
+  login/current-user/logout verification.
+- MVP 1 TanStack Query decision: keep app-facing query composition in
+  `web/packages/auth` and defer Hey API generated query helpers.
 
 Still deferred:
 
-- OIDC/browser-session smoke UI in both frontend apps using generated clients.
-- Generated TanStack Query helpers once the app-facing query shape is proven.
 - Shared UI package conventions beyond current scaffolding.
 - CI workflows.
 - Generated EF migrations.
@@ -42,6 +50,80 @@ Still deferred:
 - Durable intermodule messaging and outbox processing.
 - Template rename/bootstrap automation.
 - Identity-provider Admin API provisioning workflows.
+
+## Next Work Classification
+
+Purely technical/direct work:
+
+- Documentation freshness and stale reference cleanup.
+- Formatting, restore, build, test, lint, and generated-client drift checks.
+- Verification-only follow-ups that do not change runtime behavior.
+
+OpenSpec or durable architecture decision first:
+
+- Generated TanStack Query helper adoption after additional Host API operations
+  exist.
+- Shared UI package conventions beyond simple app/package scaffolding.
+- CI workflow definition.
+- Generated migrations.
+- Template rename/bootstrap automation.
+- Mailpit or other local services.
+- Durable intermodule messaging and outbox processing.
+- Identity-provider Admin API provisioning workflows.
+
+Recommended next sequence:
+
+1. Reconcile and prune template planning material after durable guidance has
+   been moved to stable docs, current specs, or explicitly template-only docs.
+2. Run the review and verification pass for the remaining MVP 1 surface.
+3. Start an OpenSpec or durable architecture decision for CI, rename/bootstrap
+   automation, or maintenance automation when that scope is ready.
+
+## MVP 1 Remaining Steps
+
+This is the consolidated working list before the template is considered MVP 1
+ready. Add candidate steps here first; when a step adds runtime behavior,
+frontend behavior, orchestration behavior, CI, generated migrations, generated
+clients, or template automation, create an OpenSpec change or durable
+architecture decision before implementation.
+
+1. Planning-material reconciliation.
+   Direct documentation work. Preserve durable guidance in stable docs,
+   accepted OpenSpec specs, or template-only docs that future bootstrap
+   automation explicitly ignores.
+2. Obsolete planning-document pruning.
+   Direct documentation cleanup once durable guidance has a better home.
+3. Review and verification pass.
+   Direct technical cleanup unless findings require behavior changes. Include
+   formatting, restore/build/test, generated-client freshness, frontend
+   typecheck/test/build/lint, OpenSpec validation, code review, and feedback
+   review.
+4. CI workflow definition.
+   Requires OpenSpec or durable architecture decision. Scope the first workflow
+   around the already-recorded verification commands and decide when
+   Testcontainers/browser smoke checks should run.
+5. Template rename/bootstrap automation.
+   Requires OpenSpec or durable architecture decision. Define exact placeholder
+   replacement scope, verification expectations, and whether generated
+   repositories inherit or rewrite template governance.
+6. Template maintenance checks or skill.
+   Requires OpenSpec if it adds automation behavior. Candidate scope:
+   placeholder consistency, docs consistency, generated-client freshness,
+   renamed-repo smoke checks, and stale planning artifact detection.
+7. Dependency automation.
+   Requires OpenSpec or durable architecture decision if implemented as CI or
+   repository automation. Dependabot and Release Please remain deferred until
+   their scope is accepted.
+
+Deferred beyond MVP 1 unless a new decision changes priority:
+
+- Generated EF migrations.
+- Generated TanStack Query helpers from Hey API.
+- Shared UI package conventions beyond current scaffolding.
+- Mailpit or other additional local services.
+- Durable intermodule messaging and outbox processing.
+- Identity-provider Admin API provisioning workflows.
+- Template-change export/import packet schema.
 
 ## Current Goals
 
@@ -697,10 +779,11 @@ Phase 3: Opinionated generator only if proven useful.
     integration: done.
 13. OpenAPI client generation after initial endpoint contracts settle: done
     under `add-generated-api-clients`.
-14. OIDC/browser-session smoke UI in both apps using generated clients:
-    proposed follow-up OpenSpec gate.
-15. Generated TanStack Query helpers: deferred until the smoke UI proves the
-    desired app-facing query shape.
+14. OIDC/browser-session smoke UI in both apps using generated clients: done
+    under `add-browser-session-smoke-and-query-decision`.
+15. Generated TanStack Query helper decision: done for MVP 1. Keep
+    app-facing query composition in `web/packages/auth` and defer Hey API
+    generated query helpers until more Host API operations exist.
 16. Tests and CI: focused backend/frontend tests exist; CI remains deferred.
 17. Agent docs and first skills, including rename/verification: OpenSpec and
     Aspire skills exist; rename/verification automation remains deferred.

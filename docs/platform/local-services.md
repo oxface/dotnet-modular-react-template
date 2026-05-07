@@ -39,6 +39,22 @@ Host HTTP endpoint. Their Vite development servers continue to proxy `/api/`
 and `/auth/` routes to the Host rather than calling identity-provider endpoints
 directly from browser code.
 
+## Browser Session Smoke
+
+The admin and web frontend resources render a small domain-neutral browser
+session smoke surface on their initial screen. Use it to verify that a local
+browser can:
+
+- load current-user state through the same-origin `/api/me` route;
+- start login through the same-origin `/auth/login` route;
+- distinguish unauthenticated, authenticated-without-access, and
+  authenticated-with-access states;
+- start logout through the same-origin `/auth/logout` route.
+
+The smoke surface is intentionally not a product workflow. Browser code must
+continue to call only same-origin app routes and must not receive
+identity-provider access tokens or refresh tokens from Aspire configuration.
+
 ## Reset Behavior
 
 The initial local platform intentionally avoids persistent data volumes. Stopping

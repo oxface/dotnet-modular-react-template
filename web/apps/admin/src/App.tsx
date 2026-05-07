@@ -1,8 +1,7 @@
 import {
+  BrowserSessionSmokeSurface,
   currentUserQueryOptions,
   resolveCurrentUserAccessState,
-  startLogin,
-  startLogout,
   type FetchCurrentUser,
 } from "@modular-template/auth";
 import {
@@ -62,76 +61,13 @@ function AdminShell({ fetchCurrentUser }: AppProps) {
 
   return (
     <main className="app-shell">
-      <section className="surface" aria-labelledby="admin-title">
-        <p className="eyebrow">Administration</p>
-        <h1 id="admin-title">Modular Template Admin</h1>
-        <AccessStatePanel state={accessState} />
-      </section>
+      <BrowserSessionSmokeSurface
+        appName="Modular Template Admin"
+        appDescription="Administration"
+        state={accessState}
+      />
     </main>
   );
-}
-
-function AccessStatePanel({
-  state,
-}: {
-  state: ReturnType<typeof resolveCurrentUserAccessState>;
-}) {
-  switch (state.kind) {
-    case "loading":
-      return <p role="status">Loading session...</p>;
-    case "error":
-      return (
-        <div role="alert">
-          <p>Current user could not be loaded.</p>
-          <p>
-            {state.error instanceof Error
-              ? state.error.message
-              : "Unknown error"}
-          </p>
-        </div>
-      );
-    case "unauthenticated":
-      return (
-        <div className="stack">
-          <p>Sign in to continue.</p>
-          <button type="button" onClick={() => startLogin()}>
-            Sign in
-          </button>
-        </div>
-      );
-    case "no-access":
-      return (
-        <div className="stack">
-          <p>
-            Signed in as{" "}
-            {state.currentUser.user.displayName ??
-              state.currentUser.user.email ??
-              "current user"}
-            .
-          </p>
-          <p>Application access has not been granted for this identity.</p>
-          <button type="button" onClick={() => startLogout()}>
-            Sign out
-          </button>
-        </div>
-      );
-    case "has-access":
-      return (
-        <div className="stack">
-          <p>
-            Signed in as{" "}
-            {state.currentUser.user.displayName ??
-              state.currentUser.user.email ??
-              "current user"}
-            .
-          </p>
-          <p>Admin foundation is ready.</p>
-          <button type="button" onClick={() => startLogout()}>
-            Sign out
-          </button>
-        </div>
-      );
-  }
 }
 
 export function App({ fetchCurrentUser }: AppProps) {

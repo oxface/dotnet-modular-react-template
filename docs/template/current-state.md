@@ -16,6 +16,30 @@ intended to be inherited as stable product documentation.
 
 There are currently no active OpenSpec changes.
 
+## 2026-05-07 Review Update
+
+This checkpoint was reconciled against the repository layout, accepted
+OpenSpec specs, archived changes, package scripts, frontend apps, generated API
+client package, auth helpers, and Aspire orchestration.
+
+Confirmed:
+
+- The worktree was clean during review.
+- `openspec list --json` reported no active changes.
+- The generated API client gate has been archived under
+  `openspec/changes/archive/2026-05-07-add-generated-api-clients/` and merged
+  into current specs.
+- The frontend auth helpers now load current-user state through
+  `web/packages/api-client`, while login/logout remain same-origin browser
+  navigation helpers.
+- The admin and web apps render the current access-state shell, but they do not
+  yet include an end-to-end OIDC/browser-session smoke surface.
+- Aspire defines PostgreSQL, Redis, Keycloak, Migrator, Host, admin Vite, and
+  web Vite resources.
+
+Verification commands were not rerun during this review; the latest recorded
+passing command set remains listed below.
+
 ## Completed Gates
 
 ### Gate 1: Repo Skeleton And Documentation Indexes
@@ -241,6 +265,23 @@ Includes:
 - Root generation and freshness-check scripts.
 - Husky pre-commit generated-client freshness check.
 
+### Gate 12: Browser Session Smoke And Query Decision
+
+Implemented under OpenSpec change
+`add-browser-session-smoke-and-query-decision`.
+
+Includes:
+
+- Domain-neutral browser-session smoke surface in both frontend apps.
+- Current-user smoke state loaded through `web/packages/auth` and the generated
+  API client boundary.
+- Same-origin login/logout commands through shared auth navigation helpers.
+- Frontend tests for unauthenticated, authenticated-without-access, and
+  authenticated-with-access smoke states across both app shells.
+- MVP 1 query helper decision: keep app-facing TanStack Query composition in
+  `web/packages/auth` and defer Hey API generated query helpers until
+  additional Host API operations exist.
+
 ## Deferred Or Absent
 
 The following remain intentionally absent until accepted OpenSpec artifacts or
@@ -288,22 +329,23 @@ dotnet test ModularTemplate.slnx
 
 ## Suggested Next Step
 
-The next substantial runtime/platform gate should add an OIDC/browser-session
-smoke surface that uses the generated clients from both frontend apps to
-exercise the real login, current-user, and logout path. This should start with
-OpenSpec because it adds intentional frontend behavior and verification
-expectations around the browser session boundary.
+The next substantial MVP 1 lane is planning-material reconciliation and pruning
+after durable guidance has been moved to stable docs, accepted OpenSpec specs,
+or explicitly template-only docs. Runtime, CI, generated migration, or
+automation work should still start from OpenSpec or a durable architecture
+decision.
 
-After that smoke gate, consider a generated TanStack Query helpers gate. Hey API
-supports this directly, but the template should first decide whether app code
-uses generated hooks/options directly or consumes template-owned wrappers from
-shared packages.
+The consolidated MVP 1 remaining-step list lives in
+`docs/template/implementation-plan.md`.
 
-After the smoke gate, reconcile planning material before pruning it: move any
-still-useful guidance into stable docs, accepted OpenSpec specs, or
-template-only docs that the future bootstrap script explicitly ignores. Then
-delete obsolete plan documents, run another code review, gather testing
-feedback, and review again.
+Recommended next sequence:
+
+1. Reconcile planning material into stable docs, accepted OpenSpec specs, or
+   explicitly template-only docs.
+2. Prune obsolete plan documents.
+3. Run another code review, gather testing feedback, and review again.
+4. Start CI, rename/bootstrap, or maintenance automation only after an accepted
+   scope exists.
 
 Pure documentation freshness, broken reference cleanup, formatting, restore,
 build, test, and lint fixes can be handled directly when they do not alter

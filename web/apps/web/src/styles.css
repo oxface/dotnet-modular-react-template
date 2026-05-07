@@ -57,3 +57,17 @@ button {
   gap: 0.75rem;
   justify-items: start;
 }
+
+.session-panel {
+  border-left: 4px solid #52796f;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-left: 1rem;
+}
+
+.session-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin: 0;
+}

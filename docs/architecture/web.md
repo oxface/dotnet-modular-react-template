@@ -7,8 +7,9 @@ and generated API clients.
 - `web/apps/admin` is the app-owned administration portal.
 - `web/apps/web` is the neutral user-facing portal.
 - `web/packages/auth` owns browser-safe BFF session helpers, current-user
-  loading, and access-state utilities. Host API calls from this package should
-  use generated client operations when they exist.
+  loading, access-state utilities, app-facing TanStack Query composition, and
+  the domain-neutral browser-session smoke surface. Host API calls from this
+  package should use generated client operations when they exist.
 - `web/packages/api-client` owns the generated TypeScript client for
   template-owned Host API endpoints. Generated files live under
   `src/generated/`; hand-written same-origin configuration and exports stay
@@ -45,15 +46,17 @@ payloads.
 The local pre-commit hook runs `pnpm api-client:check`. Future CI workflows
 should run the same command so OpenAPI/client drift is caught before merge.
 
-Hey API also supports TanStack Query generation. The template currently
-generates SDK/types only and keeps query composition in `web/packages/auth`.
-Generated query helpers are a good follow-up once the next UI smoke gate proves
-the desired app-facing shape. A future change can enable the plugin in
+Hey API also supports TanStack Query generation. For MVP 1, the template
+generates SDK/types only and keeps app-facing query composition in
+`web/packages/auth`. Generated query helpers remain deferred until additional
+Host API operations prove whether apps should consume generated helpers
+directly or through template-owned wrappers. A future change can enable the
+plugin in
 `web/packages/api-client/openapi-ts.config.ts` with a shape like:
 
 ```ts
 plugins: ["@tanstack/react-query"];
 ```
 
-That follow-up should decide whether app code imports generated query helpers
+That follow-up should revisit whether app code imports generated query helpers
 directly or whether shared packages wrap them behind template-owned helpers.

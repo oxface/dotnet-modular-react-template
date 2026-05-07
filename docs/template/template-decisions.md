@@ -31,9 +31,10 @@ still belongs in `openspec/specs/`.
   same-origin app routes and must not store identity-provider tokens.
 - Use `web/packages/api-client` as the generated TypeScript client package for
   template-owned Host API endpoints.
-- Defer Hey API generated TanStack Query helpers until the next UI smoke gate
-  proves whether apps should consume generated query helpers directly or through
-  template-owned shared wrappers.
+- For MVP 1, keep app-facing TanStack Query composition in
+  `web/packages/auth` and defer Hey API generated TanStack Query helpers until
+  additional Host API operations prove whether apps should consume generated
+  helpers directly or through template-owned shared wrappers.
 - Defer Scalar or other interactive API reference UIs until a dedicated local
   API documentation/testing gate defines the auth model.
 - Defer durable intermodule messaging and outbox processing until a concrete
@@ -41,16 +42,17 @@ still belongs in `openspec/specs/`.
 - Defer Mailpit until a mail workflow exists.
 - Defer CI workflows, Dependabot, Release Please, and template
   rename/bootstrap automation until their own accepted scopes exist.
-- Add a later browser-session smoke surface in both frontend apps after
+- Include a small browser-session smoke surface in both frontend apps after
   generated clients exist, so the template exercises login, current-user, and
   logout through the real Host OIDC session path.
 
 ## Current Open Questions
 
-- Should the OIDC/browser-session smoke surface be a tiny visible app section,
-  Playwright-only route, or both?
-- Should Hey API generated TanStack Query helpers be imported directly by apps,
-  or wrapped by shared frontend packages?
+- When should full local-platform browser automation graduate into default or
+  CI validation?
+- When additional Host API operations exist, should Hey API generated TanStack
+  Query helpers be imported directly by apps, or wrapped by shared frontend
+  packages?
 - If a future local API reference UI is added, should it use the existing BFF
   cookie session, a separate OIDC client, or remain unauthenticated
   documentation only?

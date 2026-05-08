@@ -1,0 +1,9 @@
+{
+  "packages": {
+    ".": {
+      "changelog-path": "CHANGELOG.md",
+      "package-name": "modular-template",
+      "release-type": "simple"
+    }
+  }
+}

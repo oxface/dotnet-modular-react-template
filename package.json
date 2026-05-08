@@ -1,42 +1,73 @@
 {
-  "name": "modular-template",
-  "private": true,
+  "name": "dotnet-modular-react-template",
+  "version": "0.0.0",
+  "description": "CLI template factory for bootstrapping a .NET + React modular-monolith product repository.",
+  "private": false,
+  "packageManager": "pnpm@10.33.3",
   "type": "module",
+  "bin": {
+    "dotnet-modular-react-template": "./scripts/bootstrap-template.js"
+  },
+  "files": [
+    "README.md",
+    "LICENSE",
+    "docs/",
+    "scripts/bootstrap-template.js",
+    "template/",
+    "!template/**/.pnpm-store/**",
+    "!template/**/bin/**",
+    "!template/**/coverage/**",
+    "!template/**/dist/**",
+    "!template/**/node_modules/**",
+    "!template/**/obj/**",
+    "!template/**/playwright-report/**",
+    "!template/**/test-results/**",
+    "!template/.husky/_/**",
+    "!template/server/src/ModularTemplate.Persistence/Migrations/**"
+  ],
+  "keywords": [
+    "dotnet",
+    "react",
+    "template",
+    "modular-monolith",
+    "aspire"
+  ],
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.33.3 <11"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.15.0",
+      "onFail": "download"
+    }
+  },
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "api-client:check": "node scripts/check-api-client.js",
-    "api-client:generate": "node scripts/generate-api-client.js",
-    "openapi:generate": "node scripts/generate-openapi.js",
+    "prepack": "pnpm exec node scripts/clean-template-artifacts.js",
     "prepare": "husky",
-    "frontend:build": "pnpm --filter './web/apps/*' build",
-    "frontend:lint": "eslint web --max-warnings 0",
-    "frontend:test": "pnpm --filter './web/apps/*' --filter './web/packages/*' test",
-    "frontend:typecheck": "pnpm --filter './web/apps/*' --filter './web/packages/*' typecheck",
     "scripts:lint": "eslint scripts --max-warnings 0",
-    "template:bootstrap": "node scripts/bootstrap-template.js",
-    "template:verify": "node scripts/verify-bootstrap.js"
+    "scripts:test": "pnpm exec node --test scripts/*.test.js",
+    "template:bootstrap": "pnpm exec node scripts/bootstrap-template.js",
+    "template:verify": "pnpm exec node scripts/verify-bootstrap.js",
+    "template:verify:dry-run": "pnpm exec node scripts/bootstrap-template.js --product-name \"Acme Desk\" --output ../acme-desk --dry-run",
+    "template:verify:full": "pnpm exec node scripts/verify-bootstrap.js --full",
+    "verify": "pnpm format:check && pnpm scripts:lint && pnpm scripts:test && pnpm template:verify:dry-run && pnpm template:verify"
   },
   "devDependencies": {
     "@commitlint/cli": "20.5.3",
     "@commitlint/config-conventional": "20.5.3",
     "@eslint/js": "10.0.1",
-    "@hey-api/openapi-ts": "0.97.1",
-    "@playwright/test": "1.59.1",
-    "@tailwindcss/vite": "4.2.4",
-    "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/react": "16.3.2",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.1",
     "eslint": "10.3.0",
     "husky": "9.1.7",
-    "jsdom": "29.1.1",
     "prettier": "3.8.3",
-    "tailwindcss": "4.2.4",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.59.2",
-    "vite": "8.0.10",
-    "vitest": "4.1.5"
+    "typescript-eslint": "8.59.2"
   }
 }

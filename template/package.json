@@ -1,0 +1,58 @@
+{
+  "name": "modular-template",
+  "private": true,
+  "packageManager": "pnpm@10.33.3",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.33.3 <11"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.15.0",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "api-client:check": "pnpm exec node scripts/check-api-client.js",
+    "api-client:generate": "pnpm exec node scripts/generate-api-client.js",
+    "openapi:generate": "pnpm exec node scripts/generate-openapi.js",
+    "prepare": "husky",
+    "frontend:build": "pnpm --filter './web/apps/*' build",
+    "frontend:lint": "eslint web --max-warnings 0",
+    "frontend:test": "pnpm --filter './web/apps/*' --filter './web/packages/*' test",
+    "frontend:typecheck": "pnpm --filter './web/apps/*' --filter './web/packages/*' typecheck",
+    "scripts:lint": "eslint scripts --max-warnings 0",
+    "backend:restore": "dotnet restore ModularTemplate.slnx",
+    "backend:build": "dotnet build ModularTemplate.slnx --configuration Release --no-restore",
+    "backend:test": "dotnet test ModularTemplate.slnx --configuration Release --no-build --filter \"Category=Unit|Category=Application\"",
+    "verify:backend": "pnpm backend:restore && pnpm backend:build && pnpm backend:test",
+    "verify:frontend": "pnpm frontend:typecheck && pnpm frontend:test && pnpm frontend:build && pnpm frontend:lint && pnpm api-client:check",
+    "verify": "pnpm format:check && pnpm scripts:lint && pnpm verify:backend && pnpm verify:frontend"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "20.5.3",
+    "@commitlint/config-conventional": "20.5.3",
+    "@eslint/js": "10.0.1",
+    "@hey-api/openapi-ts": "0.97.1",
+    "@playwright/test": "1.59.1",
+    "@tailwindcss/vite": "4.2.4",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.1",
+    "eslint": "10.3.0",
+    "husky": "9.1.7",
+    "jsdom": "29.1.1",
+    "prettier": "3.8.3",
+    "tailwindcss": "4.2.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.59.2",
+    "vite": "8.0.10",
+    "vitest": "4.1.5"
+  }
+}

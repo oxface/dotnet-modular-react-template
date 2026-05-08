@@ -26,6 +26,29 @@ IDE/F5 and direct `dotnet run` launches use the AppHost launch profile under
 that profile provides the dashboard, OTLP, resource-service, and local
 HTTP-only development environment variables required by Aspire.
 
+## Podman
+
+Aspire supports Podman as the local container runtime. Set the runtime before
+startup:
+
+```sh
+export ASPIRE_CONTAINER_RUNTIME=podman
+```
+
+Backend tests use Testcontainers and need a Docker-API-compatible socket. For
+rootless Podman on Linux, start the user socket and point Testcontainers at it:
+
+```sh
+systemctl --user enable --now podman.socket
+
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+```
+
+`TESTCONTAINERS_RYUK_DISABLED=true` is commonly needed with rootless Podman. If
+a test run is interrupted, use `podman ps -a` to find and remove leftover test
+containers.
+
 ## Development Defaults
 
 Keycloak is configured through the checked-in realm import under
@@ -52,9 +75,9 @@ and `/auth/` routes to the Host rather than calling identity-provider endpoints
 directly from browser code.
 
 The Migrator runs `ModularTemplateDbContext` migrations during Aspire startup.
-This template intentionally does not include generated EF migrations, so a
-bootstrapped product repository should create and commit its own initial
-migration before relying on the local platform to create the schema.
+This repository intentionally starts without generated EF migrations, so create
+and commit the initial migration before relying on the local platform to create
+the schema.
 
 ## Browser Session Smoke
 

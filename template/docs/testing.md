@@ -1,7 +1,7 @@
 # Testing
 
-Testing is part of the template contract. The template should verify both
-application behavior and template mechanics.
+Testing is part of the product contract. The repository should verify
+application behavior, generated clients, and durable architecture decisions.
 
 Area details:
 
@@ -21,7 +21,6 @@ Current validation entrypoints:
 - `pnpm frontend:lint`
 - `pnpm scripts:lint`
 - `pnpm api-client:check`
-- `pnpm template:verify`
 
 `pnpm api-client:check` is also wired into the local Husky pre-commit hook and
 the default CI workflow.
@@ -32,7 +31,3 @@ restore, build, filtered tests with coverage collection, frontend validation,
 generated API client drift checks, and OpenSpec validation with
 `ASPNETCORE_ENVIRONMENT=Development`, matching the local OpenAPI generation
 configuration. Aspire/browser automation is outside the default CI surface.
-
-Use `pnpm template:verify -- --full` before changing bootstrap behavior. It
-generates a temporary product-named repository and runs the accepted validation
-surface in that generated repository.

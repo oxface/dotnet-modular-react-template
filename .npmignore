@@ -1,0 +1,11 @@
+**/.git/
+**/.pnpm-store/
+**/bin/
+**/coverage/
+**/dist/
+**/node_modules/
+**/obj/
+**/playwright-report/
+**/test-results/
+template/.husky/_/
+template/server/src/ModularTemplate.Persistence/Migrations/

@@ -1,26 +1,16 @@
 # Scripts
 
-Repository helper scripts live here.
+Template-factory helper scripts live here.
 
 ## Available Scripts
 
-- `setup-openspec.sh` installs the pinned OpenSpec CLI and initializes Codex
-  support. It refuses to reuse an existing `openspec/` directory unless
-  `--force` is passed.
-- `generate-openapi.js` generates the Host OpenAPI document used by the
-  frontend API client package.
-- `generate-api-client.js` refreshes the Host OpenAPI document and generated
-  frontend API client.
-- `check-api-client.js` verifies that the checked-in OpenAPI document and
-  generated frontend API client are current.
-- `bootstrap-template.js` creates a product-named repository copy from this
-  template.
+- `bootstrap-template.js` creates a product-named repository from
+  `template/`.
 - `verify-bootstrap.js` creates a temporary sample product repository and
   checks the rename/bootstrap path.
 
 Script files are Node ES modules. The root package sets `"type": "module"` so
-`.js` scripts use `import`/`export` syntax; `commitlint.config.cjs` remains
-CommonJS explicitly because that tool expects it.
+`.js` scripts use `import`/`export` syntax.
 
 ## Template Bootstrap
 
@@ -28,6 +18,12 @@ Create a product repository copy:
 
 ```sh
 pnpm template:bootstrap -- --product-name "Acme Desk" --output ../acme-desk
+```
+
+Preview the derived names and target path without writing files:
+
+```sh
+pnpm template:bootstrap -- --product-name "Acme Desk" --output ../acme-desk --dry-run
 ```
 
 The first bootstrap version accepts one product name and derives:
@@ -41,11 +37,11 @@ The first bootstrap version accepts one product name and derives:
 Run focused bootstrap verification:
 
 ```sh
-pnpm template:verify
+pnpm verify
 ```
 
 Run full generated-repository verification:
 
 ```sh
-pnpm template:verify -- --full
+pnpm template:verify:full
 ```

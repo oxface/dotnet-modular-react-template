@@ -4,7 +4,7 @@ namespace ModularTemplate.Identity.Infrastructure.Tests.Support;
 
 public sealed class PostgreSqlFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:18-alpine")
+    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("docker.io/library/postgres:17-alpine")
         .WithDatabase("modular_template_tests")
         .WithUsername("postgres")
         .WithPassword("postgres")

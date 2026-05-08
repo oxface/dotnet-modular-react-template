@@ -4,18 +4,20 @@ This file records decisions made while building this template repository. It is
 maintenance context for the template itself and is not intended to become
 inherited product ADR history.
 
-Stable product-facing rules belong in `docs/`, and accepted behavior contracts
-belong in `openspec/specs/`.
+Stable product-facing rules belong in `template/docs/`, and accepted behavior
+contracts belong in `template/openspec/specs/`.
 
 ## Implemented Direction
 
-- Use a monorepo with `server`, `web`, `orchestration`, `docs`, `deploy`, and
-  `scripts` roots.
+- Keep the factory at the repository root and the generated-product payload
+  under `template/`.
+- Use a generated-product monorepo with `server`, `web`, `orchestration`,
+  `docs`, `deploy`, and `scripts` roots.
 - Use `ModularTemplate` as the placeholder .NET namespace and package prefix.
 - Keep the root solution in `.slnx` format as `ModularTemplate.slnx`.
 - Use OpenSpec as the default spec-driven development workflow for accepted
   runtime and product-facing behavior contracts.
-- Keep hard template governance in `docs/governance.md`.
+- Keep hard product governance in `template/docs/governance.md`.
 - Use a shared Host-owned EF Core DbContext in `ModularTemplate.Persistence`,
   with narrow module DbContext interfaces to preserve module boundaries.
 - Keep auth mechanics in the Host and local identity/application-access
@@ -38,17 +40,20 @@ belong in `openspec/specs/`.
 - Run explicit backend restore, build, and filtered `Unit`/`Application` test
   steps in CI, with backend test coverage collected and uploaded as a workflow
   artifact.
-- Keep bootstrap verification out of default CI; run it locally for template
-  maintenance with `pnpm template:verify`.
+- Keep focused bootstrap verification in factory CI. Reserve full
+  generated-product verification for release readiness.
 - Provide out-of-place template rename/bootstrap automation that accepts one
   product name and output path, derives all first-version naming forms, and
   verifies a temporary generated repository.
 - Keep root `pnpm` scripts as the public template automation interface.
 - Keep template automation internals as Node `.js` scripts so the scripts are
   easier to package and test later.
-- Treat product creation as copy plus explicit rename/bootstrap automation.
-- Keep `docs/template/` as template-repository planning context; bootstrap
-  automation excludes this folder from generated products.
+- Treat product creation as copy from `template/` plus explicit
+  rename/bootstrap automation.
+- Keep template-factory planning context directly under root `docs/`.
+- Publish the factory root as the `dotnet-modular-react-template` npm CLI
+  package. The package ships the generated-product payload and exposes
+  `dotnet-modular-react-template` as the bootstrap command.
 
 ## Naming Model
 

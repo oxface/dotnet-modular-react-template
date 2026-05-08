@@ -1,0 +1,10 @@
+**/.pnpm-store/
+**/bin/
+**/coverage/
+**/dist/
+**/node_modules/
+**/obj/
+**/playwright-report/
+**/test-results/
+.husky/_/
+server/src/ModularTemplate.Persistence/Migrations/

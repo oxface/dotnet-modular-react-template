@@ -1,26 +1,25 @@
 # Repository Governance
 
-This document contains the durable project rules for this template repository.
-It replaces the former Spec Kit constitution as the tool-neutral governance
-source.
+This document contains the durable project rules for this repository. It
+replaces the former Spec Kit constitution as the tool-neutral governance source.
 
 ## Core Principles
 
-### I. Domain-Neutral Template First
+### I. Domain-Neutral Product First
 
 This repository MUST remain a reusable .NET and React modular-monolith
-template. Template work MUST NOT introduce product-specific domain behavior,
-sample business workflows, generated migrations, production secrets, or
-provider-bound authorization decisions.
+foundation. Changes MUST NOT introduce unrelated sample business workflows,
+unchecked generated migrations, production secrets, or provider-bound
+authorization decisions.
 
 ### II. Reviewed Runtime Surface
 
 Substantial runtime behavior MUST start from accepted spec-driven development
 artifacts or a durable architecture decision before code is added.
 Auth/session plumbing, persistence behavior, frontend apps, orchestration
-resources, CI workflows, generated clients, and template automation MUST NOT be
-introduced without accepted feature artifacts or a durable architecture
-decision that states the scope.
+resources, CI workflows, and generated clients MUST NOT be introduced without
+accepted feature artifacts or a durable architecture decision that states the
+scope.
 
 The default SDD workflow is OpenSpec. Accepted current behavior lives under
 `openspec/specs/`; active proposed changes live under `openspec/changes/`.
@@ -49,7 +48,7 @@ persistence, auth/session flows, frontend workflows, and generated clients MUST
 include tests or explicit verification steps proportionate to their blast
 radius.
 
-## Template Constraints
+## Repository Constraints
 
 - Specs and plans MUST load repository context before making design choices:
   this document, `openspec/specs/`, `docs/architecture.md`, relevant
@@ -62,14 +61,14 @@ radius.
   Identity-provider roles, groups, organizations, or provider-specific claims
   MUST NOT be authoritative for product authorization.
 - Durable intermodule messaging, outbox processing, orchestration resources,
-  CI workflows, generated migrations, and template automation MUST remain out
-  of scope unless accepted feature artifacts or durable architecture decisions
-  state their scope.
+  CI workflows, and generated migrations MUST remain out of scope unless
+  accepted feature artifacts or durable architecture decisions state their
+  scope.
 
 ## Development Workflow
 
 Substantial behavior MUST start from an OpenSpec change before code is added.
-Durable architecture and template decisions MUST first be recorded in the
+Durable architecture decisions MUST first be recorded in the
 relevant stable architecture, platform, testing, module, or governance doc.
 OpenSpec planning MUST prefer repository docs as context over duplicating long
 architecture guidance in prompts.
@@ -77,14 +76,14 @@ architecture guidance in prompts.
 When a change is completed and accepted, archive it so accepted behavior is
 merged into `openspec/specs/` before the next related change begins.
 
-Generated product repositories MAY amend this governance document after
-bootstrap, but any amendment MUST preserve an explicit decision trail and
-update affected docs, templates, and task workflows in the same change.
+Product repositories MAY amend this governance document, but any amendment MUST
+preserve an explicit decision trail and update affected docs, templates, and
+task workflows in the same change.
 
 ## Governance Changes
 
 This document supersedes conflicting generated instructions and local agent
-memory for template work. If an OpenSpec change, task list, or implementation
+memory for repository work. If an OpenSpec change, task list, or implementation
 conflicts with a MUST rule here, the artifact or implementation MUST change
 unless this document is explicitly amended first.
 

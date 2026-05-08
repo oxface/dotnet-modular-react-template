@@ -1,0 +1,9 @@
+{
+  "packages": {
+    ".": {
+      "changelog-path": "CHANGELOG.md",
+      "package-name": "dotnet-modular-react-template",
+      "release-type": "node"
+    }
+  }
+}

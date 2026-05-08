@@ -3,15 +3,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: [
-      "node_modules/**",
-      "server/**/bin/**",
-      "server/**/obj/**",
-      "orchestration/**/bin/**",
-      "orchestration/**/obj/**",
-      "web/**/dist/**",
-      "web/packages/api-client/src/generated/**",
-    ],
+    ignores: ["node_modules/**", "template/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -21,19 +13,6 @@ export default tseslint.config(
       globals: {
         console: "readonly",
       },
-    },
-  },
-  {
-    files: ["web/**/*.ts", "web/**/*.tsx"],
-    languageOptions: {
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    rules: {
-      "@typescript-eslint/consistent-type-imports": "error",
-      "@typescript-eslint/no-floating-promises": "error",
     },
   },
 );

@@ -4,7 +4,6 @@ import {
   mkdir,
   readFile,
   readdir,
-  rm,
   rename,
   stat,
   writeFile,
@@ -12,51 +11,76 @@ import {
 import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(import.meta.dirname, "..");
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "..");
+const templateRoot = path.join(repoRoot, "template");
 
-const textFileExtensions = new Set([
-  ".cs",
-  ".csproj",
-  ".css",
-  ".editorconfig",
-  ".html",
-  ".json",
-  ".js",
-  ".md",
-  ".props",
-  ".sh",
-  ".slnx",
-  ".ts",
-  ".tsx",
-  ".xml",
-  ".yaml",
-  ".yml",
-]);
+const manifest = {
+  source: templateRoot,
+  textFileExtensions: [
+    ".cs",
+    ".csproj",
+    ".css",
+    ".editorconfig",
+    ".html",
+    ".json",
+    ".js",
+    ".md",
+    ".props",
+    ".sh",
+    ".slnx",
+    ".ts",
+    ".tsx",
+    ".xml",
+    ".yaml",
+    ".yml",
+  ],
+  textFileNames: [".gitattributes", ".gitignore", ".prettierignore"],
+  ignoredSegments: [
+    ".git",
+    ".pnpm-store",
+    ".vs",
+    "bin",
+    "coverage",
+    "dist",
+    "node_modules",
+    "obj",
+    "playwright-report",
+    "test-results",
+  ],
+  ignoredRelativePaths: [
+    ".husky/_",
+    ".npmignore",
+    "server/src/ModularTemplate.Persistence/Migrations",
+  ],
+  placeholders(names) {
+    return [
+      ["@modular-template", names.npmScope],
+      ["ModularTemplate", names.pascal],
+      ["Modular Template", names.display],
+      ["modular-template", names.slug],
+      ["modular_template", names.snake],
+      ["dotnet-modular-react-template", names.slug],
+    ];
+  },
+};
 
-const excludedPathSegments = new Set([
-  ".git",
-  ".pnpm-store",
-  ".vs",
-  "bin",
-  "coverage",
-  "dist",
-  "node_modules",
-  "obj",
-  "playwright-report",
-  "test-results",
-]);
-
-const excludedRelativePaths = new Set(["docs/template", "openspec/changes"]);
+const textFileExtensions = new Set(manifest.textFileExtensions);
+const textFileNames = new Set(manifest.textFileNames);
+const ignoredSegments = new Set(manifest.ignoredSegments);
+const ignoredRelativePaths = new Set(manifest.ignoredRelativePaths);
 
 function usage() {
   console.log(
-    `Usage: node scripts/bootstrap-template.js --product-name "Acme Desk" --output ../acme-desk`,
+    `Usage: node scripts/bootstrap-template.js --product-name "Acme Desk" --output ../acme-desk [--dry-run]`,
   );
 }
 
 function parseArgs(argv) {
   const args = {
+    dryRun: false,
     productName: "",
     output: "",
   };
@@ -74,6 +98,11 @@ function parseArgs(argv) {
 
     if (arg === "--output") {
       args.output = argv[++i] ?? "";
+      continue;
+    }
+
+    if (arg === "--dry-run") {
+      args.dryRun = true;
       continue;
     }
 
@@ -134,14 +163,7 @@ function deriveNames(productName) {
 }
 
 function getMappings(names) {
-  return [
-    ["@modular-template", names.npmScope],
-    ["ModularTemplate", names.pascal],
-    ["Modular Template", names.display],
-    ["modular-template", names.slug],
-    ["modular_template", names.snake],
-    ["net-react-modular-template", names.slug],
-  ];
+  return manifest.placeholders(names);
 }
 
 function normalizeRelative(relativePath) {
@@ -149,31 +171,26 @@ function normalizeRelative(relativePath) {
 }
 
 function shouldExclude(src) {
-  const relative = normalizeRelative(path.relative(repoRoot, src));
+  const relative = normalizeRelative(path.relative(manifest.source, src));
   if (!relative) {
     return false;
   }
 
-  if (excludedRelativePaths.has(relative)) {
-    return true;
-  }
-
   if (
-    [...excludedRelativePaths].some((excluded) =>
-      relative.startsWith(`${excluded}/`),
+    ignoredRelativePaths.has(relative) ||
+    [...ignoredRelativePaths].some((ignored) =>
+      relative.startsWith(`${ignored}/`),
     )
   ) {
     return true;
   }
 
-  return relative
-    .split("/")
-    .some((segment) => excludedPathSegments.has(segment));
+  return relative.split("/").some((segment) => ignoredSegments.has(segment));
 }
 
 function isTextFile(filePath) {
   const name = path.basename(filePath);
-  if (name === ".gitignore" || name === ".gitattributes") {
+  if (textFileNames.has(name)) {
     return true;
   }
 
@@ -232,33 +249,6 @@ async function rewritePaths(outputRoot, mappings) {
   }
 }
 
-async function removeTemplateDocReferences(outputRoot) {
-  const docsReadme = path.join(outputRoot, "docs", "README.md");
-  if (!existsSync(docsReadme)) {
-    return;
-  }
-
-  const lines = (await readFile(docsReadme, "utf8")).split(/\r?\n/);
-  const filtered = [];
-  let skipContinuation = false;
-
-  for (const line of lines) {
-    if (line.startsWith("- ") && line.includes("(template/")) {
-      skipContinuation = true;
-      continue;
-    }
-
-    if (skipContinuation && line.startsWith("  ")) {
-      continue;
-    }
-
-    skipContinuation = false;
-    filtered.push(line);
-  }
-
-  await writeFile(docsReadme, `${filtered.join("\n").trimEnd()}\n`, "utf8");
-}
-
 async function removeTemplateOnlyGitignoreEntries(outputRoot) {
   const gitignorePath = path.join(outputRoot, ".gitignore");
   if (!existsSync(gitignorePath)) {
@@ -273,48 +263,6 @@ async function removeTemplateOnlyGitignoreEntries(outputRoot) {
 
   if (updated !== gitignore) {
     await writeFile(gitignorePath, updated, "utf8");
-  }
-}
-
-async function removeTemplateAutomation(outputRoot) {
-  await rm(path.join(outputRoot, "scripts", "bootstrap-template.js"), {
-    force: true,
-  });
-  await rm(path.join(outputRoot, "scripts", "verify-bootstrap.js"), {
-    force: true,
-  });
-
-  const packageJsonPath = path.join(outputRoot, "package.json");
-  if (existsSync(packageJsonPath)) {
-    const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
-    delete packageJson.scripts?.["template:bootstrap"];
-    delete packageJson.scripts?.["template:verify"];
-    await writeFile(
-      packageJsonPath,
-      `${JSON.stringify(packageJson, null, 2)}\n`,
-      "utf8",
-    );
-  }
-
-  const scriptsReadme = path.join(outputRoot, "scripts", "README.md");
-  if (existsSync(scriptsReadme)) {
-    const readme = `# Scripts
-
-Repository helper scripts live here.
-
-## Available Scripts
-
-- \`setup-openspec.sh\` installs the pinned OpenSpec CLI and initializes Codex
-  support. It refuses to reuse an existing \`openspec/\` directory unless
-  \`--force\` is passed.
-- \`generate-openapi.js\` generates the Host OpenAPI document used by the
-  frontend API client package.
-- \`generate-api-client.js\` refreshes the Host OpenAPI document and generated
-  frontend API client.
-- \`check-api-client.js\` verifies that the checked-in OpenAPI document and
-  generated frontend API client are current.
-`;
-    await writeFile(scriptsReadme, readme, "utf8");
   }
 }
 
@@ -371,8 +319,18 @@ async function bootstrap() {
   const names = deriveNames(args.productName);
   const mappings = getMappings(names);
 
+  if (args.dryRun) {
+    console.log(`Would create ${names.display} at ${outputRoot}`);
+    console.log(`Source: ${manifest.source}`);
+    console.log(`Namespace: ${names.pascal}`);
+    console.log(`Slug: ${names.slug}`);
+    console.log(`Database slug: ${names.snake}`);
+    console.log(`NPM scope: ${names.npmScope}`);
+    return;
+  }
+
   await mkdir(path.dirname(outputRoot), { recursive: true });
-  await cp(repoRoot, outputRoot, {
+  await cp(manifest.source, outputRoot, {
     dereference: false,
     errorOnExist: true,
     filter: (src) => !shouldExclude(src),
@@ -382,9 +340,7 @@ async function bootstrap() {
 
   await rewriteFiles(outputRoot, mappings);
   await rewritePaths(outputRoot, mappings);
-  await removeTemplateDocReferences(outputRoot);
   await removeTemplateOnlyGitignoreEntries(outputRoot);
-  await removeTemplateAutomation(outputRoot);
   await updateRootReadme(outputRoot, names);
 
   console.log(`Created ${names.display} at ${outputRoot}`);
@@ -394,7 +350,25 @@ async function bootstrap() {
   console.log(`NPM scope: ${names.npmScope}`);
 }
 
-bootstrap().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
+if (
+  process.argv[1] &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+) {
+  bootstrap().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}
+
+export {
+  applyMappings,
+  bootstrap,
+  deriveNames,
+  getMappings,
+  isTextFile,
+  manifest,
+  removeTemplateOnlyGitignoreEntries,
+  rewriteFile,
+  rewritePaths,
+  shouldExclude,
+};

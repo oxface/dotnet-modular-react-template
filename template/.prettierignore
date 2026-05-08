@@ -6,7 +6,6 @@
 node_modules/
 .pnpm-store/
 .husky/_/
-template/.husky/_/
 dist/
 build/
 coverage/
@@ -18,7 +17,6 @@ obj/
 *.tmp
 .env*
 .npmignore
-template/.npmignore
 package-lock.json
 yarn.lock
 pnpm-lock.yaml

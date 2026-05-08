@@ -1,1 +1,4 @@
+pnpm format:check
+pnpm scripts:lint
+pnpm frontend:typecheck
 pnpm api-client:check

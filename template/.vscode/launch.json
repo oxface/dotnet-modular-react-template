@@ -5,7 +5,7 @@
       "type": "aspire",
       "request": "launch",
       "name": "Aspire: Launch default AppHost",
-      "program": "${workspaceFolder}"
+      "program": "${workspaceFolder}/orchestration/ModularTemplate.Orchestration/ModularTemplate.Orchestration.csproj"
     }
   ]
 }

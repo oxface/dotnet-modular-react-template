@@ -1,6 +1,6 @@
-# net-react-modular-template
+# modular-template
 
-Domain-neutral .NET + React modular-monolith template.
+Domain-neutral .NET + React modular-monolith product repository.
 
 Substantial runtime behavior starts from accepted OpenSpec artifacts or durable
 architecture decisions. Stable governance, architecture, platform, testing, and
@@ -13,42 +13,57 @@ Start with:
 - [docs/openspec.md](docs/openspec.md) for the spec-driven development
   workflow.
 
-## Use The Template
+## Initial Setup
 
-Create a product-named repository copy:
+Use Node 24 and pnpm 10.33.x for frontend and repository tooling.
+
+Use either Docker or Podman for local container services. When using rootless
+Podman on Linux, start the Podman socket and expose it to Testcontainers before
+running backend verification:
 
 ```sh
-pnpm template:bootstrap -- --product-name "Acme Desk" --output ../acme-desk
+systemctl --user enable --now podman.socket
+
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+export ASPIRE_CONTAINER_RUNTIME=podman
 ```
 
-The bootstrap command accepts one display-oriented product name and derives the
-.NET namespace/project prefix, npm scope, local service slugs, database names,
-and visible display text. Template automation is exposed through root `pnpm`
-scripts and implemented as Node `.js` scripts under `scripts/` so the helpers
-can be tested and packaged later.
-
-After bootstrapping a product repository, generate that product's initial EF
-migration before using the local Aspire platform. Using the example above:
+Generate the initial EF migration before using the local Aspire platform:
 
 ```sh
 dotnet tool restore
+dotnet restore ModularTemplate.slnx
 
 DOTNET_ENVIRONMENT=Development ASPNETCORE_ENVIRONMENT=Development \
   dotnet ef migrations add InitialCreate \
-  --project server/src/AcmeDesk.Persistence/AcmeDesk.Persistence.csproj \
-  --startup-project server/src/AcmeDesk.Host/AcmeDesk.Host.csproj \
-  --context AcmeDeskDbContext \
+  --project server/src/ModularTemplate.Persistence/ModularTemplate.Persistence.csproj \
+  --startup-project server/src/ModularTemplate.Host/ModularTemplate.Host.csproj \
+  --context ModularTemplateDbContext \
   --output-dir Migrations
 ```
 
-The template intentionally does not commit generated EF migrations, and
-`.gitignore` does not ignore migration folders so generated products can track
-their own migration history.
+The repository starts without generated EF migrations, and `.gitignore` does
+not ignore migration folders so the product can track its own migration history.
 
-Useful maintenance commands:
+Start the local platform:
 
+```sh
+ASPIRE_CONTAINER_RUNTIME=${ASPIRE_CONTAINER_RUNTIME:-docker} \
+  aspire start --apphost orchestration/ModularTemplate.Orchestration/ModularTemplate.Orchestration.csproj --isolated
+```
+
+Use `aspire describe` to inspect resource status and endpoints after startup.
+
+Useful commands:
+
+- `pnpm verify`
+- `pnpm verify:backend`
+- `pnpm verify:frontend`
 - `pnpm api-client:generate`
 - `pnpm api-client:check`
 - `pnpm scripts:lint`
-- `pnpm template:verify`
-- `pnpm template:verify -- --full`
+- `pnpm frontend:typecheck`
+- `pnpm frontend:test`
+- `pnpm frontend:build`
+- `pnpm frontend:lint`

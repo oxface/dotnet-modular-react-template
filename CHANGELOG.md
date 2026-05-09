@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.2...dotnet-modular-react-template-v1.0.3) (2026-05-09)
+
+
+### Bug Fixes
+
+* pin workflow node runtime for npm publish ([71d1880](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/71d18802da40737694952107c30e14f5a8649a82))
+
 ## [1.0.2](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.1...dotnet-modular-react-template-v1.0.2) (2026-05-09)
 
 

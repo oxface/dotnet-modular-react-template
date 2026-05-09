@@ -17,9 +17,10 @@ pnpm template:verify:full
 
 Expected:
 
-- `node -v` reports Node 24. This matters for `pnpm pack`, because pnpm checks
-  package `engines` with the ambient Node runtime that launched pnpm.
-- `pnpm exec node -v` reports Node 24.
+- `node -v` reports Node 24.15.0 or newer. This matters for `pnpm pack` and
+  `npm publish`, because package-manager commands check package `engines` and
+  `devEngines` with the ambient Node runtime that launched them.
+- `pnpm exec node -v` reports Node 24.15.0 or newer.
 - `pnpm verify` passes.
 - `pnpm template:verify:full` passes against Docker or Podman.
 

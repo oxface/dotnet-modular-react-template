@@ -124,8 +124,8 @@ Before publishing:
 - Add `NPM_TOKEN` to GitHub Actions secrets for the current publish workflow.
 - Let Release Please create the release PR and set the first real version.
 
-After the GitHub release publishes the npm package, test from a separate
-throwaway directory outside the factory repo:
+After the Release Please workflow creates the GitHub release and publishes the
+npm package, test from a separate throwaway directory outside the factory repo:
 
 ```sh
 mkdir -p /tmp/npm-template-consumer

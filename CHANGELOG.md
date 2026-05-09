@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.3...dotnet-modular-react-template-v1.0.4) (2026-05-09)
+
+
+### Bug Fixes
+
+* use npm trusted publishing ([3c714c1](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/3c714c13c71a85fe6588b26e74622370556d75a3))
+
 ## [1.0.3](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.2...dotnet-modular-react-template-v1.0.3) (2026-05-09)
 
 

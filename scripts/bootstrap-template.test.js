@@ -51,6 +51,14 @@ test("derives product naming forms from a single display name", () => {
     snake: "cafe_desk_42",
   });
 
+  assert.deepEqual(deriveNames("CommandDeck"), {
+    display: "CommandDeck",
+    npmScope: "@commanddeck",
+    pascal: "CommandDeck",
+    slug: "commanddeck",
+    snake: "commanddeck",
+  });
+
   assert.throws(
     () => deriveNames("42 Desk"),
     /namespace that starts with a letter/,

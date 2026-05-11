@@ -134,7 +134,14 @@ function splitWords(productName) {
 
 function toPascalCase(words) {
   return words
-    .map((word) => `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`)
+    .map((word) => {
+      const hasInteriorCamelCase = /[a-z][A-Z]/.test(word);
+      if (hasInteriorCamelCase) {
+        return `${word[0].toUpperCase()}${word.slice(1)}`;
+      }
+
+      return `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`;
+    })
     .join("");
 }
 

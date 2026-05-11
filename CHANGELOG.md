@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.11](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.10...dotnet-modular-react-template-v1.0.11) (2026-05-11)
+
+
+### Bug Fixes
+
+* fixed openspec init script ([8ab653e](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/8ab653e2f416822bd7a677715062a70de237cf08))
+* merge conflicts ([b8a73fc](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/b8a73fc989fb9c27d942efeb07a7651c20602092))
+* openspec cleanup ([15aab3b](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/15aab3beee502a50961d60671548d680ffa2fed4))
+
 ## [1.0.10](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.9...dotnet-modular-react-template-v1.0.10) (2026-05-11)
 
 

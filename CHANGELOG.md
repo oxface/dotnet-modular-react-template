@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.6](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.5...dotnet-modular-react-template-v1.0.6) (2026-05-11)
+
+
+### Bug Fixes
+
+* configure npm publishing metadata ([ff2d65d](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/ff2d65d6bec797474804a366e68bf1415356b0b6))
+
 ## [1.0.5](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.4...dotnet-modular-react-template-v1.0.5) (2026-05-09)
 
 

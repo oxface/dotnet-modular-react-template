@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.12](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.11...dotnet-modular-react-template-v1.0.12) (2026-05-12)
+
+
+### Bug Fixes
+
+* added the initial migration ([e0f4ef8](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/e0f4ef805c77e1f1372f8a921e4322162cd721d7))
+* auth admin wireup ([10bc307](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/10bc30782a7f67176188d5eb380d060cdb8fe4bb))
+* packages versions ([9224b87](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/9224b8749280c551d7b304a365ad53f2180571dd))
+
 ## [1.0.11](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.10...dotnet-modular-react-template-v1.0.11) (2026-05-11)
 
 

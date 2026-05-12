@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.13](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.12...dotnet-modular-react-template-v1.0.13) (2026-05-12)
+
+
+### Bug Fixes
+
+* auth provider bootstrap ([07e2d01](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/07e2d01dc38b04acc616372096a5ac61b2b07bd1))
+* dependabot settings ([13e0584](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/13e0584ebb2b91cf329e99156abfcc2c393f57a3))
+* dependencies updates ([d97a526](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/d97a52680eda7f99c7b602f3bcdabd499058fd75))
+
 ## [1.0.12](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.11...dotnet-modular-react-template-v1.0.12) (2026-05-12)
 
 

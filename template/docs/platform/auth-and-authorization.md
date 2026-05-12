@@ -39,6 +39,12 @@ authenticated identity value, requires authentication for the current-user
 endpoint, and exposes application-access authorization as a Host policy backed
 by Identity contracts.
 
+During OIDC token validation, the Host normalizes the authenticated provider to
+the configured `Authentication:Oidc:Authority` and stores it in the local
+session as a `provider` claim. Current-user resolution uses that provider plus
+the stable subject claim so local user records match Migrator initial-admin
+configuration even when provider token claim sets differ.
+
 API authentication failures return `401` without browser redirects. API
 authorization failures for authenticated users without active application-owned
 access return `403`.

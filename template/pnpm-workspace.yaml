@@ -1,6 +1,7 @@
 packages:
   - "web/apps/*"
   - "web/packages/*"
+minimumReleaseAge: 10080
 auditConfig:
   ignoreCves:
     - GHSA-rmmr-r34h-pfm5

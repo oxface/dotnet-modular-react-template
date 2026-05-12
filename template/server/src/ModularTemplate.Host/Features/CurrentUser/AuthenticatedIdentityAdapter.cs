@@ -1,16 +1,11 @@
 using System.Security.Claims;
+using ModularTemplate.Host.Authentication;
 using ModularTemplate.Identity.Contracts.CurrentUser;
 
 namespace ModularTemplate.Host.Features.CurrentUser;
 
 public static class AuthenticatedIdentityAdapter
 {
-    private const string ProviderClaimType = "provider";
-    private const string SubjectClaimType = "sub";
-    private const string IssuerClaimType = "iss";
-    private const string NameClaimType = "name";
-    private const string EmailClaimType = "email";
-
     public static AuthenticatedIdentity? FromClaimsPrincipal(ClaimsPrincipal principal)
     {
         if (principal.Identity?.IsAuthenticated != true)
@@ -19,20 +14,25 @@ public static class AuthenticatedIdentityAdapter
         }
 
         string? subject = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
-            ?? principal.FindFirst(SubjectClaimType)?.Value;
+            ?? principal.FindFirst(AppSessionClaimTypes.Subject)?.Value;
         if (string.IsNullOrWhiteSpace(subject))
         {
             return null;
         }
 
+        string? provider = principal.FindFirst(AppSessionClaimTypes.Provider)?.Value
+            ?? principal.FindFirst(AppSessionClaimTypes.Issuer)?.Value;
+        if (string.IsNullOrWhiteSpace(provider))
+        {
+            return null;
+        }
+
         return new AuthenticatedIdentity(
-            principal.FindFirst(ProviderClaimType)?.Value
-                ?? principal.FindFirst(IssuerClaimType)?.Value
-                ?? "oidc",
+            provider,
             subject,
             principal.FindFirst(ClaimTypes.Name)?.Value
-                ?? principal.FindFirst(NameClaimType)?.Value,
+                ?? principal.FindFirst(AppSessionClaimTypes.Name)?.Value,
             principal.FindFirst(ClaimTypes.Email)?.Value
-                ?? principal.FindFirst(EmailClaimType)?.Value);
+                ?? principal.FindFirst(AppSessionClaimTypes.Email)?.Value);
     }
 }

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
@@ -92,6 +93,22 @@ public static class HostAuthenticationConfiguration
                 options.Scope.Add("openid");
                 options.Scope.Add("profile");
                 options.Scope.Add("email");
+                options.Events.OnTokenValidated = context =>
+                {
+                    if (context.Principal?.Identity is ClaimsIdentity identity
+                        && !identity.HasClaim(claim => claim.Type == AppSessionClaimTypes.Provider))
+                    {
+                        string? provider = context.SecurityToken?.Issuer
+                            ?? context.Options.Configuration?.Issuer
+                            ?? context.Options.Authority;
+                        if (!string.IsNullOrWhiteSpace(provider))
+                        {
+                            identity.AddClaim(new Claim(AppSessionClaimTypes.Provider, provider));
+                        }
+                    }
+
+                    return Task.CompletedTask;
+                };
             });
         builder.Services.AddAuthorization();
 

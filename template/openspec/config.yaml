@@ -1,0 +1,81 @@
+schema: spec-driven
+
+context: |
+
+  Treat docs/governance.md as the project constitution. If any proposed
+  artifact conflicts with a MUST rule in governance, the artifact must change
+  unless governance is explicitly amended first.
+
+  Durable project knowledge belongs in versioned repository files:
+  - Stable architecture and platform rules live under docs/.
+  - Accepted feature behavior lives under openspec/specs/.
+  - Active proposed behavior lives under openspec/changes/.
+
+  Before proposing or implementing substantial runtime behavior, read:
+  - docs/governance.md
+  - docs/README.md
+  - docs/architecture.md
+  - relevant docs/architecture/*.md files
+  - relevant docs/platform/*.md files
+  - docs/testing.md and relevant docs/testing/*.md files
+  - existing specs under openspec/specs/
+
+  Canonical stack and conventions:
+  - Backend: .NET modular monolith, ASP.NET Core Minimal APIs, EF Core,
+    PostgreSQL, Mediator, explicit module boundaries.
+  - Frontend: React, Vite, TanStack Query, TanStack Router, Tailwind, pnpm,
+    generated TypeScript API client.
+  - Local orchestration: Aspire with Host, Migrator, PostgreSQL, Redis,
+    Keycloak, and Vite frontend resources.
+  - Authentication mechanics are Host/platform-owned; product authorization is
+    application-owned and provider-neutral.
+
+  Modular-monolith rules:
+  - Host composes HTTP/platform behavior.
+  - Business behavior belongs in module-owned contracts and feature slices.
+  - Module contracts must not expose EF entities, aggregate internals,
+    provider SDK types, ClaimsPrincipal, or Host-specific HTTP concepts.
+  - Module implementations must not use another module's DbSet surface
+    directly.
+  - Durable intermodule messaging, outbox processing, orchestration resources,
+    generated migrations, frontend apps, auth/session plumbing, CI workflows,
+    and generated clients require accepted feature artifacts or durable
+    architecture decisions that state the scope.
+
+  Verification expectations:
+  - Behavior changes require tests or explicit verification proportionate to
+    risk and blast radius.
+  - Runtime behavior, persistence, auth/session flows, frontend workflows,
+    generated clients, and shared abstractions require focused verification.
+  - AI workflows should eventually use eval tests, but eval tests should not
+    run by default.
+
+rules:
+  proposal:
+    - State why the change is needed now and what product or architecture gap it closes.
+    - Explicitly list non-goals or out-of-scope areas when the change touches product behavior, infrastructure, AI, auth, persistence, external integrations, or frontend workflow.
+    - Identify whether the change introduces runtime behavior, persistence, external IO, frontend apps, auth/session plumbing, generated clients, migrations, CI, orchestration resources, or durable architecture direction.
+    - Keep provider-specific details out of product authorization decisions.
+    - Prefer small vertical slices that can be verified and archived before the next related change.
+
+  design:
+    - Reference the stable docs that govern the design instead of duplicating long architecture guidance.
+    - Define module boundaries, ownership, and dependency direction for backend behavior.
+    - Keep CommandDeck product state separate from framework-owned or execution-local state.
+    - Specify which decisions are deterministic and which are LLM-assisted when AI behavior is involved.
+    - Describe persistence, migration, rollback, observability, and verification implications when relevant.
+    - Include alternatives considered for important architecture choices.
+
+  specs:
+    - Use SHALL or MUST for normative behavior and keep every requirement testable.
+    - Each requirement must include at least one Scenario with exactly four leading hash characters.
+    - Describe user-visible or externally observable behavior, not implementation mechanics.
+    - Include negative scenarios for authorization, validation, irreversible actions, or external mutations when relevant.
+    - Do not specify autonomous external mutations unless human approval, deterministic validation, and integration ownership are explicit in scope.
+
+  tasks:
+    - Use checkbox tasks in dependency order, with each task small enough to complete and verify in one focused session.
+    - Include tasks for docs updates when implementation resolves open questions or creates durable decisions.
+    - Include generated migration and generated client tasks only when the accepted scope requires them.
+    - Include backend, frontend, OpenSpec, formatting, and drift checks proportionate to the touched surface.
+    - Do not mark broad behavior complete without corresponding tests or an explicit verification note.

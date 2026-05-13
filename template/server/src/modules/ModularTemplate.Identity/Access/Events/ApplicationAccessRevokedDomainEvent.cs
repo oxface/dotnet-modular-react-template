@@ -3,8 +3,8 @@ using ModularTemplate.SharedKernel.Domain;
 namespace ModularTemplate.Identity.Access.Events;
 
 [DomainEventType(
-    "identity.application-access-revoked",
     "identity.application-access",
+    "identity.application-access-revoked",
     1)]
 public sealed record ApplicationAccessRevokedDomainEvent(
     Guid ApplicationAccessId,

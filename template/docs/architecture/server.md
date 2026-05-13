@@ -100,7 +100,7 @@ Aggregates own domain transitions and raise domain events for relevant actions.
 Child entities owned by an aggregate root should keep constructors, factories,
 and mutators private or internal to the aggregate unless the model documents a
 reason for independent lifecycle control. Domain event classes declare stable
-event type, aggregate type, and version metadata with explicit attributes so
+aggregate type, event type, and version metadata with explicit attributes so
 persisted event rows do not depend on CLR type names.
 
 Surface validation may use pipeline behaviors and colocated validators for

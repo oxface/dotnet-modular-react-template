@@ -13,7 +13,9 @@ The shipped frontend includes:
 - `web/packages/api-client` for generated TypeScript clients for
   template-owned Host API endpoints.
 - `web/packages/config` for shared Vite, Vitest, and TypeScript configuration.
+- `web/packages/ui` for shared Tailwind-styled UI primitives. The initial
+  package includes Button and Textarea components.
 
 The initial admin and web app screens are smoke surfaces, not product
-workflows. Future product UI should add a shared UI component package before
-duplicating app-local components or styles.
+workflows. Future product UI should extend the shared UI component package
+before duplicating app-local components or styles.

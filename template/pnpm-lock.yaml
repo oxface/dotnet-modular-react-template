@@ -127,6 +127,9 @@ importers:
       '@modular-template/api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@modular-template/ui':
+        specifier: workspace:*
+        version: link:../ui
       '@tanstack/react-query':
         specifier: 5.100.10
         version: 5.100.10(react@19.2.6)
@@ -139,6 +142,16 @@ importers:
         version: link:../config
 
   web/packages/config: {}
+
+  web/packages/ui:
+    dependencies:
+      react:
+        specifier: 19.2.6
+        version: 19.2.6
+    devDependencies:
+      '@modular-template/config':
+        specifier: workspace:*
+        version: link:../config
 
 packages:
 

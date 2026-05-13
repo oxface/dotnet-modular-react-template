@@ -1,5 +1,5 @@
 {
-  "name": "@modular-template/auth",
+  "name": "@modular-template/ui",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,9 +13,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modular-template/api-client": "workspace:*",
-    "@modular-template/ui": "workspace:*",
-    "@tanstack/react-query": "5.100.10",
     "react": "19.2.6"
   },
   "devDependencies": {

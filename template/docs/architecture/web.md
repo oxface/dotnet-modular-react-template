@@ -26,13 +26,12 @@ generated API clients.
 
 ## UI Composition
 
-Product UI should use a shared component package, preferably
-`web/packages/ui`, before duplicating app-local components or one-off styles.
-Use Tailwind tokens and shadcn-style component conventions consistently across
-apps. App packages may own route composition and product-specific screens, but
-shared controls, layout primitives, form fields, overlays, and visual tokens
-belong in the shared package once they are reused or expected to stay visually
-consistent.
+Product UI should use the shared `web/packages/ui` component package before
+duplicating app-local components or one-off styles. Use Tailwind tokens and
+shadcn-style component conventions consistently across apps. App packages may
+own route composition and product-specific screens, but shared controls,
+layout primitives, form fields, overlays, and visual tokens belong in the
+shared package once they are reused or expected to stay visually consistent.
 
 Design responsive layouts from the first implementation. Do not treat mobile,
 tablet, keyboard navigation, or dense desktop states as follow-up work for

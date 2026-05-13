@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../packages/ui/src";
 
 :root {
   color: #172026;
@@ -15,16 +16,6 @@
 
 body {
   margin: 0;
-}
-
-button {
-  border: 1px solid #172026;
-  border-radius: 6px;
-  background: #172026;
-  color: #ffffff;
-  cursor: pointer;
-  font: inherit;
-  padding: 0.625rem 0.875rem;
 }
 
 .app-shell {

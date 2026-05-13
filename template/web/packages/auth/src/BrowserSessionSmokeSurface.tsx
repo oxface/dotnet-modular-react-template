@@ -1,3 +1,5 @@
+import { Button } from "@modular-template/ui";
+
 import type { AccessState } from "./access-state";
 import { startLogin, startLogout } from "./navigation";
 
@@ -55,9 +57,7 @@ function AccessStatePanel({
       return (
         <div className="stack">
           <p data-testid="session-state">Unauthenticated</p>
-          <button type="button" onClick={onLogin}>
-            Sign in
-          </button>
+          <Button onClick={onLogin}>Sign in</Button>
         </div>
       );
     case "no-access":
@@ -100,9 +100,7 @@ function AuthenticatedSessionState({
     <div className="stack">
       <p data-testid="session-state">{stateLabel}</p>
       <p>Signed in as {displayName}.</p>
-      <button type="button" onClick={onLogout}>
-        Sign out
-      </button>
+      <Button onClick={onLogout}>Sign out</Button>
     </div>
   );
 }

@@ -24,6 +24,8 @@ The shipped backend includes:
 - Host feature slices for browser auth endpoints and `GET /api/me`.
 - Host module registration delegated through a configuration extension rather
   than direct module wiring in `Program.cs`.
+- A command request-validation pipeline that executes registered validators
+  before command transaction handling.
 
 Business modules are expected under `server/src/modules` when products add
 more behavior. Modules with persistence or external adapters should keep

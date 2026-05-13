@@ -1,7 +1,5 @@
 using ModularTemplate.Host.Configuration;
-using ModularTemplate.Host.Authorization;
 using ModularTemplate.Host.Features.Auth;
-using ModularTemplate.Host.Features.CurrentUser;
 using ModularTemplate.Persistence.Configuration;
 using ModularTemplate.ServiceDefaults;
 
@@ -11,8 +9,8 @@ builder.AddPersistence();
 builder.AddHostAuthentication();
 builder.AddProblemDetails();
 builder.Services.AddOpenApi();
-builder.Services.AddConfiguredModules();
-builder.Services.AddApplicationAccessAuthorization();
+builder.Services.AddModularTemplateMediator();
+builder.Services.AddModularTemplateModules();
 
 var app = builder.Build();
 app.UseProblemDetails();
@@ -20,7 +18,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapDefaultEndpoints();
 app.MapAuthEndpoints();
-app.MapCurrentUserEndpoint();
+app.MapModularTemplateModuleEndpoints();
 
 app.Run();
 

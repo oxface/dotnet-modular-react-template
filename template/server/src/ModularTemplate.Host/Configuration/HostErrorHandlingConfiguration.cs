@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Diagnostics;
+using ModularTemplate.SharedKernel.Validation;
 
 namespace ModularTemplate.Host.Configuration;
 
@@ -16,6 +18,16 @@ public static class HostErrorHandlingConfiguration
                 context.ProblemDetails.Extensions.TryAdd(
                     "traceId",
                     context.HttpContext.TraceIdentifier);
+
+                if (context.Exception is RequestValidationException validationException)
+                {
+                    context.ProblemDetails.Title = "Request validation failed.";
+                    context.ProblemDetails.Status = StatusCodes.Status400BadRequest;
+                    context.HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    context.ProblemDetails.Extensions.TryAdd(
+                        "errors",
+                        validationException.Errors);
+                }
             };
         });
 
@@ -24,7 +36,12 @@ public static class HostErrorHandlingConfiguration
 
     public static WebApplication UseProblemDetails(this WebApplication app)
     {
-        app.UseExceptionHandler();
+        app.UseExceptionHandler(new ExceptionHandlerOptions
+        {
+            StatusCodeSelector = exception => exception is RequestValidationException
+                ? StatusCodes.Status400BadRequest
+                : StatusCodes.Status500InternalServerError
+        });
         app.UseStatusCodePages();
 
         return app;

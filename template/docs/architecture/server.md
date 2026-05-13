@@ -63,7 +63,8 @@ Host-specific HTTP concepts.
 
 Host `Program.cs` should stay a composition outline. Module registration should
 be delegated to a configuration extension that wires module services,
-infrastructure adapters, Mediator assemblies, and module pipeline behavior.
+infrastructure adapters, Mediator assemblies, module pipeline behavior, and
+module endpoint mapping.
 
 ## DDD And CQRS Direction
 
@@ -106,7 +107,9 @@ Surface validation may use pipeline behaviors and colocated validators for
 request shape, authorization preconditions, and cross-field input rules. Domain
 invariants remain inside aggregates, child entities, and value objects so they
 hold regardless of which command, endpoint, test, or background process invokes
-the model.
+the model. Command validators implement the shared request-validator contract
+and are executed by the request-validation pipeline before command transaction
+handling opens a transaction.
 
 Reusable normalization helpers should live in shared kernel, module shared
 code, or a clearly named feature helper when multiple handlers/entities need

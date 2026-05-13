@@ -1,6 +1,6 @@
 {
   "name": "dotnet-modular-react-template",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "CLI template factory for bootstrapping a .NET + React modular-monolith product repository.",
   "private": false,
   "repository": {

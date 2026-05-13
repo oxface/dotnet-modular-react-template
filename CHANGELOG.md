@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.14](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.13...dotnet-modular-react-template-v1.0.14) (2026-05-13)
+
+
+### Bug Fixes
+
+* ddd implementation tightening ([924559a](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/924559a53d7276d417f7f85a06784fea87f308e0))
+
 ## [1.0.13](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.12...dotnet-modular-react-template-v1.0.13) (2026-05-12)
 
 

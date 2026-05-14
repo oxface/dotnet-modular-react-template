@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.15](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.14...dotnet-modular-react-template-v1.0.15) (2026-05-14)
+
+
+### Bug Fixes
+
+* base ui package ([0d5ae2d](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/0d5ae2de26b05702f5def93042c4843cd42522b1))
+* module registration improvements ([5d5e504](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/5d5e5040cf4a439035140b7c6a459cd0d6579055))
+
 ## [1.0.14](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.13...dotnet-modular-react-template-v1.0.14) (2026-05-13)
 
 

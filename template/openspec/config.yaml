@@ -24,6 +24,16 @@ context: |
   handoffs. When a change mixes both, specs should capture the durable behavior
   while design.md and tasks.md carry implementation mechanics.
 
+  Specs should stay behavioral even for architecture-heavy changes. Use specs
+  for observable product/domain/runtime semantics such as ownership,
+  lifecycle, compatibility, validation, executable targets, state transitions,
+  artifact handoff, authorization boundaries, external mutation gates, and
+  user-visible outcomes. Put class names, file names, folder layouts,
+  one-class-per-file cleanup, JSON versus code seed mechanics, EF table
+  shapes, migrations, generated clients, and adapter/framework internals in
+  design.md, tasks.md, stable docs, or todo handoffs unless the exact
+  technical detail is itself the durable contract.
+
   Before proposing or implementing substantial runtime behavior, read:
   - docs/governance.md
   - docs/README.md
@@ -72,6 +82,7 @@ rules:
     - Explicitly list non-goals or out-of-scope areas when the change touches product behavior, infrastructure, AI, auth, persistence, external integrations, or frontend workflow.
     - Identify whether the change introduces runtime behavior, persistence, external IO, frontend apps, auth/session plumbing, generated clients, migrations, CI, orchestration resources, or durable architecture direction.
     - Distinguish durable behavior or architecture semantics from technical cleanup; do not create or modify specs only to record file moves, class renames, or implementation-only refactors.
+    - When a change includes both behavioral semantics and cleanup mechanics, name the behavioral capability separately from the cleanup work and route the cleanup to design/tasks.
     - Keep provider-specific details out of product authorization decisions.
     - Prefer small vertical slices that can be verified and archived before the next related change.
 
@@ -82,11 +93,14 @@ rules:
     - Specify which decisions are deterministic and which are LLM-assisted when AI behavior is involved.
     - Describe persistence, migration, rollback, observability, and verification implications when relevant.
     - Include alternatives considered for important architecture choices.
+    - Carry implementation mechanics such as file/class restructuring, module layout, adapter internals, generated artifacts, and migration strategy when those mechanics support behavioral specs.
 
   specs:
     - Use SHALL or MUST for normative behavior and keep every requirement testable.
     - Each requirement must include at least one Scenario with exactly four leading hash characters.
     - Describe user-visible or externally observable behavior, not implementation mechanics.
+    - Prefer requirements about what the system guarantees over how files/classes are arranged. Good architecture spec topics include reusable capability discovery, binding validation, artifact/state ownership, trigger versus follow-up semantics, and human/external mutation gates.
+    - Do not add specs solely to require naming cleanup, folder moves, generated migrations, generated clients, or code organization. Put that work in tasks or design unless it changes accepted runtime/API/product behavior.
     - For technical architecture changes, specify durable product/domain/runtime semantics such as ownership, compatibility, lifecycle, or executable targets; keep EF table names, adapter internals, class names, file moves, and one-time migration mechanics out of accepted specs unless they are themselves the observable contract.
     - Include negative scenarios for authorization, validation, irreversible actions, or external mutations when relevant.
     - Do not specify autonomous external mutations unless human approval, deterministic validation, and integration ownership are explicit in scope.
@@ -97,3 +111,4 @@ rules:
     - Include generated migration and generated client tasks only when the accepted scope requires them.
     - Include backend, frontend, OpenSpec, formatting, and drift checks proportionate to the touched surface.
     - Do not mark broad behavior complete without corresponding tests or an explicit verification note.
+    - Track mechanical cleanup such as file/class renames, one-public-class-per-file splits, module restructuring, migrations, generated clients, and adapter refactors here rather than forcing them into specs.

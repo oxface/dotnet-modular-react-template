@@ -11,6 +11,11 @@ context: |
   docs/. Accepted behavior lives under openspec/specs/. Active proposed
   behavior lives under openspec/changes/.
 
+  Durable project knowledge belongs in versioned repository files:
+  - Stable architecture and platform rules live under docs/.
+  - Accepted feature behavior lives under openspec/specs/.
+  - Active proposed behavior lives under openspec/changes/.
+
   Before substantial product, domain, runtime, API, persistence, or
   architecture work, read docs/governance.md, docs/README.md,
   docs/openspec.md, relevant stable docs, current specs under openspec/specs/,
@@ -18,15 +23,27 @@ context: |
   artifacts instead of duplicating long guidance.
 
   OpenSpec is for durable behavior and architecture semantics, not technical
-  changelog entries. Keep accepted specs observable and testable. Put pure
-  refactors, file moves, class renames, one-time migration mechanics,
-  generated-client refreshes, and implementation-only cleanup in design.md,
-  tasks.md, stable docs, or todo handoffs unless the technical detail is
-  itself the durable contract.
+  changelog entries. A change can be mostly technical and still need OpenSpec
+  when it changes product/domain/runtime meaning, API contracts, persistence
+  behavior, or durable architecture direction. Keep accepted specs observable
+  and testable. Put pure refactors, file moves, class renames, one-time
+  migration mechanics, generated-client refreshes, and implementation-only
+  cleanup in design.md, tasks.md, stable docs, or todo handoffs unless the
+  technical detail is itself the durable contract.
 
   Governance scope gates stay in force. Do not add gated runtime,
   infrastructure, integration, automation, or generated artifacts unless an
   accepted OpenSpec change or durable architecture decision states the scope.
+
+  Canonical stack and conventions:
+  - Backend: .NET modular monolith, ASP.NET Core Minimal APIs, EF Core,
+    PostgreSQL, Mediator, explicit module boundaries.
+  - Frontend: React, Vite, TanStack Query, TanStack Router, Tailwind, pnpm,
+    generated TypeScript API client.
+  - Local orchestration: Aspire with Host, Migrator, PostgreSQL, Redis,
+    Keycloak, and Vite frontend resources.
+  - Authentication mechanics are Host/platform-owned; product authorization is
+    application-owned and provider-neutral.
 
 rules:
   proposal:

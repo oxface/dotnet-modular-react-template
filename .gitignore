@@ -13,6 +13,8 @@
 *.env.*
 !.env.example
 
+*.lscache
+
 # Node / frontend
 node_modules/
 .pnpm-store/

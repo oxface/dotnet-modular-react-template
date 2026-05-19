@@ -1,6 +1,10 @@
 schema: spec-driven
 
 context: |
+  This repository is a domain-neutral .NET + React modular-monolith product
+  foundation. It is intended to be specialized by generated products without
+  importing unrelated sample business workflows or provider-bound product
+  decisions.
 
   Treat docs/governance.md as the project constitution. If any proposed
   artifact conflicts with a MUST rule in governance, the artifact must change
@@ -8,10 +12,17 @@ context: |
 
   Durable project knowledge belongs in versioned repository files:
   - Stable architecture and platform rules live under docs/.
-  - Accepted feature behavior lives under openspec/specs/ after a product
-    initializes OpenSpec.
-  - Active proposed behavior lives under openspec/changes/ after a product
-    initializes OpenSpec.
+  - Accepted feature behavior lives under openspec/specs/.
+  - Active proposed behavior lives under openspec/changes/.
+
+  OpenSpec is for durable behavior and architecture semantics, not as a
+  technical changelog. A change can be mostly technical and still need
+  OpenSpec when it changes product/domain/runtime meaning, API contracts,
+  persistence behavior, or durable architecture direction. Pure refactors,
+  file moves, class renames, and verification-only cleanup that do not change
+  accepted behavior should stay in normal docs, implementation notes, or todo
+  handoffs. When a change mixes both, specs should capture the durable behavior
+  while design.md and tasks.md carry implementation mechanics.
 
   Before proposing or implementing substantial runtime behavior, read:
   - docs/governance.md
@@ -20,7 +31,7 @@ context: |
   - relevant docs/architecture/*.md files
   - relevant docs/platform/*.md files
   - docs/testing.md and relevant docs/testing/*.md files
-  - existing specs under openspec/specs/ when present
+  - existing specs under openspec/specs/
 
   Canonical stack and conventions:
   - Backend: .NET modular monolith, ASP.NET Core Minimal APIs, EF Core,
@@ -36,13 +47,16 @@ context: |
   - Host composes HTTP/platform behavior.
   - Business behavior belongs in module-owned contracts and feature slices.
   - Module contracts must not expose EF entities, aggregate internals,
-    provider SDK types, ClaimsPrincipal, or Host-specific HTTP concepts.
+    provider SDK types, infrastructure details, ClaimsPrincipal, or
+    Host-specific HTTP concepts.
   - Module implementations must not use another module's DbSet surface
     directly.
   - Durable intermodule messaging, outbox processing, orchestration resources,
     generated migrations, frontend apps, auth/session plumbing, CI workflows,
     and generated clients require accepted feature artifacts or durable
     architecture decisions that state the scope.
+  - Sample modules, when present, are examples only; they do not authorize new
+    runtime behavior without accepted scope.
 
   Verification expectations:
   - Behavior changes require tests or explicit verification proportionate to
@@ -57,6 +71,7 @@ rules:
     - State why the change is needed now and what product or architecture gap it closes.
     - Explicitly list non-goals or out-of-scope areas when the change touches product behavior, infrastructure, AI, auth, persistence, external integrations, or frontend workflow.
     - Identify whether the change introduces runtime behavior, persistence, external IO, frontend apps, auth/session plumbing, generated clients, migrations, CI, orchestration resources, or durable architecture direction.
+    - Distinguish durable behavior or architecture semantics from technical cleanup; do not create or modify specs only to record file moves, class renames, or implementation-only refactors.
     - Keep provider-specific details out of product authorization decisions.
     - Prefer small vertical slices that can be verified and archived before the next related change.
 
@@ -72,6 +87,7 @@ rules:
     - Use SHALL or MUST for normative behavior and keep every requirement testable.
     - Each requirement must include at least one Scenario with exactly four leading hash characters.
     - Describe user-visible or externally observable behavior, not implementation mechanics.
+    - For technical architecture changes, specify durable product/domain/runtime semantics such as ownership, compatibility, lifecycle, or executable targets; keep EF table names, adapter internals, class names, file moves, and one-time migration mechanics out of accepted specs unless they are themselves the observable contract.
     - Include negative scenarios for authorization, validation, irreversible actions, or external mutations when relevant.
     - Do not specify autonomous external mutations unless human approval, deterministic validation, and integration ownership are explicit in scope.
 

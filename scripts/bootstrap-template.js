@@ -54,6 +54,7 @@ const manifest = {
     "test-results",
   ],
   ignoredRelativePaths: [".husky/_", ".npmignore"],
+  ignoredFileExtensions: [".lscache"],
   placeholders(names) {
     return [
       ["@modular-template", names.npmScope],
@@ -70,6 +71,7 @@ const textFileExtensions = new Set(manifest.textFileExtensions);
 const textFileNames = new Set(manifest.textFileNames);
 const ignoredSegments = new Set(manifest.ignoredSegments);
 const ignoredRelativePaths = new Set(manifest.ignoredRelativePaths);
+const ignoredFileExtensions = new Set(manifest.ignoredFileExtensions);
 function usage() {
   console.log(
     `Usage: node scripts/bootstrap-template.js --product-name "Acme Desk" --output ../acme-desk [--dry-run]`,
@@ -179,6 +181,10 @@ function shouldExclude(src) {
   const relative = normalizeRelative(path.relative(manifest.source, src));
   if (!relative) {
     return false;
+  }
+
+  if (ignoredFileExtensions.has(path.extname(src))) {
+    return true;
   }
 
   if (

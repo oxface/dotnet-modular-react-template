@@ -86,6 +86,12 @@ test("keeps manifest text and ignore rules focused on bootstrap inputs", () => {
   );
   assert.equal(
     shouldExclude(
+      path.join(manifest.source, "server", "src", "Project.csproj.lscache"),
+    ),
+    true,
+  );
+  assert.equal(
+    shouldExclude(
       path.join(
         manifest.source,
         "server",
@@ -202,10 +208,61 @@ test("bootstraps a generated sample with renamed manifests and product CI files"
       path.join(outputRoot, ".gitignore"),
       "utf8",
     );
+    const agentIndex = await readFile(
+      path.join(outputRoot, "AGENTS.md"),
+      "utf8",
+    );
+    const governance = await readFile(
+      path.join(outputRoot, "docs", "governance.md"),
+      "utf8",
+    );
+    const openspecConfig = await readFile(
+      path.join(outputRoot, "openspec", "config.yaml"),
+      "utf8",
+    );
 
     assert.equal(packageJson.name, "north-star");
     assert.match(workflow, /dotnet restore NorthStar\.slnx/);
     assert.doesNotMatch(gitignore, /Persistence\/Migrations\//);
+    assert.match(agentIndex, /openspec\/specs/);
+    assert.match(agentIndex, /openspec\/changes/);
+    assert.match(governance, /Product authorization MUST be application-owned/);
+    assert.match(openspecConfig, /schema: spec-driven/);
+    assert.match(openspecConfig, /domain-neutral \.NET \+ React/);
+    assert.doesNotMatch(agentIndex, /CommandDeck|MAF|Ollama|issue-intake/);
+    assert.doesNotMatch(governance, /CommandDeck|MAF|Ollama|issue-intake/);
+    assert.doesNotMatch(openspecConfig, /CommandDeck|MAF|Ollama|issue-intake/);
+    assert.equal(
+      (
+        await readFile(
+          path.join(outputRoot, "openspec", "specs", ".gitkeep"),
+          "utf8",
+        )
+      ).trim(),
+      "",
+    );
+    assert.equal(
+      (
+        await readFile(
+          path.join(outputRoot, "openspec", "changes", ".gitkeep"),
+          "utf8",
+        )
+      ).trim(),
+      "",
+    );
+    assert.equal(
+      await readFile(
+        path.join(
+          outputRoot,
+          ".agents",
+          "skills",
+          "openspec-propose",
+          "SKILL.md",
+        ),
+        "utf8",
+      ).then((content) => /openspec/i.test(content)),
+      true,
+    );
     assert.equal(
       await readFile(
         path.join(

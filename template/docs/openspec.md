@@ -2,9 +2,9 @@
 
 OpenSpec is this repository's default spec-driven development workflow.
 Project-specific OpenSpec context and artifact rules live in
-[`../openspec/config.yaml`](../openspec/config.yaml). That file summarizes
-stable docs for agent workflows, but [governance.md](governance.md) remains the
-hard-rules source.
+[`../openspec/config.yaml`](../openspec/config.yaml). That file routes agents
+to the stable docs and carries concise artifact rules, but
+[governance.md](governance.md) remains the hard-rules source.
 
 ## When To Use It
 

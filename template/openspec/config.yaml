@@ -1,107 +1,63 @@
 schema: spec-driven
 
 context: |
-  This repository is a domain-neutral .NET + React modular-monolith product
-  foundation. It is intended to be specialized by generated products without
-  importing unrelated sample business workflows or provider-bound product
-  decisions.
+  This repository is a domain-neutral .NET + React modular-monolith
+  foundation.
 
-  Treat docs/governance.md as the project constitution. If any proposed
-  artifact conflicts with a MUST rule in governance, the artifact must change
-  unless governance is explicitly amended first.
+  Treat docs/governance.md as the project constitution. If an artifact
+  conflicts with a MUST rule there, change the artifact unless governance is
+  explicitly amended first.
 
-  Durable project knowledge belongs in versioned repository files:
-  - Stable architecture and platform rules live under docs/.
-  - Accepted feature behavior lives under openspec/specs/.
-  - Active proposed behavior lives under openspec/changes/.
+  Before substantial product, domain, runtime, API, persistence, or
+  architecture work, read docs/governance.md, docs/README.md,
+  docs/openspec.md, relevant stable docs, current specs under openspec/specs/,
+  and active changes under openspec/changes/. Prefer referencing those docs
+  over repeating their guidance in generated artifacts.
 
-  OpenSpec is for durable behavior and architecture semantics, not as a
-  technical changelog. A change can be mostly technical and still need
-  OpenSpec when it changes product/domain/runtime meaning, API contracts,
-  persistence behavior, or durable architecture direction. Pure refactors,
-  file moves, class renames, and verification-only cleanup that do not change
-  accepted behavior should stay in normal docs, implementation notes, or todo
-  handoffs. When a change mixes both, specs should capture the durable behavior
-  while design.md and tasks.md carry implementation mechanics.
+  Stable architecture and platform rules live under docs/. Accepted behavior
+  lives under openspec/specs/. Active proposed behavior lives under
+  openspec/changes/.
 
-  Specs should stay behavioral even for architecture-heavy changes. Use specs
-  for observable product/domain/runtime semantics such as ownership,
-  lifecycle, compatibility, validation, executable targets, state transitions,
-  artifact handoff, authorization boundaries, external mutation gates, and
-  user-visible outcomes. Put class names, file names, folder layouts,
-  one-class-per-file cleanup, JSON versus code seed mechanics, EF table
-  shapes, migrations, generated clients, and adapter/framework internals in
-  design.md, tasks.md, stable docs, or todo handoffs unless the exact
-  technical detail is itself the durable contract.
+  OpenSpec is for durable behavior and architecture semantics, not technical
+  changelog entries. Keep accepted specs observable and testable. Put pure
+  refactors, file moves, class renames, one-time migration mechanics,
+  generated-client refreshes, and implementation-only cleanup in design.md,
+  tasks.md, stable docs, or todo handoffs unless the technical detail is
+  itself the durable contract.
 
-  Before proposing or implementing substantial runtime behavior, read:
-  - docs/governance.md
-  - docs/README.md
-  - docs/architecture.md
-  - relevant docs/architecture/*.md files
-  - relevant docs/platform/*.md files
-  - docs/testing.md and relevant docs/testing/*.md files
-  - existing specs under openspec/specs/
+  Hard scope gates from governance stay in force: do not add domain behavior,
+  auth/session plumbing, generated migrations, frontend apps, orchestration
+  resources, CI workflows, generated clients, template automation, durable
+  intermodule messaging, or outbox processing unless accepted OpenSpec
+  artifacts or durable architecture decisions state the scope.
 
-  Canonical stack and conventions:
-  - Backend: .NET modular monolith, ASP.NET Core Minimal APIs, EF Core,
-    PostgreSQL, Mediator, explicit module boundaries.
-  - Frontend: React, Vite, TanStack Query, TanStack Router, Tailwind, pnpm,
-    generated TypeScript API client.
-  - Local orchestration: Aspire with Host, Migrator, PostgreSQL, Redis,
-    Keycloak, and Vite frontend resources.
-  - Authentication mechanics are Host/platform-owned; product authorization is
-    application-owned and provider-neutral.
-
-  Modular-monolith rules:
-  - Host composes HTTP/platform behavior.
-  - Business behavior belongs in module-owned contracts and feature slices.
-  - Module contracts must not expose EF entities, aggregate internals,
-    provider SDK types, infrastructure details, ClaimsPrincipal, or
-    Host-specific HTTP concepts.
-  - Module implementations must not use another module's DbSet surface
-    directly.
-  - Durable intermodule messaging, outbox processing, orchestration resources,
-    generated migrations, frontend apps, auth/session plumbing, CI workflows,
-    and generated clients require accepted feature artifacts or durable
-    architecture decisions that state the scope.
-  - Sample modules, when present, are examples only; they do not authorize new
-    runtime behavior without accepted scope.
-
-  Verification expectations:
-  - Behavior changes require tests or explicit verification proportionate to
-    risk and blast radius.
-  - Runtime behavior, persistence, auth/session flows, frontend workflows,
-    generated clients, and shared abstractions require focused verification.
-  - AI workflows should eventually use eval tests, but eval tests should not
-    run by default.
+  Product authorization must remain application-owned and provider-neutral.
+  Module contracts must not expose EF entities, aggregate internals, provider
+  SDK types, infrastructure details, ClaimsPrincipal, or Host-specific HTTP
+  concepts.
 
 rules:
   proposal:
-    - State why the change is needed now and what product or architecture gap it closes.
-    - Explicitly list non-goals or out-of-scope areas when the change touches product behavior, infrastructure, AI, auth, persistence, external integrations, or frontend workflow.
-    - Identify whether the change introduces runtime behavior, persistence, external IO, frontend apps, auth/session plumbing, generated clients, migrations, CI, orchestration resources, or durable architecture direction.
-    - Distinguish durable behavior or architecture semantics from technical cleanup; do not create or modify specs only to record file moves, class renames, or implementation-only refactors.
-    - When a change includes both behavioral semantics and cleanup mechanics, name the behavioral capability separately from the cleanup work and route the cleanup to design/tasks.
-    - Keep provider-specific details out of product authorization decisions.
+    - State the gap, why it matters now, and the smallest coherent scope.
+    - List non-goals for behavior, infrastructure, AI, auth, persistence, external integrations, and frontend workflow when touched.
+    - Call out any hard-scope-gated areas from context and the artifact or decision that authorizes them.
+    - Separate durable semantics from cleanup mechanics; route mechanics to design/tasks.
+    - Keep authorization provider-neutral.
     - Prefer small vertical slices that can be verified and archived before the next related change.
 
   design:
     - Reference the stable docs that govern the design instead of duplicating long architecture guidance.
-    - Define module boundaries, ownership, and dependency direction for backend behavior.
+    - Define ownership, module boundaries, dependency direction, and state boundaries when relevant.
     - Keep product-owned state separate from framework-owned or execution-local state.
-    - Specify which decisions are deterministic and which are LLM-assisted when AI behavior is involved.
-    - Describe persistence, migration, rollback, observability, and verification implications when relevant.
-    - Include alternatives considered for important architecture choices.
-    - Carry implementation mechanics such as file/class restructuring, module layout, adapter internals, generated artifacts, and migration strategy when those mechanics support behavioral specs.
+    - Cover persistence, migration, rollback, observability, and verification implications when relevant.
+    - Identify deterministic versus LLM-assisted decisions for AI behavior.
+    - Include alternatives for important architecture choices.
 
   specs:
     - Use SHALL or MUST for normative behavior and keep every requirement testable.
     - Each requirement must include at least one Scenario with exactly four leading hash characters.
-    - Describe user-visible or externally observable behavior, not implementation mechanics.
-    - Prefer requirements about what the system guarantees over how files/classes are arranged. Good architecture spec topics include reusable capability discovery, binding validation, artifact/state ownership, trigger versus follow-up semantics, and human/external mutation gates.
-    - Do not add specs solely to require naming cleanup, folder moves, generated migrations, generated clients, or code organization. Put that work in tasks or design unless it changes accepted runtime/API/product behavior.
-    - For technical architecture changes, specify durable product/domain/runtime semantics such as ownership, compatibility, lifecycle, or executable targets; keep EF table names, adapter internals, class names, file moves, and one-time migration mechanics out of accepted specs unless they are themselves the observable contract.
+    - Specify observable guarantees, ownership, lifecycle, compatibility, validation, state transitions, authorization boundaries, or external mutation gates.
+    - Do not specify naming cleanup, folder moves, generated artifacts, code organization, adapter internals, EF table shapes, or one-time migration mechanics unless they are the observable contract.
     - Include negative scenarios for authorization, validation, irreversible actions, or external mutations when relevant.
     - Do not specify autonomous external mutations unless human approval, deterministic validation, and integration ownership are explicit in scope.
 
@@ -111,4 +67,4 @@ rules:
     - Include generated migration and generated client tasks only when the accepted scope requires them.
     - Include backend, frontend, OpenSpec, formatting, and drift checks proportionate to the touched surface.
     - Do not mark broad behavior complete without corresponding tests or an explicit verification note.
-    - Track mechanical cleanup such as file/class renames, one-public-class-per-file splits, module restructuring, migrations, generated clients, and adapter refactors here rather than forcing them into specs.
+    - Track mechanical cleanup here rather than forcing it into specs.

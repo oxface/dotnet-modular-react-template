@@ -51,6 +51,10 @@ Refresh the Host OpenAPI document and frontend generated client with:
 pnpm api-client:generate
 ```
 
+The Host project owns the build-time OpenAPI output path and file name. The
+root `openapi:generate` script invokes `dotnet build` with OpenAPI document
+generation enabled and writes `web/packages/api-client/openapi/host.json`.
+
 Check that generated output is current with:
 
 ```sh

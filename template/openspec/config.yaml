@@ -2,21 +2,20 @@ schema: spec-driven
 
 context: |
   This repository is a domain-neutral .NET + React modular-monolith
-  foundation.
+  foundation. This file is OpenSpec workflow context, not the durable rules
+  source.
 
-  Treat docs/governance.md as the project constitution. If an artifact
+  Treat docs/governance.md as the project constitution. If an OpenSpec artifact
   conflicts with a MUST rule there, change the artifact unless governance is
-  explicitly amended first.
+  explicitly amended first. Stable architecture and platform rules live under
+  docs/. Accepted behavior lives under openspec/specs/. Active proposed
+  behavior lives under openspec/changes/.
 
   Before substantial product, domain, runtime, API, persistence, or
   architecture work, read docs/governance.md, docs/README.md,
   docs/openspec.md, relevant stable docs, current specs under openspec/specs/,
-  and active changes under openspec/changes/. Prefer referencing those docs
-  over repeating their guidance in generated artifacts.
-
-  Stable architecture and platform rules live under docs/. Accepted behavior
-  lives under openspec/specs/. Active proposed behavior lives under
-  openspec/changes/.
+  and active changes under openspec/changes/. Cite those sources in generated
+  artifacts instead of duplicating long guidance.
 
   OpenSpec is for durable behavior and architecture semantics, not technical
   changelog entries. Keep accepted specs observable and testable. Put pure
@@ -25,24 +24,17 @@ context: |
   tasks.md, stable docs, or todo handoffs unless the technical detail is
   itself the durable contract.
 
-  Hard scope gates from governance stay in force: do not add domain behavior,
-  auth/session plumbing, generated migrations, frontend apps, orchestration
-  resources, CI workflows, generated clients, template automation, durable
-  intermodule messaging, or outbox processing unless accepted OpenSpec
-  artifacts or durable architecture decisions state the scope.
-
-  Product authorization must remain application-owned and provider-neutral.
-  Module contracts must not expose EF entities, aggregate internals, provider
-  SDK types, infrastructure details, ClaimsPrincipal, or Host-specific HTTP
-  concepts.
+  Governance scope gates stay in force. Do not add gated runtime,
+  infrastructure, integration, automation, or generated artifacts unless an
+  accepted OpenSpec change or durable architecture decision states the scope.
 
 rules:
   proposal:
     - State the gap, why it matters now, and the smallest coherent scope.
     - List non-goals for behavior, infrastructure, AI, auth, persistence, external integrations, and frontend workflow when touched.
-    - Call out any hard-scope-gated areas from context and the artifact or decision that authorizes them.
+    - Call out any governance-gated areas and the artifact or decision that authorizes them.
     - Separate durable semantics from cleanup mechanics; route mechanics to design/tasks.
-    - Keep authorization provider-neutral.
+    - Cite stable docs for durable rules instead of restating them.
     - Prefer small vertical slices that can be verified and archived before the next related change.
 
   design:

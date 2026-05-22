@@ -58,9 +58,7 @@ async function main() {
       snapshotGenerated,
     );
 
-    await run("node", [
-      path.join(repoRoot, "scripts", "generate-api-client.js"),
-    ]);
+    await run("pnpm", ["api-client:generate"]);
     await run("diff", [
       "-qr",
       snapshotOpenApi,

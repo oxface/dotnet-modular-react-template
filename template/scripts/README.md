@@ -5,12 +5,10 @@ Repository helper scripts live here.
 ## Available Scripts
 
 - `setup-openspec.sh` installs the pinned OpenSpec CLI globally.
-- `generate-openapi.js` generates the Host OpenAPI document used by the
-  frontend API client package.
-- `generate-api-client.js` refreshes the Host OpenAPI document and generated
-  frontend API client.
 - `check-api-client.js` verifies that the checked-in OpenAPI document and
-  generated frontend API client are current.
+  generated frontend API client are current. The root `openapi:generate` and
+  `api-client:generate` package scripts refresh those artifacts directly
+  through `dotnet build` and the API-client package generator.
 
 Script files are Node ES modules. The root package sets `"type": "module"` so
 `.js` scripts use `import`/`export` syntax; `commitlint.config.cjs` remains

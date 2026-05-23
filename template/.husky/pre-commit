@@ -1,4 +1,5 @@
-pnpm format:check
+pnpm format
+git update-index --again
 pnpm scripts:lint
 pnpm frontend:typecheck
 pnpm api-client:check

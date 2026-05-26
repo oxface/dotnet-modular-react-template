@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularTemplate.Identity.Access;
-using ModularTemplate.Persistence;
+using ModularTemplate.Identity.Infrastructure.Persistence;
+using ModularTemplate.Operations.Infrastructure.Persistence;
 
 namespace ModularTemplate.Migrator;
 
@@ -24,8 +25,14 @@ public static class MigratorRunner
         }
 
         await using AsyncServiceScope scope = services.CreateAsyncScope();
-        ModularTemplateDbContext dbContext = scope.ServiceProvider.GetRequiredService<ModularTemplateDbContext>();
-        await dbContext.Database.MigrateAsync(cancellationToken);
+
+        IdentityDbContext identityContext =
+            scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        await identityContext.Database.MigrateAsync(cancellationToken);
+
+        OperationsDbContext operationsContext =
+            scope.ServiceProvider.GetRequiredService<OperationsDbContext>();
+        await operationsContext.Database.MigrateAsync(cancellationToken);
 
         string? configurationError = null;
         InitialAdminOptions? initialAdmin = command.InitialAdmin

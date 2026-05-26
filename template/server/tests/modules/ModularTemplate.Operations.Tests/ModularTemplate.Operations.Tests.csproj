@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\modules\ModularTemplate.Operations\ModularTemplate.Operations.csproj" />
+    <ProjectReference Include="..\..\..\src\modules\ModularTemplate.Operations.Contracts\ModularTemplate.Operations.Contracts.csproj" />
+  </ItemGroup>
+</Project>

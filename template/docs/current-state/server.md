@@ -9,13 +9,10 @@ The shipped backend includes:
 - Host-owned HTTP composition, OpenAPI metadata for `/api/` endpoints,
   problem-details responses, baseline exception handling, authentication
   middleware, and application-access authorization policy wiring.
-- `ModularTemplate.Persistence`, a Host-owned EF Core composition project with
-  the concrete `ModularTemplateDbContext`.
-- A baseline `InitialCreate` migration so generated products can create the
-  first local Host-owned schema.
-- Domain-event persistence into `platform.domain_events` as an audit/event-log
-  table. The template does not ship durable messaging, dispatch, inbox, or
-  outbox processing.
+- Module Infrastructure EF Core DbContexts with baseline `InitialCreate`
+  migrations so generated products can create the first local schemas.
+- `ModularTemplate.Outbox` and `ModularTemplate.Transport` platform libraries
+  for durable outbox/inbox persistence, polling, and Rebus transport bridging.
 - `ModularTemplate.ServiceDefaults` for OpenTelemetry, service discovery,
   default HTTP resilience, and development health endpoints.
 - SharedKernel primitives for entity, aggregate root, value object,

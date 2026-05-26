@@ -4,6 +4,7 @@ The template's local platform uses Aspire and includes:
 
 - PostgreSQL for the Host-owned database.
 - Redis for BFF/session ticket storage.
+- Azure Service Bus emulator for local durable messaging transport.
 - Keycloak for local OpenID Connect authentication.
 - Migrator for applying Host-owned migrations.
 - Host API.
@@ -63,7 +64,16 @@ authority.
 
 The Redis resource is referenced by the Host as
 `ConnectionStrings:session-tickets`. The PostgreSQL database resource is
-referenced as `ConnectionStrings:modular-template-host`.
+referenced as `ConnectionStrings:modular-template-host`. The Service Bus
+emulator is referenced as `ConnectionStrings:service-bus`.
+
+Durable messaging transport is selected by `Messaging:Transport`.
+Default is `AzureServiceBus`, which requires `ConnectionStrings:service-bus`.
+Use `InMemory` only for test scenarios that intentionally avoid external
+transport dependencies.
+
+When `Messaging:Transport` is `AzureServiceBus`, startup performs a Service Bus
+namespace probe and fails fast if transport connectivity is unavailable.
 
 The checked-in Keycloak realm import includes local users for browser smoke
 testing:
@@ -78,12 +88,12 @@ Host HTTP endpoint. Their Vite development servers continue to proxy `/api/`
 and `/auth/` routes to the Host rather than calling identity-provider endpoints
 directly from browser code.
 
-The Migrator runs `ModularTemplateDbContext` migrations during Aspire startup.
-Generated repositories include a baseline `InitialCreate` migration so the
-local platform can create the first Host-owned schema on a fresh database. The
-AppHost also passes `Identity:InitialAdmin` settings to the Migrator so the
-local Keycloak smoke admin receives app-owned access without the Host mutating
-authorization state during web startup.
+The Migrator runs module DbContext migrations during Aspire startup. Generated
+repositories include baseline `InitialCreate` migrations so the local platform
+can create the first module schemas on a fresh database. The AppHost also
+passes `Identity:InitialAdmin` settings to the Migrator so the local Keycloak
+smoke admin receives app-owned access without the Host mutating authorization
+state during web startup.
 
 ## Browser Session Smoke
 

@@ -5,7 +5,9 @@ using ModularTemplate.Identity;
 using ModularTemplate.Identity.CurrentUser;
 using ModularTemplate.Identity.Infrastructure;
 using ModularTemplate.Identity.Infrastructure.Persistence;
-using ModularTemplate.Persistence.Transactions;
+using ModularTemplate.Operations;
+using ModularTemplate.Operations.Infrastructure;
+using ModularTemplate.Outbox.Transactions;
 
 namespace ModularTemplate.Host.Configuration;
 
@@ -35,6 +37,8 @@ public static class ModuleConfiguration
     {
         services.AddIdentityModule();
         services.AddIdentityInfrastructure();
+        services.AddOperationsModule();
+        services.AddOperationsInfrastructure();
         services.AddApplicationAccessAuthorization();
 
         return services;
@@ -43,6 +47,7 @@ public static class ModuleConfiguration
     public static IEndpointRouteBuilder MapModularTemplateModuleEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapCurrentUserEndpoint();
+        endpoints.MapOperationsEndpoints();
 
         return endpoints;
     }

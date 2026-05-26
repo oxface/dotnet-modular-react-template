@@ -268,7 +268,7 @@ async function removeTemplateOnlyGitignoreEntries(outputRoot) {
 
   const gitignore = await readFile(gitignorePath, "utf8");
   const updated = gitignore.replace(
-    /\n# Template-local generated EF migrations\.\n# Bootstrapped product repositories remove this block so they can commit their\n# own migration history\.\nserver\/src\/[^/\r\n]+\.Persistence\/Migrations\/\n/g,
+    /\n# Template-local generated EF migrations\.\n# Bootstrapped product repositories remove this block so they can commit their\n# own migration history\.\nserver\/src\/modules\/[^/\r\n]+\.Infrastructure\/Migrations\/\n/g,
     "\n",
   );
 

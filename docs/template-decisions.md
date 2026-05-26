@@ -20,8 +20,8 @@ specify.
 - Keep OpenSpec initialized but empty in generated repositories so new
   products start with a clean spec workspace and no inherited capability specs.
 - Keep hard product governance in `template/docs/governance.md`.
-- Use a shared Host-owned EF Core DbContext in `ModularTemplate.Persistence`,
-  with narrow module DbContext interfaces to preserve module boundaries.
+- Keep EF Core DbContexts in module Infrastructure projects and stamp
+  durable outbox/inbox/domain-event tables into each module schema.
 - Include an intentional baseline `InitialCreate` EF migration in generated
   products so the inherited Migrator can create the first local schema.
 - Keep auth mechanics in the Host and local identity/application-access

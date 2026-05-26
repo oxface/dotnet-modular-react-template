@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="..\ModularTemplate.Outbox\ModularTemplate.Outbox.csproj" />
+    <ProjectReference Include="..\ModularTemplate.Transport\ModularTemplate.Transport.csproj" />
     <ProjectReference Include="..\modules\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
     <ProjectReference Include="..\modules\ModularTemplate.Identity.Infrastructure\ModularTemplate.Identity.Infrastructure.csproj" />
-    <ProjectReference Include="..\ModularTemplate.Persistence\ModularTemplate.Persistence.csproj" />
+    <ProjectReference Include="..\modules\ModularTemplate.Operations.Infrastructure\ModularTemplate.Operations.Infrastructure.csproj" />
     <ProjectReference Include="..\ModularTemplate.ServiceDefaults\ModularTemplate.ServiceDefaults.csproj" />
   </ItemGroup>
 

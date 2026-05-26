@@ -5,8 +5,9 @@ using ModularTemplate.Identity;
 using ModularTemplate.Identity.CurrentUser;
 using ModularTemplate.Identity.Infrastructure;
 using ModularTemplate.Identity.Infrastructure.Persistence;
-using ModularTemplate.Persistence.Configuration;
-using ModularTemplate.Persistence.Transactions;
+using ModularTemplate.Operations.Infrastructure;
+using ModularTemplate.Transport;
+using ModularTemplate.Outbox.Transactions;
 
 namespace ModularTemplate.Migrator;
 
@@ -14,7 +15,7 @@ public static class MigratorComposition
 {
     public static IHostApplicationBuilder AddMigratorComposition(this IHostApplicationBuilder builder)
     {
-        builder.AddPersistence();
+        builder.AddTransport();
         builder.Services.AddMediator(options =>
         {
             options.ServiceLifetime = ServiceLifetime.Scoped;
@@ -30,6 +31,7 @@ public static class MigratorComposition
         });
         builder.Services.AddIdentityModule();
         builder.Services.AddIdentityInfrastructure();
+        builder.Services.AddOperationsInfrastructure();
 
         return builder;
     }

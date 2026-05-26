@@ -96,7 +96,8 @@ test("keeps manifest text and ignore rules focused on bootstrap inputs", () => {
         manifest.source,
         "server",
         "src",
-        "ModularTemplate.Persistence",
+        "modules",
+        "ModularTemplate.Identity.Infrastructure",
         "Migrations",
         "20260507204301_InitialCreate.cs",
       ),
@@ -174,7 +175,7 @@ test("removes template-only EF migration ignore block for products", async () =>
 # Template-local generated EF migrations.
 # Bootstrapped product repositories remove this block so they can commit their
 # own migration history.
-server/src/NorthStar.Persistence/Migrations/
+server/src/modules/NorthStar.Identity.Infrastructure/Migrations/
 `,
       "utf8",
     );
@@ -223,7 +224,7 @@ test("bootstraps a generated sample with renamed manifests and product CI files"
 
     assert.equal(packageJson.name, "north-star");
     assert.match(workflow, /dotnet restore NorthStar\.slnx/);
-    assert.doesNotMatch(gitignore, /Persistence\/Migrations\//);
+    assert.doesNotMatch(gitignore, /Infrastructure\/Migrations\//);
     assert.match(agentIndex, /openspec\/specs/);
     assert.match(agentIndex, /openspec\/changes/);
     assert.match(governance, /Product authorization MUST be application-owned/);
@@ -269,12 +270,15 @@ test("bootstraps a generated sample with renamed manifests and product CI files"
           outputRoot,
           "server",
           "src",
-          "NorthStar.Persistence",
+          "modules",
+          "NorthStar.Identity.Infrastructure",
           "Migrations",
-          "NorthStarDbContextModelSnapshot.cs",
+          "IdentityDbContextModelSnapshot.cs",
         ),
         "utf8",
-      ).then((content) => content.includes("NorthStar.Persistence.Migrations")),
+      ).then((content) =>
+        content.includes("NorthStar.Identity.Infrastructure.Migrations"),
+      ),
       true,
     );
     assert.equal(
@@ -283,7 +287,8 @@ test("bootstraps a generated sample with renamed manifests and product CI files"
           outputRoot,
           "server",
           "src",
-          "NorthStar.Persistence",
+          "modules",
+          "NorthStar.Identity.Infrastructure",
           "Migrations",
         ),
       ).then((entries) =>
@@ -343,7 +348,7 @@ test("bootstraps into an existing repository with README and LICENSE", async () 
       /dotnet restore NorthStar\.slnx/,
     );
     assert.match(gitignore, /node_modules/);
-    assert.doesNotMatch(gitignore, /Persistence\/Migrations\//);
+    assert.doesNotMatch(gitignore, /Infrastructure\/Migrations\//);
     assert.equal(
       await readFile(path.join(outputRoot, "NorthStar.slnx"), "utf8").then(
         () => true,

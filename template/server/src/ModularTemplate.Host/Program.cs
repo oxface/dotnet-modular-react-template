@@ -1,7 +1,7 @@
 using System.Reflection;
 using ModularTemplate.Host.Configuration;
 using ModularTemplate.Host.Features.Auth;
-using ModularTemplate.Persistence.Configuration;
+using ModularTemplate.Transport;
 using ModularTemplate.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,7 +16,7 @@ if (isOpenApiDocumentGeneration
 }
 
 builder.AddServiceDefaults();
-builder.AddPersistence();
+builder.AddTransport();
 builder.AddHostAuthentication();
 builder.AddProblemDetails();
 builder.Services.AddOpenApi();

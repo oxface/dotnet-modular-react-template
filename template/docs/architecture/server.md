@@ -5,30 +5,26 @@ EF Core with PostgreSQL, and explicit module boundaries.
 
 Durable direction:
 
-- The Host owns HTTP composition, platform authentication mechanics, and shared
-  persistence composition.
+- The Host owns HTTP composition, platform authentication mechanics, transport
+  composition, and module composition.
 - Business modules live under `server/src/modules`.
 - Modules with persistence or external adapters use separate Contracts, Module,
   and Infrastructure projects.
-- Module stores depend on narrow module DbContext interfaces, not the concrete
-  Host DbContext.
-- Shared persistence lives in `ModularTemplate.Persistence`, a Host-owned
-  composition project with the concrete EF Core `ModularTemplateDbContext`.
-- `ModularTemplateDbContext` implements narrow module persistence interfaces,
-  including the Identity persistence surface for local users and application
-  access.
-- The Migrator references the persistence project. The template includes only
-  the intentional baseline `InitialCreate` EF migration; product-owned schema
-  changes should add product-owned migrations after bootstrap.
+- Module stores depend on narrow module DbContext interfaces, not concrete
+  DbContext types outside their Infrastructure project.
+- Each module Infrastructure project owns its EF Core DbContext, schema, and
+  baseline `InitialCreate` migration.
+- The Migrator references module Infrastructure projects and migrates module
+  contexts. Product-owned schema changes should add product-owned migrations
+  after bootstrap.
 - SharedKernel contains only domain primitives at this gate: entity,
   aggregate-root, value-object, domain-event, and domain-exception base types.
-- Domain events are persisted by the shared DbContext into
-  `platform.domain_events` as an audit/event-log table. This is not durable
-  messaging, dispatch, inbox, or outbox processing.
+- Domain events, outbox messages, and inbox messages are persisted in each
+  module schema by the shared Outbox library.
 - ServiceDefaults provides OpenTelemetry, service discovery, default HTTP
   resilience, and development health endpoints.
 - Host configures problem-details responses, baseline exception handling, and
-  shared persistence registration.
+  transport registration.
 - Host composes minimal API authentication, browser auth endpoints,
   current-user HTTP endpoints, and application-access authorization policies
   while modules own local identity and access decisions behind contracts. The

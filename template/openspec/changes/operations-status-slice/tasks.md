@@ -1,0 +1,8 @@
+- [x] Add operations contracts for operation status query.
+- [x] Add operations aggregate with lifecycle transitions.
+- [x] Add operations infrastructure query implementation and EF configuration.
+- [x] Register operations module and infrastructure in host composition.
+- [x] Expose `GET /api/operations/{operationId}` endpoint.
+- [x] Add unit tests for operation aggregate transitions.
+- [x] Add host endpoint tests for found/not-found behavior.
+- [x] Run impacted server test suites.

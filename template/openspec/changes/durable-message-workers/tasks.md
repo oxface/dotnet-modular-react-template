@@ -1,0 +1,10 @@
+- [x] Add outbox/inbox state transition methods for processing lifecycle and retries.
+- [x] Add outbox dispatcher service and background worker.
+- [x] Add inbox processor service and background worker.
+- [x] Register durable messaging workers in persistence configuration.
+- [x] Add integration tests for outbox-to-inbox delivery.
+- [x] Add integration tests for inbox typed handler execution.
+- [x] Add tests for retry to dead-letter behavior.
+- [x] Integrate Rebus transport with Aspire Service Bus emulator for local runs.
+- [x] Add startup transport probe with fail-fast behavior for Azure Service Bus.
+- [x] Run impacted server tests and strict OpenSpec validation.

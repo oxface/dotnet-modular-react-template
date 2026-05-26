@@ -1,9 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Migrator.Tests.Support;
+using ModularTemplate.Operations.Infrastructure.Persistence;
 using Shouldly;
 
 namespace ModularTemplate.Migrator.Tests;
@@ -87,14 +89,82 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
         verifyDbContext.ApplicationAccess.Single().IsActive.ShouldBeTrue();
     }
 
-    private IHost CreateHost()
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task RunAsync_WhenDatabaseIsFresh_MigratesModuleOwnedOutboxTables()
+    {
+        using IHost host = CreateHost(configureInitialAdmin: false);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+
+        int exitCode = await MigratorRunner.RunAsync(
+            [],
+            host.Services.GetRequiredService<IConfiguration>(),
+            host.Services,
+            output,
+            error,
+            CancellationToken.None);
+
+        exitCode.ShouldBe(0);
+        await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
+        IdentityDbContext identityContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        OperationsDbContext operationsContext = scope.ServiceProvider.GetRequiredService<OperationsDbContext>();
+        await AssertTablesExistAsync(
+            identityContext,
+            "identity",
+            [
+                "application_access",
+                "local_users",
+                "domain_events",
+                "inbox_messages",
+                "outbox_messages",
+                "__EFMigrationsHistory",
+            ]);
+        await AssertTablesExistAsync(
+            operationsContext,
+            "operations",
+            [
+                "operations",
+                "domain_events",
+                "inbox_messages",
+                "outbox_messages",
+                "__EFMigrationsHistory",
+            ]);
+    }
+
+    private IHost CreateHost(bool configureInitialAdmin = true)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration["ConnectionStrings:modular-template-host"] = fixture.ConnectionString;
-        builder.Configuration["Identity:InitialAdmin:Provider"] = "oidc";
-        builder.Configuration["Identity:InitialAdmin:Subject"] = "subject-1";
+        if (configureInitialAdmin)
+        {
+            builder.Configuration["Identity:InitialAdmin:Provider"] = "oidc";
+            builder.Configuration["Identity:InitialAdmin:Subject"] = "subject-1";
+        }
+
         builder.AddMigratorComposition();
 
         return builder.Build();
+    }
+
+    private static async Task AssertTablesExistAsync(
+        DbContext dbContext,
+        string schema,
+        IReadOnlyCollection<string> tableNames)
+    {
+        string[] tables = await dbContext.Database
+            .SqlQueryRaw<string>(
+                """
+                SELECT table_name AS "Value"
+                FROM information_schema.tables
+                WHERE table_schema = {0}
+                """,
+                schema)
+            .ToArrayAsync(CancellationToken.None);
+
+        foreach (string tableName in tableNames)
+        {
+            tables.ShouldContain(tableName);
+        }
     }
 }

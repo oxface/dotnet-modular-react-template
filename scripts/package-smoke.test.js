@@ -129,9 +129,10 @@ test("packed CLI bootstraps a product from the published payload", async () => {
         outputRoot,
         "server",
         "src",
-        "PackageDesk.Persistence",
+        "modules",
+        "PackageDesk.Identity.Infrastructure",
         "Migrations",
-        "PackageDeskDbContextModelSnapshot.cs",
+        "IdentityDbContextModelSnapshot.cs",
       ),
     );
   });

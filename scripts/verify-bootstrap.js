@@ -209,7 +209,11 @@ async function assertProductMigrationsAreTrackable(generatedRoot) {
   const gitignorePath = path.join(generatedRoot, ".gitignore");
   const gitignore = await readFile(gitignorePath, "utf8");
 
-  if (/server\/src\/[^/\r\n]+\.Persistence\/Migrations\//.test(gitignore)) {
+  if (
+    /server\/src\/modules\/[^/\r\n]+\.Infrastructure\/Migrations\//.test(
+      gitignore,
+    )
+  ) {
     throw new Error(
       "Bootstrapped product .gitignore must not ignore EF migrations.",
     );
@@ -217,39 +221,46 @@ async function assertProductMigrationsAreTrackable(generatedRoot) {
 }
 
 async function assertProductIncludesBaselineMigration(generatedRoot) {
-  const persistenceRoot = path.join(generatedRoot, "server", "src");
-  const entries = await readdir(persistenceRoot, { withFileTypes: true });
-  const persistenceProject = entries.find(
-    (entry) => entry.isDirectory() && entry.name.endsWith(".Persistence"),
-  );
+  const modulesRoot = path.join(generatedRoot, "server", "src", "modules");
+  const requiredMigrationSets = [
+    ["Identity.Infrastructure", "IdentityDbContextModelSnapshot.cs"],
+    ["Operations.Infrastructure", "OperationsDbContextModelSnapshot.cs"],
+  ];
 
-  if (!persistenceProject) {
-    throw new Error("Generated product is missing its Persistence project.");
-  }
-
-  const migrationsPath = path.join(
-    persistenceRoot,
-    persistenceProject.name,
-    "Migrations",
-  );
-
-  const migrationEntries = await readdir(migrationsPath);
-  const projectPrefix = persistenceProject.name.replace(/\.Persistence$/, "");
-  const hasInitialMigration = migrationEntries.some((entry) =>
-    /^\d{14}_InitialCreate\.cs$/.test(entry),
-  );
-  const hasInitialDesigner = migrationEntries.some((entry) =>
-    /^\d{14}_InitialCreate\.Designer\.cs$/.test(entry),
-  );
-
-  if (
-    !hasInitialMigration ||
-    !hasInitialDesigner ||
-    !migrationEntries.includes(`${projectPrefix}DbContextModelSnapshot.cs`)
-  ) {
-    throw new Error(
-      "Bootstrapped product must include the baseline InitialCreate EF migration.",
+  for (const [projectSuffix, snapshotName] of requiredMigrationSets) {
+    const entries = await readdir(modulesRoot, { withFileTypes: true });
+    const infrastructureProject = entries.find(
+      (entry) => entry.isDirectory() && entry.name.endsWith(projectSuffix),
     );
+
+    if (!infrastructureProject) {
+      throw new Error(
+        `Generated product is missing its ${projectSuffix} project.`,
+      );
+    }
+
+    const migrationsPath = path.join(
+      modulesRoot,
+      infrastructureProject.name,
+      "Migrations",
+    );
+    const migrationEntries = await readdir(migrationsPath);
+    const hasInitialMigration = migrationEntries.some((entry) =>
+      /^\d{14}_InitialCreate\.cs$/.test(entry),
+    );
+    const hasInitialDesigner = migrationEntries.some((entry) =>
+      /^\d{14}_InitialCreate\.Designer\.cs$/.test(entry),
+    );
+
+    if (
+      !hasInitialMigration ||
+      !hasInitialDesigner ||
+      !migrationEntries.includes(snapshotName)
+    ) {
+      throw new Error(
+        `Bootstrapped product must include the baseline ${projectSuffix} InitialCreate EF migration.`,
+      );
+    }
   }
 }
 

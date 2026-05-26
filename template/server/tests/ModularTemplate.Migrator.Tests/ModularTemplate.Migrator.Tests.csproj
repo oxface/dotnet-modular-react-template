@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="..\..\src\ModularTemplate.Migrator\ModularTemplate.Migrator.csproj" />
-    <ProjectReference Include="..\..\src\ModularTemplate.Persistence\ModularTemplate.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\ModularTemplate.Outbox\ModularTemplate.Outbox.csproj" />
     <ProjectReference Include="..\..\src\modules\ModularTemplate.Identity.Infrastructure\ModularTemplate.Identity.Infrastructure.csproj" />
   </ItemGroup>
 

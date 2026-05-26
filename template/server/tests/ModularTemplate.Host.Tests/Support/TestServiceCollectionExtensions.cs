@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using ModularTemplate.Persistence.Transactions;
+using ModularTemplate.Outbox.Transactions;
 
 namespace ModularTemplate.Host.Tests.Support;
 

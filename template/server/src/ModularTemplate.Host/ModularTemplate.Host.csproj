@@ -6,11 +6,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ModularTemplate.Persistence\ModularTemplate.Persistence.csproj" />
+    <ProjectReference Include="..\ModularTemplate.Transport\ModularTemplate.Transport.csproj" />
     <ProjectReference Include="..\ModularTemplate.ServiceDefaults\ModularTemplate.ServiceDefaults.csproj" />
     <ProjectReference Include="..\ModularTemplate.SharedKernel\ModularTemplate.SharedKernel.csproj" />
     <ProjectReference Include="..\modules\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
     <ProjectReference Include="..\modules\ModularTemplate.Identity.Infrastructure\ModularTemplate.Identity.Infrastructure.csproj" />
+    <ProjectReference Include="..\modules\ModularTemplate.Operations\ModularTemplate.Operations.csproj" />
+    <ProjectReference Include="..\modules\ModularTemplate.Operations.Infrastructure\ModularTemplate.Operations.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Mediator.SourceGenerator">

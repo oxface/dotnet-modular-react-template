@@ -93,8 +93,8 @@ Expected:
   `template/`.
 - Names are rewritten to `SmokeDesk`, `smoke-desk`, and `smoke_desk`.
 - Product CI, Husky hooks, VS Code/Aspire config, and docs are present.
-- The baseline `InitialCreate` EF migration is renamed for the generated
-  product and present under its Persistence project.
+- The baseline `InitialCreate` EF migrations are renamed for the generated
+  product and present under its module Infrastructure projects.
 - Pre-populated OpenSpec artifacts are absent.
 - Factory-only docs and packaging files are absent.
 - The generated product starts locally from Aspire.
@@ -141,5 +141,5 @@ Ship v1 only after these pass:
 - Template payload runs locally from Aspire.
 - Local packed CLI creates a working product.
 - Published npm package creates a working product from a separate directory.
-- The baseline EF migration is intentionally present in the factory payload
+- The baseline EF migrations are intentionally present in the factory payload
   before release.

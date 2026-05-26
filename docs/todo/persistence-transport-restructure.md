@@ -27,45 +27,6 @@ name the earlier separate Outbox/Transport project split.
   status slice remain under `template/openspec/changes/`; archive them when the
   team is ready for accepted specs to become the source of truth.
 
-## Context
-
-The current `ModularTemplate.Persistence` project conflates three concerns:
-
-- Outbox and inbox table definitions and polling machinery
-- Rebus transport bridge
-- Cross-module context enrollment for shared transactions
-
-This creates a dependency inversion: `ModularTemplate.Persistence` directly references
-`ModularTemplate.Identity.Infrastructure` and `ModularTemplate.Operations.Infrastructure`
-so it can register their `DbContext` instances. All module contexts share one
-`NpgsqlConnection` and are enlisted in a cross-context transaction inside
-`CommandTransactionBehavior` solely because the outbox table lives in a separate context.
-
-The fix is to move the outbox tables into each module's own context and schema, which
-eliminates the shared platform context and the cross-context transaction machinery.
-
-## Target Layout
-
-```
-server/src/
-  ModularTemplate.SharedKernel/          ← unchanged: domain primitives
-  ModularTemplate.Infrastructure/        ← platform infrastructure library
-  │ Persistence/                              IUnitOfWork, IModuleDbContext,
-  │                                           ModuleUnitOfWork, EF config helpers,
-  │                                           stored domain events
-  │ Outbox/                                   outbox/inbox DB entities, dispatcher,
-  │                                           processor, background services, retry logic,
-  │                                           IOutboxWriter, IOutboxDispatcher,
-  │                                           IInboxProcessor, IOutboxTransport
-  │ Transport/                                DurableTransportEnvelope,
-  │                                           RebusOutboxTransport,
-  │                                           RebusDurableTransportHandler,
-  │                                           transport config, ASB startup probe
-  ModularTemplate.Host/                  ← registers Infrastructure transport,
-  │                                           wires Rebus, background services, unit of work
-  modules/
-    ModularTemplate.Identity.Infrastructure/   → references Infrastructure, stamps tables into identity.*
-    ModularTemplate.Operations.Infrastructure/ → references Infrastructure, stamps tables into operations.*
 ```
 
 `ModularTemplate.Persistence` is deleted. Its `platform.*` schema (outbox, inbox, domain_events)
@@ -120,8 +81,10 @@ Once the outbox is co-located with domain data (same context, same schema), the 
 becomes a standard single-context pipeline behavior:
 
 ```
+
 BeginTransaction → invoke next → capture domain events → write outbox rows → commit
-```
+
+````
 
 No `NpgsqlConnection` sharing, no `UseTransactionAsync` across contexts.
 The behavior lives in `ModularTemplate.Infrastructure.Outbox` and receives `IModuleDbContext` (a marker
@@ -134,7 +97,7 @@ Each module's `DbContext.OnModelCreating` calls:
 ```csharp
 modelBuilder.ApplyOutboxConfiguration("identity"); // or "operations"
 modelBuilder.ApplyConfigurationsFromAssembly(typeof(IdentityDbContext).Assembly);
-```
+````
 
 Each module's `Add*Infrastructure` registration:
 

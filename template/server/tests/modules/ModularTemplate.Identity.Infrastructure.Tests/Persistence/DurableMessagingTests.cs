@@ -310,14 +310,12 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             Options.Create(new DurableMessagingOptions { BatchSize = 20 }),
             NullLogger<OutboxDispatcher>.Instance);
 
-        // Attempt 1: fails, Status → Failed.
         await dispatcher.DispatchPendingAsync(CancellationToken.None);
         dbContext.ChangeTracker.Clear();
         OutboxMessage afterFirst = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
         afterFirst.AttemptCount.ShouldBe(1);
         afterFirst.Status.ShouldBe(PersistedMessageStatus.Failed);
 
-        // Attempt 2: exceeds maxAttempts → DeadLettered.
         await dispatcher.DispatchPendingAsync(CancellationToken.None);
         dbContext.ChangeTracker.Clear();
         OutboxMessage afterSecond = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
@@ -347,7 +345,6 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             payload: JsonSerializer.Serialize(command)));
         await dispatchContext.SaveChangesAsync(CancellationToken.None);
 
-        // Stage 1: outbox → inbox via TestOutboxTransport.
         var dispatcher = new OutboxDispatcher(
             [(IModuleDbContext)dispatchContext],
             new TestOutboxTransport(dispatchContext),
@@ -358,7 +355,6 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         (await dispatchContext.OutboxMessages.SingleAsync(CancellationToken.None))
             .Status.ShouldBe(PersistedMessageStatus.Processed);
 
-        // Stage 2: inbox → handler (fresh context so EF does not serve from identity map).
         await using var processContext = CreateDbContext();
         var registry = new MessageTypeRegistry();
         registry.Register<TestDurableCommand>("ModularTemplate.operations.test-command.v1");
@@ -406,7 +402,6 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         dbContext.OutboxMessages.Add(outboxMessage);
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
-        // Simulate a stale Processing lock left by a worker that crashed.
         DateTimeOffset staleLockTime = DateTimeOffset.UtcNow - TimeSpan.FromHours(1);
         await dbContext.Database.ExecuteSqlAsync(
             $"""
@@ -417,7 +412,6 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             CancellationToken.None);
         dbContext.ChangeTracker.Clear();
 
-        // LockTimeout = 2 min; the lock is 1 hour old → stale → must be reclaimed.
         var dispatcher = new OutboxDispatcher(
             [(IModuleDbContext)dbContext],
             new TestOutboxTransport(dbContext),
@@ -519,7 +513,7 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         return new IdentityDbContext(options);
     }
 
-    private OperationsDbContext CreateOperationsDbContext()
+    private OperationsDbContext CreateOperationsContext()
     {
         var options = new DbContextOptionsBuilder<OperationsDbContext>()
             .UseNpgsql(postgreSqlFixture.ConnectionString)
@@ -527,6 +521,8 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
 
         return new OperationsDbContext(options);
     }
+
+    private OperationsDbContext CreateOperationsDbContext() => CreateOperationsContext();
 
     private sealed record TestDurableCommand(string JobId) : IDurableCommand;
 
@@ -597,7 +593,6 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         }
     }
 
-    /// <summary>Counts dispatch calls without side effects; used to verify no double-claiming.</summary>
     private sealed class CountingOutboxTransport : IOutboxTransport
     {
         private int _count;
@@ -611,7 +606,6 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         }
     }
 
-    /// <summary>Always throws; used to exercise the outbox dead-letter path.</summary>
     private sealed class ThrowingOutboxTransport : IOutboxTransport
     {
         public Task DispatchAsync(OutboxMessage outboxMessage, string targetModule, CancellationToken cancellationToken) =>

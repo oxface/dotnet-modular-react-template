@@ -18,7 +18,9 @@ const generatedDirectoryNames = new Set([
   "test-results",
 ]);
 
-async function removeGeneratedDirectories(root) {
+const generatedFileExtensions = new Set([".lscache"]);
+
+async function removeGeneratedArtifacts(root) {
   const entries = await readdir(root, { withFileTypes: true });
 
   for (const entry of entries) {
@@ -28,15 +30,23 @@ async function removeGeneratedDirectories(root) {
       continue;
     }
 
+    if (
+      entry.isFile() &&
+      generatedFileExtensions.has(path.extname(entry.name))
+    ) {
+      await rm(fullPath, { force: true });
+      continue;
+    }
+
     if (!entry.isDirectory()) {
       continue;
     }
 
     const entryStat = await lstat(fullPath);
     if (!entryStat.isSymbolicLink()) {
-      await removeGeneratedDirectories(fullPath);
+      await removeGeneratedArtifacts(fullPath);
     }
   }
 }
 
-await removeGeneratedDirectories(templateRoot);
+await removeGeneratedArtifacts(templateRoot);

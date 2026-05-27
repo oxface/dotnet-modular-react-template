@@ -1,7 +1,7 @@
 - [x] Add outbox/inbox state transition methods for processing lifecycle and retries.
 - [x] Add outbox dispatcher service and background worker.
 - [x] Add inbox processor service and background worker.
-- [x] Register durable messaging workers in persistence configuration.
+- [x] Register durable messaging workers in transport configuration.
 - [x] Add integration tests for outbox-to-inbox delivery.
 - [x] Add integration tests for inbox typed handler execution.
 - [x] Add tests for retry to dead-letter behavior.

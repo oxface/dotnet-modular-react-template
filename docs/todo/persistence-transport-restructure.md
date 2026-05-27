@@ -14,6 +14,19 @@ changed module context per save; use module contracts or durable messaging for
 cross-module work. The detailed move inventory below is historical and may
 name the earlier separate Outbox/Transport project split.
 
+## 2026-05-27 Sweep Notes
+
+- `ModularTemplate.Persistence`, the platform DbContext, and the `platform.*`
+  messaging schema are gone from the template payload.
+- Durable messaging workers are registered through Infrastructure transport
+  configuration, not a persistence configuration type.
+- Inbox processing must resolve durable message handlers from the processor's
+  current DI scope so target-module mutations and inbox status are saved
+  through the same module context.
+- Completed OpenSpec changes for durable message workers and the Operations
+  status slice remain under `template/openspec/changes/`; archive them when the
+  team is ready for accepted specs to become the source of truth.
+
 ## Context
 
 The current `ModularTemplate.Persistence` project conflates three concerns:

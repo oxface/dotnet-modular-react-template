@@ -153,19 +153,17 @@ public sealed class InboxProcessor(
             message.IdempotencyKey,
             message.ReceivedAtUtc);
 
-        using IServiceScope scope = serviceProvider.CreateScope();
-
         if (message.MessageKind == MessageKind.Command)
         {
             Type handlerType = typeof(IDurableCommandHandler<>).MakeGenericType(clrType);
-            object handler = scope.ServiceProvider.GetRequiredService(handlerType);
+            object handler = serviceProvider.GetRequiredService(handlerType);
             await InvokeHandlerAsync(handlerType, handler, payload, context, cancellationToken);
             return;
         }
 
         Type eventHandlerType = typeof(IIntegrationEventHandler<>).MakeGenericType(clrType);
         Type enumerableType = typeof(IEnumerable<>).MakeGenericType(eventHandlerType);
-        var handlers = (IEnumerable<object>?)scope.ServiceProvider.GetService(enumerableType);
+        var handlers = (IEnumerable<object>?)serviceProvider.GetService(enumerableType);
 
         if (handlers is null)
         {

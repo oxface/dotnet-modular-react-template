@@ -7,7 +7,7 @@ using ModularTemplate.Identity.Infrastructure;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Operations;
 using ModularTemplate.Operations.Infrastructure;
-using ModularTemplate.Outbox.Transactions;
+using ModularTemplate.Infrastructure.Persistence.Transactions;
 
 namespace ModularTemplate.Host.Configuration;
 
@@ -26,7 +26,7 @@ public static class ModuleConfiguration
             options.PipelineBehaviors =
             [
                 typeof(RequestValidationBehavior<,>),
-                typeof(CommandTransactionBehavior<,>)
+                typeof(ModuleUnitOfWorkBehavior<,>)
             ];
         });
 

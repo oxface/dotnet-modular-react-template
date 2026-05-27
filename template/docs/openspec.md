@@ -43,10 +43,10 @@ the scope.
 Accepted behavior lives under `openspec/specs/`. Active proposed behavior lives
 under `openspec/changes/`.
 
-The template intentionally starts with empty specs and changes directories.
-Technical, governance, and verification-only migration details may remain in
-archived changes, but they do not become active capability specs unless they
-define observable system behavior.
+The template may carry active changes while implementation is underway or
+pending archive. Technical, governance, and verification-only migration details
+may remain in archived changes, but they do not become active capability specs
+unless they define observable system behavior.
 
 Changes modify the existing capability spec that owns the behavior instead of
 re-specifying an entire historical feature.

@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Users;
-using ModularTemplate.Outbox;
-using ModularTemplate.Outbox.DomainEvents;
+using ModularTemplate.Infrastructure.Outbox;
+using ModularTemplate.Infrastructure.Persistence;
+using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 
 namespace ModularTemplate.Identity.Infrastructure.Persistence;
 

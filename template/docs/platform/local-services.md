@@ -2,11 +2,11 @@
 
 The template's local platform uses Aspire and includes:
 
-- PostgreSQL for the Host-owned database.
+- PostgreSQL for the generated product database.
 - Redis for BFF/session ticket storage.
 - Azure Service Bus emulator for local durable messaging transport.
 - Keycloak for local OpenID Connect authentication.
-- Migrator for applying Host-owned migrations.
+- Migrator for applying module-owned migrations.
 - Host API.
 - Admin Vite app.
 - Web Vite app.

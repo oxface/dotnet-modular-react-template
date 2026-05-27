@@ -21,7 +21,7 @@ Identity module responsibilities:
 
 Migrator responsibilities:
 
-- Apply Host-owned database migrations.
+- Apply module-owned database migrations.
 - Run explicit initial-admin setup when configured or invoked by command.
 
 The identity provider proves identity. The application decides product access.

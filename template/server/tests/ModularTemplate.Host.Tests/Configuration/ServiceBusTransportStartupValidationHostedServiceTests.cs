@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
-using ModularTemplate.Transport;
+using ModularTemplate.Infrastructure.Transport;
 using NSubstitute;
 using Shouldly;
 

@@ -4,7 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using ModularTemplate.Operations;
 using ModularTemplate.Operations.Contracts.Operations;
 using ModularTemplate.Operations.Infrastructure.Persistence;
-using ModularTemplate.Outbox;
+using ModularTemplate.Infrastructure.Outbox;
+using ModularTemplate.Infrastructure.Persistence;
 
 namespace ModularTemplate.Operations.Infrastructure;
 

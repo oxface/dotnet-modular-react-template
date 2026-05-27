@@ -44,7 +44,7 @@ public sealed class HostApplicationFactory(
             services.RemoveAll<ILocalUserRepository>();
             services.RemoveAll<IApplicationAccessRepository>();
             services.RemoveAll(typeof(IPipelineBehavior<,>));
-            services.RemoveCommandTransactionBehaviors();
+            services.RemoveModuleUnitOfWorkBehaviors();
             services.RemoveAll<IPipelineBehavior<ResolveCurrentUserCommand, CurrentUserContext>>();
             services.RemoveAll<IPipelineBehavior<GrantInitialAdminAccessCommand, GrantInitialAdminAccessResult>>();
             services.AddSingleton<HostTestIdentityContext>();

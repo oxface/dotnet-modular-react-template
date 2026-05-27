@@ -17,10 +17,11 @@ Durable direction:
 - The Migrator references module Infrastructure projects and migrates module
   contexts. Product-owned schema changes should add product-owned migrations
   after bootstrap.
-- SharedKernel contains only domain primitives at this gate: entity,
-  aggregate-root, value-object, domain-event, and domain-exception base types.
+- SharedKernel contains dependency-light domain primitives, validation
+  contracts, normalization helpers, and messaging contracts shared across
+  module and platform libraries.
 - Domain events, outbox messages, and inbox messages are persisted in each
-  module schema by the shared Outbox library.
+  module schema by the shared Infrastructure library.
 - ServiceDefaults provides OpenTelemetry, service discovery, default HTTP
   resilience, and development health endpoints.
 - Host configures problem-details responses, baseline exception handling, and

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\..\ModularTemplate.Outbox\ModularTemplate.Outbox.csproj" />
+    <ProjectReference Include="..\..\ModularTemplate.Infrastructure\ModularTemplate.Infrastructure.csproj" />
     <ProjectReference Include="..\..\ModularTemplate.SharedKernel\ModularTemplate.SharedKernel.csproj" />
     <ProjectReference Include="..\ModularTemplate.Operations\ModularTemplate.Operations.csproj" />
     <ProjectReference Include="..\ModularTemplate.Operations.Contracts\ModularTemplate.Operations.Contracts.csproj" />

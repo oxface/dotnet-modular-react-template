@@ -1,7 +1,7 @@
 using System.Reflection;
 using ModularTemplate.Host.Features.Auth;
 using ModularTemplate.ServiceDefaults;
-using ModularTemplate.Transport;
+using ModularTemplate.Infrastructure.Transport;
 
 namespace ModularTemplate.Host.Configuration;
 

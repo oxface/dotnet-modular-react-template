@@ -6,8 +6,8 @@ using ModularTemplate.Identity.CurrentUser;
 using ModularTemplate.Identity.Infrastructure;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Operations.Infrastructure;
-using ModularTemplate.Transport;
-using ModularTemplate.Outbox.Transactions;
+using ModularTemplate.Infrastructure.Transport;
+using ModularTemplate.Infrastructure.Persistence.Transactions;
 
 namespace ModularTemplate.Migrator;
 
@@ -26,7 +26,7 @@ public static class MigratorComposition
             ];
             options.PipelineBehaviors =
             [
-                typeof(CommandTransactionBehavior<,>)
+                typeof(ModuleUnitOfWorkBehavior<,>)
             ];
         });
         builder.Services.AddIdentityModule();

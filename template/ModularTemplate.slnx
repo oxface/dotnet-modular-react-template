@@ -6,10 +6,9 @@
   <Folder Name="/server/src/">
     <Project Path="server/src/ModularTemplate.Host/ModularTemplate.Host.csproj" />
     <Project Path="server/src/ModularTemplate.Migrator/ModularTemplate.Migrator.csproj" />
-    <Project Path="server/src/ModularTemplate.Outbox/ModularTemplate.Outbox.csproj" />
+    <Project Path="server/src/ModularTemplate.Infrastructure/ModularTemplate.Infrastructure.csproj" />
     <Project Path="server/src/ModularTemplate.ServiceDefaults/ModularTemplate.ServiceDefaults.csproj" />
     <Project Path="server/src/ModularTemplate.SharedKernel/ModularTemplate.SharedKernel.csproj" />
-    <Project Path="server/src/ModularTemplate.Transport/ModularTemplate.Transport.csproj" />
   </Folder>
   <Folder Name="/server/src/modules/">
     <Project Path="server/src/modules/ModularTemplate.Identity.Contracts/ModularTemplate.Identity.Contracts.csproj" />

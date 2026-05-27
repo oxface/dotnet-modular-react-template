@@ -3,7 +3,7 @@ using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
 using ModularTemplate.Identity.Users;
-using ModularTemplate.Outbox.DomainEvents;
+using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 using ModularTemplate.SharedKernel.Domain;
 using Shouldly;
 
@@ -46,7 +46,7 @@ public sealed class IdentityRepositoryTests(PostgreSqlFixture postgreSqlFixture)
         LocalUser user = LocalUser.Create("oidc", "subject-1", "Ada", "ada@example.test");
         users.Add(user);
 
-        // Simulate CommandTransactionBehavior: capture domain events before saving.
+        // Simulate ModuleUnitOfWork: capture domain events before saving.
         IReadOnlyCollection<IDomainEvent> domainEvents = user.DequeueDomainEvents();
         foreach (IDomainEvent domainEvent in domainEvents)
         {

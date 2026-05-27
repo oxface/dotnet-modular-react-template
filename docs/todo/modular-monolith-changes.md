@@ -1,5 +1,22 @@
 # Modular Monolith Durable Messaging & Module Persistence Refactor Plan
 
+## Status
+
+Large parts of this direction now exist in the template payload: module-owned
+`DbContext` types and schemas, module-owned migrations, shared Infrastructure
+library folders for Persistence/Outbox/Transport, local durable workers, and
+an Operations status slice.
+Treat the rest of this document as background direction and backlog, not as a
+fresh inventory of missing work.
+
+Current staleness to watch:
+
+- Completed OpenSpec changes under `template/openspec/changes/` should be
+  archived when the team is ready for accepted specs to become the source of
+  truth.
+- Product-facing docs under `template/docs/` are the durable reference once
+  they conflict with this todo handoff.
+
 ## Goal
 
 Refactor ModularTemplate toward a production-realistic modular monolith architecture with:

@@ -1,25 +1,25 @@
 using Microsoft.Extensions.DependencyInjection;
-using ModularTemplate.Outbox.Transactions;
+using ModularTemplate.Infrastructure.Persistence.Transactions;
 
 namespace ModularTemplate.Host.Tests.Support;
 
 internal static class TestServiceCollectionExtensions
 {
-    public static void RemoveCommandTransactionBehaviors(this IServiceCollection services)
+    public static void RemoveModuleUnitOfWorkBehaviors(this IServiceCollection services)
     {
         for (int index = services.Count - 1; index >= 0; index--)
         {
-            if (IsCommandTransactionBehavior(services[index].ImplementationType))
+            if (IsModuleUnitOfWorkBehavior(services[index].ImplementationType))
             {
                 services.RemoveAt(index);
             }
         }
     }
 
-    private static bool IsCommandTransactionBehavior(Type? implementationType)
+    private static bool IsModuleUnitOfWorkBehavior(Type? implementationType)
     {
         return implementationType is not null
             && implementationType.IsGenericType
-            && implementationType.GetGenericTypeDefinition() == typeof(CommandTransactionBehavior<,>);
+            && implementationType.GetGenericTypeDefinition() == typeof(ModuleUnitOfWorkBehavior<,>);
     }
 }

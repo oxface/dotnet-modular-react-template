@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
-using ModularTemplate.Outbox;
+using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.SharedKernel.Messaging;
 using Shouldly;
 

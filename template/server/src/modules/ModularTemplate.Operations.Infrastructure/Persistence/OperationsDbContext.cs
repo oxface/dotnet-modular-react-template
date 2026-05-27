@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Operations.Operations;
-using ModularTemplate.Outbox;
-using ModularTemplate.Outbox.DomainEvents;
+using ModularTemplate.Infrastructure.Outbox;
+using ModularTemplate.Infrastructure.Persistence;
+using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 
 namespace ModularTemplate.Operations.Infrastructure.Persistence;
 

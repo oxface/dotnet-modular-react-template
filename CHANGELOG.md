@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.15...dotnet-modular-react-template-v1.1.0) (2026-05-27)
+
+
+### Features
+
+* separate databases and outbox ([2e76477](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/2e76477c787678fa348a39741f9eff6db9a292e1))
+
+
+### Bug Fixes
+
+* context bug ([28f4ed9](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/28f4ed9cf594f3e1c1cc11f104b9ff65320fbb24))
+* modular persistence ([7d30ea6](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/7d30ea6c77d66d90dd0b9be7f261373e0b3c302b))
+* more openspec ([368d5ac](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/368d5acba9bf7421388b8a6c20602c9a3900b468))
+* simplify open api generation ([cd144bd](https://github.com/The-Supremacy/dotnet-modular-react-template/commit/cd144bde55210411727fa26dde8d116472202fa3))
+
 ## [1.0.15](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.14...dotnet-modular-react-template-v1.0.15) (2026-05-14)
 
 

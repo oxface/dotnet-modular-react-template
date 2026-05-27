@@ -96,6 +96,18 @@ test("keeps manifest text and ignore rules focused on bootstrap inputs", () => {
         manifest.source,
         "server",
         "src",
+        "ModularTemplate.Host",
+        "ModularTemplate.Host.csproj.lscache",
+      ),
+    ),
+    true,
+  );
+  assert.equal(
+    shouldExclude(
+      path.join(
+        manifest.source,
+        "server",
+        "src",
         "modules",
         "ModularTemplate.Identity.Infrastructure",
         "Migrations",
@@ -189,14 +201,27 @@ server/src/modules/NorthStar.Identity.Infrastructure/Migrations/
 test("bootstraps a generated sample with renamed manifests and product CI files", async () => {
   await withTempDir(async (tempDir) => {
     const outputRoot = path.join(tempDir, "north-star");
+    const localCacheArtifact = path.join(
+      manifest.source,
+      "server",
+      "src",
+      "ModularTemplate.Host",
+      "ModularTemplate.Host.csproj.lscache",
+    );
 
-    await execFileAsync(process.execPath, [
-      bootstrapScript,
-      "--product-name",
-      "North Star",
-      "--output",
-      outputRoot,
-    ]);
+    try {
+      await writeFile(localCacheArtifact, "ModularTemplate", "utf8");
+
+      await execFileAsync(process.execPath, [
+        bootstrapScript,
+        "--product-name",
+        "North Star",
+        "--output",
+        outputRoot,
+      ]);
+    } finally {
+      await rm(localCacheArtifact, { force: true });
+    }
 
     const packageJson = JSON.parse(
       await readFile(path.join(outputRoot, "package.json"), "utf8"),
@@ -299,6 +324,18 @@ test("bootstraps a generated sample with renamed manifests and product CI files"
     await assert.rejects(readFile(path.join(outputRoot, "README.md")), {
       code: "ENOENT",
     });
+    await assert.rejects(
+      readFile(
+        path.join(
+          outputRoot,
+          "server",
+          "src",
+          "NorthStar.Host",
+          "NorthStar.Host.csproj.lscache",
+        ),
+      ),
+      { code: "ENOENT" },
+    );
     assert.equal(
       await readFile(path.join(outputRoot, "NorthStar.slnx"), "utf8").then(
         () => true,

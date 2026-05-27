@@ -30,6 +30,8 @@ const ignoredSegments = new Set([
   "test-results",
 ]);
 
+const ignoredFileExtensions = new Set([".lscache"]);
+
 function parseArgs(argv) {
   const args = {
     full: false,
@@ -157,6 +159,10 @@ async function walk(root) {
     const fullPath = path.join(root, entry.name);
     const relative = path.relative(root, fullPath).split(path.sep);
     if (relative.some((segment) => ignoredSegments.has(segment))) {
+      continue;
+    }
+
+    if (ignoredFileExtensions.has(path.extname(entry.name))) {
       continue;
     }
 

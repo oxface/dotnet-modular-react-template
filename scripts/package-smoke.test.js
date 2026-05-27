@@ -70,7 +70,9 @@ async function assertPackExcludesGeneratedArtifacts(tarballPath) {
     (entry) =>
       /package\/template\/(?:.*\/)?(?:\.pnpm-store|bin|coverage|dist|node_modules|obj|playwright-report|test-results)\//.test(
         entry,
-      ) || entry.startsWith("package/template/.husky/_/"),
+      ) ||
+      entry.startsWith("package/template/.husky/_/") ||
+      entry.endsWith(".lscache"),
   );
 
   assert.deepEqual(forbiddenEntries, []);
@@ -92,48 +94,62 @@ test("packed CLI bootstraps a product from the published payload", async () => {
       "generated during package smoke test\n",
       "utf8",
     );
-
-    const tarballPath = await packPublishedPayload(tempDir);
-    await assertPackExcludesGeneratedArtifacts(tarballPath);
-    const outputRoot = path.join(tempDir, "package-desk");
-
-    await execFileAsync(
-      "pnpm",
-      [
-        "dlx",
-        tarballPath,
-        "--",
-        "--product-name",
-        "Package Desk",
-        "--output",
-        outputRoot,
-      ],
-      {
-        cwd: tempDir,
-        env: commandEnv(),
-        maxBuffer: 1024 * 1024 * 8,
-      },
+    await writeFile(
+      path.join(repoRoot, "template", "package-smoke.csproj.lscache"),
+      "generated local cache artifact\n",
+      "utf8",
     );
 
-    const packageJson = JSON.parse(
-      await readFile(path.join(outputRoot, "package.json"), "utf8"),
-    );
-    assert.equal(packageJson.name, "package-desk");
-    await assert.rejects(stat(path.join(outputRoot, ".npmignore")), {
-      code: "ENOENT",
-    });
-    await stat(path.join(outputRoot, "PackageDesk.slnx"));
-    await stat(path.join(outputRoot, ".github", "workflows", "verify.yml"));
-    await stat(
-      path.join(
-        outputRoot,
-        "server",
-        "src",
-        "modules",
-        "PackageDesk.Identity.Infrastructure",
-        "Migrations",
-        "IdentityDbContextModelSnapshot.cs",
-      ),
-    );
+    try {
+      const tarballPath = await packPublishedPayload(tempDir);
+      await assertPackExcludesGeneratedArtifacts(tarballPath);
+      const outputRoot = path.join(tempDir, "package-desk");
+
+      await execFileAsync(
+        "pnpm",
+        [
+          "dlx",
+          tarballPath,
+          "--",
+          "--product-name",
+          "Package Desk",
+          "--output",
+          outputRoot,
+        ],
+        {
+          cwd: tempDir,
+          env: commandEnv(),
+          maxBuffer: 1024 * 1024 * 8,
+        },
+      );
+
+      const packageJson = JSON.parse(
+        await readFile(path.join(outputRoot, "package.json"), "utf8"),
+      );
+      assert.equal(packageJson.name, "package-desk");
+      await assert.rejects(stat(path.join(outputRoot, ".npmignore")), {
+        code: "ENOENT",
+      });
+      await stat(path.join(outputRoot, "PackageDesk.slnx"));
+      await stat(path.join(outputRoot, ".github", "workflows", "verify.yml"));
+      await stat(
+        path.join(
+          outputRoot,
+          "server",
+          "src",
+          "modules",
+          "PackageDesk.Identity.Infrastructure",
+          "Migrations",
+          "IdentityDbContextModelSnapshot.cs",
+        ),
+      );
+    } finally {
+      await rm(
+        path.join(repoRoot, "template", "package-smoke.csproj.lscache"),
+        {
+          force: true,
+        },
+      );
+    }
   });
 });

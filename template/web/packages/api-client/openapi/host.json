@@ -27,6 +27,43 @@
           }
         }
       }
+    },
+    "/api/operations/{operationId}": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "operationId": "GetOperation",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -85,12 +122,85 @@
             ]
           }
         }
+      },
+      "OperationDetails": {
+        "required": [
+          "operationId",
+          "operationType",
+          "status",
+          "createdAtUtc",
+          "updatedAtUtc",
+          "completedAtUtc",
+          "failedAtUtc",
+          "failureReason",
+          "resultJson",
+          "metadataJson"
+        ],
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operationType": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationStatus"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "failedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "failureReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resultJson": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "metadataJson": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "OperationStatus": {
+        "type": "integer"
       }
     }
   },
   "tags": [
     {
       "name": "CurrentUser"
+    },
+    {
+      "name": "Operations"
     }
   ]
 }

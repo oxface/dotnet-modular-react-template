@@ -2,7 +2,7 @@
 
 import type { Client, Options as Options2, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses } from './types.gen';
+import type { GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetOperationData, GetOperationErrors, GetOperationResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -19,3 +19,5 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 export const getCurrentUser = <ThrowOnError extends boolean = false>(options?: Options<GetCurrentUserData, ThrowOnError>) => (options?.client ?? client).get<GetCurrentUserResponses, GetCurrentUserErrors, ThrowOnError>({ url: '/api/me', ...options });
+
+export const getOperation = <ThrowOnError extends boolean = false>(options: Options<GetOperationData, ThrowOnError>) => (options.client ?? client).get<GetOperationResponses, GetOperationErrors, ThrowOnError>({ url: '/api/operations/{operationId}', ...options });

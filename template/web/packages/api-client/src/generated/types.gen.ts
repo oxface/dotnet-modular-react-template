@@ -20,6 +20,21 @@ export type GetMeUserResponse = {
     email: null | string;
 };
 
+export type OperationDetails = {
+    operationId: string;
+    operationType: string;
+    status: OperationStatus;
+    createdAtUtc: string;
+    updatedAtUtc: string;
+    completedAtUtc: null | string;
+    failedAtUtc: null | string;
+    failureReason: null | string;
+    resultJson: null | string;
+    metadataJson: null | string;
+};
+
+export type OperationStatus = number;
+
 export type GetCurrentUserData = {
     body?: never;
     path?: never;
@@ -42,3 +57,32 @@ export type GetCurrentUserResponses = {
 };
 
 export type GetCurrentUserResponse = GetCurrentUserResponses[keyof GetCurrentUserResponses];
+
+export type GetOperationData = {
+    body?: never;
+    path: {
+        operationId: string;
+    };
+    query?: never;
+    url: '/api/operations/{operationId}';
+};
+
+export type GetOperationErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Not Found
+     */
+    404: unknown;
+};
+
+export type GetOperationResponses = {
+    /**
+     * OK
+     */
+    200: OperationDetails;
+};
+
+export type GetOperationResponse = GetOperationResponses[keyof GetOperationResponses];

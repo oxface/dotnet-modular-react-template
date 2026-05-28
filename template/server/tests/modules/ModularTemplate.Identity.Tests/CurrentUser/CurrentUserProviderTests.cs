@@ -13,10 +13,10 @@ public sealed class CurrentUserProviderTests
     public async Task GetCurrentUserAsync_WhenIdentityIsNew_CreatesLocalUserWithNoDefaultAccess()
     {
         var identityContext = new InMemoryIdentityContext();
-        var handler = new ResolveCurrentUserCommandHandler(identityContext, identityContext);
+        var handler = new SynchronizeCurrentUserCommandHandler(identityContext, identityContext);
 
         CurrentUserContext currentUser = await handler.Handle(
-            new ResolveCurrentUserCommand(new AuthenticatedIdentity("oidc", "subject-1", "Ada", "ada@example.test")),
+            new SynchronizeCurrentUserCommand(new AuthenticatedIdentity("oidc", "subject-1", "Ada", "ada@example.test")),
             CancellationToken.None);
 
         currentUser.IsAuthenticated.ShouldBeTrue();
@@ -31,16 +31,16 @@ public sealed class CurrentUserProviderTests
     public async Task GetCurrentUserAsync_WhenApplicationAccessIsActive_ReturnsAccessState()
     {
         var identityContext = new InMemoryIdentityContext();
-        var handler = new ResolveCurrentUserCommandHandler(identityContext, identityContext);
+        var handler = new SynchronizeCurrentUserCommandHandler(identityContext, identityContext);
         var identity = new AuthenticatedIdentity("oidc", "subject-1", "Ada", "ada@example.test");
         CurrentUserContext created = await handler.Handle(
-            new ResolveCurrentUserCommand(identity),
+            new SynchronizeCurrentUserCommand(identity),
             CancellationToken.None);
 
         identityContext.Add(ApplicationAccess.GrantTo(created.LocalUserId!.Value));
 
         CurrentUserContext currentUser = await handler.Handle(
-            new ResolveCurrentUserCommand(identity),
+            new SynchronizeCurrentUserCommand(identity),
             CancellationToken.None);
 
         currentUser.HasApplicationAccess.ShouldBeTrue();
@@ -51,10 +51,10 @@ public sealed class CurrentUserProviderTests
     public async Task GetCurrentUserAsync_WhenIdentityIsMissing_ReturnsUnauthenticated()
     {
         var identityContext = new InMemoryIdentityContext();
-        var handler = new ResolveCurrentUserCommandHandler(identityContext, identityContext);
+        var handler = new SynchronizeCurrentUserCommandHandler(identityContext, identityContext);
 
         CurrentUserContext currentUser = await handler.Handle(
-            new ResolveCurrentUserCommand(null),
+            new SynchronizeCurrentUserCommand(null),
             CancellationToken.None);
 
         currentUser.ShouldBe(CurrentUserContext.Unauthenticated);

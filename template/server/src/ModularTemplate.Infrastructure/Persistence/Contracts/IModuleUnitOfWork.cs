@@ -6,5 +6,7 @@ public interface IModuleUnitOfWork
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 
-    Task SaveChangesTransactionalAsync(CancellationToken cancellationToken = default);
+    ValueTask<T> ExecuteTransactionalAsync<T>(
+        Func<CancellationToken, ValueTask<T>> operation,
+        CancellationToken cancellationToken = default);
 }

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using ModularTemplate.Infrastructure.Persistence;
 using ModularTemplate.SharedKernel.Extensions;
 using ModularTemplate.SharedKernel.Messaging;
 
@@ -8,6 +9,7 @@ namespace ModularTemplate.Infrastructure.Outbox;
 public sealed class DurableCommandSender(
     IEnumerable<IOutboxWriter> outboxWriters,
     IMessageTypeRegistry messageTypeRegistry,
+    IModuleUnitOfWorkContext unitOfWorkContext,
     IOptions<DurableMessagingOptions> options)
     : IDurableCommandSender
 {
@@ -27,6 +29,7 @@ public sealed class DurableCommandSender(
         string targetModule = NormalizeModule(options.TargetModule, nameof(options.TargetModule));
         ValidateConfiguredModule(sourceModule, nameof(options.SourceModule));
         ValidateConfiguredModule(targetModule, nameof(options.TargetModule));
+        ValidateActiveSourceModule(sourceModule);
 
         IOutboxWriter writer = ResolveWriter(sourceModule);
         Guid submissionId = Guid.NewGuid();
@@ -79,6 +82,24 @@ public sealed class DurableCommandSender(
 
         throw new InvalidOperationException(
             $"{optionName} '{moduleName}' is not listed in Messaging:Modules.");
+    }
+
+    private void ValidateActiveSourceModule(string sourceModule)
+    {
+        string? currentModuleName = unitOfWorkContext.CurrentModuleName;
+        if (string.IsNullOrWhiteSpace(currentModuleName))
+        {
+            throw new InvalidOperationException(
+                "Durable commands must be sent inside a module unit of work so the outbox row is committed with module state.");
+        }
+
+        if (string.Equals(currentModuleName, sourceModule, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Durable command source module '{sourceModule}' does not match the active module unit of work '{currentModuleName}'.");
     }
 
     private static string NormalizeModule(string moduleName, string parameterName)

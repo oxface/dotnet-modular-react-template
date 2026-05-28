@@ -8,7 +8,7 @@ using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 namespace ModularTemplate.Identity.Infrastructure.Persistence;
 
 public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> options)
-    : DbContext(options), IIdentityDbContext, IModuleDbContext
+    : DbContext(options), IModuleDbContext
 {
     public DbSet<LocalUser> LocalUsers => Set<LocalUser>();
 

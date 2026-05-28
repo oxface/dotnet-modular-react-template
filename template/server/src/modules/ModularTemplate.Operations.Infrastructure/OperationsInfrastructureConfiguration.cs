@@ -27,15 +27,11 @@ public static class OperationsInfrastructureConfiguration
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "operations"));
         });
 
-        services.AddScoped<IOperationsDbContext>(sp => sp.GetRequiredService<OperationsDbContext>());
         services.AddScoped<IOperationRepository, OperationRepository>();
         services.AddScoped<IOperationsQueries, OperationsQueries>();
         services.AddScoped<IModuleDbContext>(sp => sp.GetRequiredService<OperationsDbContext>());
         services.AddScoped<IOutboxWriter, OutboxWriter<OperationsDbContext>>();
-        services.AddModulePersistence<OperationsDbContext>(
-            "operations",
-            typeof(Operation),
-            typeof(IOperationsQueries));
+        services.AddModulePersistence<OperationsDbContext>("operations");
         services.AddMessagingAssembly<Operation>();
         services.AddMessagingAssembly<IOperationsQueries>();
         services.AddMessagingAssembly<OperationsDbContext>();

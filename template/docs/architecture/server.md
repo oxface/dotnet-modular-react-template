@@ -10,8 +10,9 @@ Durable direction:
 - Business modules live under `server/src/modules`.
 - Modules with persistence or external adapters use separate Contracts, Module,
   and Infrastructure projects.
-- Module stores depend on narrow module DbContext interfaces, not concrete
-  DbContext types outside their Infrastructure project.
+- Module stores and query adapters inside a module Infrastructure project may
+  depend on that module's concrete DbContext. Other modules still interact
+  through provider-neutral contracts, not EF sets or infrastructure types.
 - Each module Infrastructure project owns its EF Core DbContext, schema, and
   baseline `InitialCreate` migration.
 - The Migrator references module Infrastructure projects and migrates module
@@ -76,20 +77,22 @@ The template's durable direction is CQRS through narrow module contracts and
 Mediator-backed command/query handlers where behavior grows beyond a very small
 module service. Repository abstractions represent command-side domain
 persistence for aggregate loading and saving. They sit inside the module
-boundary, and infrastructure implements them through narrow DbContext
-interfaces. Query handlers and read models provide provider-neutral projections
-for callers that need read-side data. Avoid `Reader` services unless a feature
-artifact intentionally documents why that term is clearer than a query handler,
-read model, or repository.
+boundary, and infrastructure implements them through module-owned DbContexts.
+Query handlers and read models provide provider-neutral projections for callers
+that need read-side data. Avoid `Reader` services unless a feature artifact
+intentionally documents why that term is clearer than a query handler, read
+model, or repository.
 
 Modules should use the `Mediator` library's command/query abstractions instead
 of template-owned dispatcher abstractions. Command handlers mutate aggregates
 through module-owned repositories and rely on a Mediator pipeline behavior to
-save changes once after successful command handling. Module Infrastructure
-registers the command assemblies that mutate its state with
-`AddModulePersistence<{Module}DbContext>()`; the pipeline uses that registration
-to select one module DbContext for the command. Query handlers read
-provider-neutral state and do not save changes.
+run the command inside the selected module unit of work and save changes once
+after successful command handling. Module Infrastructure registers assemblies
+that contain its persistent Mediator command handlers with
+`AddModulePersistence<{Module}DbContext>()`; the registration scans those
+handlers and the pipeline uses the discovered command types to select one
+module DbContext for the command. Query handlers read provider-neutral state
+and do not save changes.
 
 Command handlers should get decision-making data through repositories or
 command-side read ports, not by calling query handlers. Query handlers are
@@ -101,8 +104,9 @@ durable commands or integration events through the outbox/Rebus pipeline.
 Durable commands are send-and-forget: callers may receive an acceptance record
 and operation id, but handler results are observed later through query
 contracts, operation status, read models, or follow-up integration events.
-Module code should send durable commands through `IDurableCommandSender`
-so the source module outbox row is created consistently.
+Module code should send durable commands through `IDurableCommandSender` from
+inside the source module's command unit of work so the source module outbox row
+is committed consistently with module state.
 Receive-side Rebus handlers should be transport adapters that delegate state
 changes to target-module Mediator commands; persistence remains in the Mediator
 module unit-of-work pipeline.

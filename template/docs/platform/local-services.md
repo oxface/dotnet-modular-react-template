@@ -4,7 +4,6 @@ The template's local platform uses Aspire and includes:
 
 - PostgreSQL for the generated product database.
 - Redis for BFF/session ticket storage.
-- Azure Service Bus emulator for local durable messaging transport.
 - Keycloak for local OpenID Connect authentication.
 - Migrator for applying module-owned migrations.
 - Host API.
@@ -64,16 +63,15 @@ authority.
 
 The Redis resource is referenced by the Host as
 `ConnectionStrings:session-tickets`. The PostgreSQL database resource is
-referenced as `ConnectionStrings:modular-template-host`. The Service Bus
-emulator is referenced as `ConnectionStrings:service-bus`.
+referenced as `ConnectionStrings:modular-template-host`.
 
 Durable messaging transport is selected by `Messaging:Transport`.
-Default is `AzureServiceBus`, which requires `ConnectionStrings:service-bus`.
-Use `InMemory` only for test scenarios that intentionally avoid external
-transport dependencies.
-
-When `Messaging:Transport` is `AzureServiceBus`, startup performs a Service Bus
-namespace probe and fails fast if transport connectivity is unavailable.
+Default is `Postgres`, which uses `ConnectionStrings:modular-template-host` for
+Rebus queues and subscriptions under the configured transport schema. Use
+`InMemory` only for test scenarios that intentionally avoid PostgreSQL-backed
+transport dependencies. External broker transports are product decisions and
+should add their own connection strings, deployment resources, and verification
+coverage when needed.
 
 The checked-in Keycloak realm import includes local users for browser smoke
 testing:

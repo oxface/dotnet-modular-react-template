@@ -2,71 +2,55 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 using ModularTemplate.SharedKernel.Domain;
+using ModularTemplate.SharedKernel.Extensions;
 using ModularTemplate.SharedKernel.Messaging;
 
 namespace ModularTemplate.Infrastructure.Persistence;
 
-/// <summary>
-/// Saves the single module context changed in the current scope.
-/// Domain events and outbox messages are persisted in the same module transaction
-/// as aggregate changes.
-/// </summary>
-public sealed class ModuleUnitOfWork(
-    IEnumerable<IModuleDbContext> moduleContexts,
+public sealed class ModuleUnitOfWork<TDbContext>(
+    TDbContext context,
     IServiceProvider serviceProvider,
-    IMessageTypeRegistry messageTypeRegistry)
-    : IUnitOfWork
+    IMessageTypeRegistry messageTypeRegistry,
+    IOptions<DurableMessagingOptions> options)
+    : IModuleUnitOfWork
+    where TDbContext : DbContext, IModuleDbContext
 {
+    private readonly DurableMessagingOptions _options = options.Value;
+
+    public string ModuleName => context.ModuleName;
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        IModuleDbContext[] contexts = moduleContexts.ToArray();
-
-        IModuleDbContext[] changedContexts = GetChangedContexts(contexts);
-        EnsureSingleChangedContext(changedContexts);
-
-        if (changedContexts.Length == 1)
+        if (context.ChangeTracker.HasChanges())
         {
-            await SaveAsync(changedContexts[0], cancellationToken);
+            await SaveAsync(cancellationToken);
         }
     }
 
     public async Task SaveChangesTransactionalAsync(CancellationToken cancellationToken = default)
     {
-        IModuleDbContext[] contexts = moduleContexts.ToArray();
-        bool hasActiveTransaction = contexts.Any(ctx => ctx.Database.CurrentTransaction is not null);
-
-        if (hasActiveTransaction)
-        {
-            IModuleDbContext[] changedContexts = GetChangedContexts(contexts);
-            EnsureSingleChangedContext(changedContexts);
-
-            if (changedContexts.Length == 1)
-            {
-                await SaveAsync(changedContexts[0], cancellationToken);
-            }
-
-            return;
-        }
-
-        IModuleDbContext[] contextsWithChanges = GetChangedContexts(contexts);
-        EnsureSingleChangedContext(contextsWithChanges);
-
-        if (contextsWithChanges.Length == 0)
+        if (!context.ChangeTracker.HasChanges())
         {
             return;
         }
 
-        IModuleDbContext changedContext = contextsWithChanges[0];
+        if (context.Database.CurrentTransaction is not null)
+        {
+            await SaveAsync(cancellationToken);
+            return;
+        }
+
         IDbContextTransaction? transaction = null;
 
         try
         {
-            transaction = await changedContext.Database.BeginTransactionAsync(cancellationToken);
+            transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
-            await SaveAsync(changedContext, cancellationToken);
+            await SaveAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         catch
@@ -87,40 +71,17 @@ public sealed class ModuleUnitOfWork(
         }
     }
 
-    private static IModuleDbContext[] GetChangedContexts(IEnumerable<IModuleDbContext> contexts)
-    {
-        return contexts
-            .Where(ctx => ctx.ChangeTracker.HasChanges())
-            .ToArray();
-    }
-
-    private static void EnsureSingleChangedContext(IReadOnlyCollection<IModuleDbContext> changedContexts)
-    {
-        if (changedContexts.Count <= 1)
-        {
-            return;
-        }
-
-        string modules = string.Join(", ", changedContexts.Select(ctx => ctx.ModuleName).Order());
-
-        throw new InvalidOperationException(
-            "The current unit of work changed more than one module DbContext. Cross-module work must use " +
-            $"module contracts or durable messaging instead of directly mutating multiple modules. Changed modules: {modules}.");
-    }
-
-    private async Task SaveAsync(IModuleDbContext ctx, CancellationToken cancellationToken)
+    private async Task SaveAsync(CancellationToken cancellationToken)
     {
         Guid correlationId = Guid.NewGuid();
 
-        CaptureDomainEvents(ctx, correlationId);
-        await ctx.SaveChangesAsync(cancellationToken);
+        CaptureDomainEvents(correlationId);
+        await context.SaveChangesAsync(cancellationToken);
     }
 
-    private void CaptureDomainEvents(
-        IModuleDbContext ctx,
-        Guid correlationId)
+    private void CaptureDomainEvents(Guid correlationId)
     {
-        var entries = ctx.ChangeTracker
+        var entries = context.ChangeTracker
             .Entries<IAggregateRoot>()
             .Where(x => x.Entity.DomainEvents.Count > 0)
             .Select(x => new
@@ -134,18 +95,17 @@ public sealed class ModuleUnitOfWork(
         {
             foreach (IDomainEvent domainEvent in entry.Events)
             {
-                ctx.DomainEvents.Add(
+                context.DomainEvents.Add(
                     StoredDomainEvent.FromDomainEvent(
                         domainEvent,
                         entry.Aggregate.Id.ToString() ?? string.Empty));
 
-                PublishIntegrationEvents(ctx, domainEvent, correlationId);
+                PublishIntegrationEvents(domainEvent, correlationId);
             }
         }
     }
 
     private void PublishIntegrationEvents(
-        IModuleDbContext ctx,
         IDomainEvent domainEvent,
         Guid correlationId)
     {
@@ -154,6 +114,14 @@ public sealed class ModuleUnitOfWork(
         foreach (IIntegrationEventMapper mapper in
             serviceProvider.GetServices(mapperInterface).OfType<IIntegrationEventMapper>())
         {
+            string mapperSourceModule = mapper.SourceModule.TrimToNull() ?? string.Empty;
+            if (!string.Equals(mapperSourceModule, context.ModuleName, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Integration event mapper source module '{mapperSourceModule}' does not match " +
+                    $"the changed module context '{context.ModuleName}'.");
+            }
+
             IReadOnlyCollection<IIntegrationEvent> integrationEvents = mapper.Map(domainEvent);
 
             foreach (IIntegrationEvent integrationEvent in integrationEvents)
@@ -161,16 +129,17 @@ public sealed class ModuleUnitOfWork(
                 string messageType = messageTypeRegistry.GetMessageTypeName(integrationEvent.GetType());
                 string payload = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType());
 
-                ctx.OutboxMessages.Add(OutboxMessage.Create(
+                context.OutboxMessages.Add(OutboxMessage.Create(
                     messageId: Guid.NewGuid(),
                     messageKind: MessageKind.Event,
                     messageType,
-                    sourceModule: mapper.SourceModule,
+                    sourceModule: context.ModuleName,
                     targetModule: null,
                     correlationId,
                     causationId: domainEvent.EventId,
                     operationId: null,
-                    payload));
+                    payload,
+                    maxAttempts: _options.MaxAttempts));
             }
         }
     }

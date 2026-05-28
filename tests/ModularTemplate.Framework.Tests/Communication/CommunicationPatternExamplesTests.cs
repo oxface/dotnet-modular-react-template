@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Operations.Contracts.Operations;
 using ModularTemplate.SharedKernel.Messaging;
@@ -24,16 +25,16 @@ public sealed class CommunicationPatternExamplesTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void DurableCommandExample_WhenModuleRequestsAsyncWork_SubmitsCommandAndGetsAcceptanceOnly()
+    public void DurableCommandExample_WhenModuleRequestsAsyncWork_SendsCommandAndGetsAcceptanceOnly()
     {
         var outboxWriter = new CapturingOutboxWriter("identity");
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
-        var submitter = new DurableCommandSubmitter([outboxWriter], registry);
+        var sender = new DurableCommandSender([outboxWriter], registry, MessagingOptions());
         Guid operationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        CommandSubmission submission = submitter.Submit(
+        CommandSubmission submission = sender.Send(
             new RebuildOperationProjectionCommand(operationId),
             new DurableCommandSubmissionOptions(
                 SourceModule: "identity",
@@ -51,7 +52,7 @@ public sealed class CommunicationPatternExamplesTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task ModuleOwnedOrchestrationExample_WhenResultIsNeeded_SubmitsWorkAndLeavesResultForQueries()
+    public async Task ModuleOwnedOrchestrationExample_WhenResultIsNeeded_SendsWorkAndLeavesResultForQueries()
     {
         Guid operationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         var operationsQueries = new FakeOperationsQueries(
@@ -60,8 +61,8 @@ public sealed class CommunicationPatternExamplesTests
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
-        var submitter = new DurableCommandSubmitter([outboxWriter], registry);
-        var orchestration = new ExampleModuleOwnedOrchestration(operationsQueries, submitter);
+        var sender = new DurableCommandSender([outboxWriter], registry, MessagingOptions());
+        var orchestration = new ExampleModuleOwnedOrchestration(operationsQueries, sender);
 
         CommandSubmission submission = await orchestration.StartAsync(operationId, CancellationToken.None);
 
@@ -79,17 +80,8 @@ public sealed class CommunicationPatternExamplesTests
         var integrationEvent = new OperationProjectionRebuilt(
             Guid.Parse("44444444-4444-4444-4444-444444444444"),
             "ready");
-        var context = new MessageContext(
-            MessageId: Guid.NewGuid(),
-            SourceModule: "operations",
-            TargetModule: "identity",
-            CorrelationId: Guid.NewGuid(),
-            CausationId: null,
-            OperationId: integrationEvent.OperationId,
-            IdempotencyKey: null,
-            CreatedAtUtc: DateTimeOffset.UtcNow);
 
-        await projector.HandleAsync(integrationEvent, context, CancellationToken.None);
+        await projector.HandleAsync(integrationEvent, CancellationToken.None);
 
         projector.ObservedOperations.ShouldBe([integrationEvent.OperationId]);
     }
@@ -105,8 +97,8 @@ public sealed class CommunicationPatternExamplesTests
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
-        var submitter = new DurableCommandSubmitter([outboxWriter], registry);
-        var hostWorkflow = new ExampleHostWorkflow(operationsQueries, submitter);
+        var sender = new DurableCommandSender([outboxWriter], registry, MessagingOptions());
+        var hostWorkflow = new ExampleHostWorkflow(operationsQueries, sender);
 
         HostWorkflowResponse response = await hostWorkflow.StartAsync(operationId, CancellationToken.None);
 
@@ -133,6 +125,14 @@ public sealed class CommunicationPatternExamplesTests
             MetadataJson: null);
     }
 
+    private static IOptions<DurableMessagingOptions> MessagingOptions()
+    {
+        return Options.Create(new DurableMessagingOptions
+        {
+            Modules = ["identity", "operations"]
+        });
+    }
+
     private sealed class ExampleReadConsumer(IOperationsQueries operationsQueries)
     {
         public async Task<OperationStatus?> GetStatusAsync(
@@ -149,16 +149,16 @@ public sealed class CommunicationPatternExamplesTests
 
     private sealed class ExampleModuleOwnedOrchestration(
         IOperationsQueries operationsQueries,
-        IDurableCommandSubmitter durableCommandSubmitter)
+        IDurableCommandSender durableCommandSender)
     {
         public async Task<CommandSubmission> StartAsync(
             Guid operationId,
             CancellationToken cancellationToken)
         {
             OperationDetails operation = await operationsQueries.GetOperationAsync(operationId, cancellationToken)
-                ?? throw new InvalidOperationException("Operation state is required before durable work is submitted.");
+                ?? throw new InvalidOperationException("Operation state is required before durable work is sent.");
 
-            return durableCommandSubmitter.Submit(
+            return durableCommandSender.Send(
                 new RebuildOperationProjectionCommand(operation.OperationId),
                 new DurableCommandSubmissionOptions(
                     SourceModule: "identity",
@@ -169,7 +169,7 @@ public sealed class CommunicationPatternExamplesTests
 
     private sealed class ExampleHostWorkflow(
         IOperationsQueries operationsQueries,
-        IDurableCommandSubmitter durableCommandSubmitter)
+        IDurableCommandSender durableCommandSender)
     {
         public async Task<HostWorkflowResponse> StartAsync(
             Guid operationId,
@@ -178,7 +178,7 @@ public sealed class CommunicationPatternExamplesTests
             OperationDetails operation = await operationsQueries.GetOperationAsync(operationId, cancellationToken)
                 ?? throw new InvalidOperationException("The requested operation does not exist.");
 
-            CommandSubmission submission = durableCommandSubmitter.Submit(
+            CommandSubmission submission = durableCommandSender.Send(
                 new RebuildOperationProjectionCommand(operation.OperationId),
                 new DurableCommandSubmissionOptions(
                     SourceModule: "identity",
@@ -190,13 +190,11 @@ public sealed class CommunicationPatternExamplesTests
     }
 
     private sealed class ExampleProjectionHandler
-        : IIntegrationEventHandler<OperationProjectionRebuilt>
     {
         public List<Guid> ObservedOperations { get; } = [];
 
         public Task HandleAsync(
             OperationProjectionRebuilt integrationEvent,
-            MessageContext context,
             CancellationToken cancellationToken)
         {
             ObservedOperations.Add(integrationEvent.OperationId);

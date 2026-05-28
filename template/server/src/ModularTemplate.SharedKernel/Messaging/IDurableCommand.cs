@@ -1,7 +1,7 @@
 namespace ModularTemplate.SharedKernel.Messaging;
 
 /// <summary>
-/// Marker for asynchronous commands persisted through the outbox/inbox pipeline.
+/// Marker for asynchronous commands persisted through the outbox and delivered through Rebus.
 /// Durable commands are send-and-forget: callers observe acceptance and optional
 /// operation status, not a direct command result.
 /// </summary>

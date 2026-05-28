@@ -24,9 +24,7 @@ Start with:
   state the intended change, then make the smallest coherent edit.
 - Implement gradually. Prefer narrow, reviewable steps over broad rewrites, and
   verify each risky step before expanding scope.
-- Do not run git commands directly. If repository history, status, diffs,
-  branches, commits, tags, or pushes are needed, ask the user to run the git
-  operation or provide the relevant output.
+- Do not run git commit and push directly. You can use status and diff commands freely.
 - Do not overwrite or revert user changes. Work with the current files and ask
   when local edits make the requested change ambiguous.
 - Keep generated artifacts, packed tarballs, migrations created during manual
@@ -41,7 +39,7 @@ Start with:
   repositories.
 - Root `docs/` are factory-maintenance context and should not be copied into
   generated-product documentation.
-- Product-facing docs, OpenSpec specs, runtime source, product CI, and product
+- Product-facing docs, runtime source, product CI, and product
   governance belong under `template/`.
 - When changing bootstrap behavior, consider both the source payload in
   `template/` and the transform logic in [scripts/bootstrap-template.js](scripts/bootstrap-template.js).
@@ -83,11 +81,9 @@ When editing rename or placeholder behavior, update or add focused coverage in
 ## Generated Product Rules
 
 Before adding substantial runtime behavior under `template/`, read
-`template/docs/governance.md`, `template/docs/openspec.md`,
-`template/openspec/config.yaml`, the relevant stable docs in `template/docs/`,
-and any current specs or changes under `template/openspec/` when present.
+`template/docs/governance.md` and the relevant stable docs in `template/docs/`.
 
 Do not add domain behavior, auth/session plumbing, migrations, frontend apps,
-or orchestration resources unless accepted specs or durable decisions define
-the scope. Productized changes should be intentional because generated
-repositories inherit them.
+or orchestration resources unless durable decisions define the scope.
+Productized changes should be intentional because generated repositories
+inherit them.

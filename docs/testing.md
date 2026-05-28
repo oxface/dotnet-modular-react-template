@@ -96,7 +96,7 @@ Expected:
 - Product CI, Husky hooks, VS Code/Aspire config, and docs are present.
 - The baseline `InitialCreate` EF migrations are renamed for the generated
   product and present under its module Infrastructure projects.
-- Pre-populated OpenSpec artifacts are absent.
+- OpenSpec scaffolding is absent from the generated payload.
 - Factory-only docs and packaging files are absent.
 - The generated product starts locally from Aspire.
 

@@ -18,7 +18,7 @@ public sealed class OutboxMessageConfiguration(string schema)
         builder.Property(x => x.Payload).HasColumnType("jsonb").IsRequired();
         builder.Property(x => x.Metadata).HasColumnType("jsonb");
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
-        builder.Property(x => x.Error).HasMaxLength(2048);
+        builder.Property(x => x.Error).HasMaxLength(OutboxMessage.MaxErrorLength);
         builder.Property(x => x.LockedBy).HasMaxLength(128);
         builder.Property(x => x.CreatedAtUtc).IsRequired();
         builder.Property(x => x.NextAttemptAtUtc).IsRequired();

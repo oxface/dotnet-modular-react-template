@@ -14,6 +14,12 @@ public sealed class OutboxDispatcherBackgroundService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!_options.Enabled)
+        {
+            logger.LogInformation("Outbox dispatcher is disabled by configuration.");
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try

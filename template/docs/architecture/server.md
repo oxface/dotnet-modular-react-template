@@ -20,8 +20,8 @@ Durable direction:
 - SharedKernel contains dependency-light domain primitives, validation
   contracts, normalization helpers, and messaging contracts shared across
   module and platform libraries.
-- Domain events, outbox messages, and inbox messages are persisted in each
-  module schema by the shared Infrastructure library.
+- Domain events and outbox messages are persisted in each module schema by the
+  shared Infrastructure library.
 - ServiceDefaults provides OpenTelemetry, service discovery, default HTTP
   resilience, and development health endpoints.
 - Host configures problem-details responses, baseline exception handling, and
@@ -85,9 +85,11 @@ read model, or repository.
 Modules should use the `Mediator` library's command/query abstractions instead
 of template-owned dispatcher abstractions. Command handlers mutate aggregates
 through module-owned repositories and rely on a Mediator pipeline behavior to
-start a transaction, call the handler, save changes once, and commit after
-successful command handling. Query handlers read provider-neutral state and do
-not save changes.
+save changes once after successful command handling. Module Infrastructure
+registers the command assemblies that mutate its state with
+`AddModulePersistence<{Module}DbContext>()`; the pipeline uses that registration
+to select one module DbContext for the command. Query handlers read
+provider-neutral state and do not save changes.
 
 Command handlers should get decision-making data through repositories or
 command-side read ports, not by calling query handlers. Query handlers are
@@ -95,12 +97,15 @@ application read use cases for callers that need read-side data.
 
 Cross-module synchronous reads should use in-process query contracts from the
 target module's Contracts project. Cross-module asynchronous work should use
-durable commands or integration events through the outbox/inbox pipeline.
+durable commands or integration events through the outbox/Rebus pipeline.
 Durable commands are send-and-forget: callers may receive an acceptance record
 and operation id, but handler results are observed later through query
 contracts, operation status, read models, or follow-up integration events.
-Module code should submit durable commands through `IDurableCommandSubmitter`
+Module code should send durable commands through `IDurableCommandSender`
 so the source module outbox row is created consistently.
+Receive-side Rebus handlers should be transport adapters that delegate state
+changes to target-module Mediator commands; persistence remains in the Mediator
+module unit-of-work pipeline.
 See [Intermodule Communication](intermodule-communication.md) for the detailed
 pattern guide, message lifecycle, and module scaffolding checklist.
 Host-level orchestration is reserved for API/user workflows that do not belong

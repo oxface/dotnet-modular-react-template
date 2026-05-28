@@ -50,39 +50,6 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "inbox_messages",
-                schema: "identity",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    MessageId = table.Column<Guid>(type: "uuid", nullable: false),
-                    MessageKind = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    MessageType = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
-                    SourceModule = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    TargetModule = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    CorrelationId = table.Column<Guid>(type: "uuid", nullable: false),
-                    CausationId = table.Column<Guid>(type: "uuid", nullable: true),
-                    OperationId = table.Column<Guid>(type: "uuid", nullable: true),
-                    IdempotencyKey = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                    Payload = table.Column<string>(type: "jsonb", nullable: false),
-                    Metadata = table.Column<string>(type: "jsonb", nullable: true),
-                    Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    AttemptCount = table.Column<int>(type: "integer", nullable: false),
-                    MaxAttempts = table.Column<int>(type: "integer", nullable: false),
-                    NextAttemptAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    ReceivedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    LockedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    LockedBy = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                    ProcessedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    FailedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    Error = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_inbox_messages", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "local_users",
                 schema: "identity",
                 columns: table => new
@@ -152,25 +119,6 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                 column: "EventType");
 
             migrationBuilder.CreateIndex(
-                name: "IX_inbox_messages_MessageId_TargetModule",
-                schema: "identity",
-                table: "inbox_messages",
-                columns: new[] { "MessageId", "TargetModule" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_inbox_messages_MessageType",
-                schema: "identity",
-                table: "inbox_messages",
-                column: "MessageType");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_inbox_messages_Status_NextAttemptAtUtc",
-                schema: "identity",
-                table: "inbox_messages",
-                columns: new[] { "Status", "NextAttemptAtUtc" });
-
-            migrationBuilder.CreateIndex(
                 name: "IX_local_users_Provider_Subject",
                 schema: "identity",
                 table: "local_users",
@@ -206,10 +154,6 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "domain_events",
-                schema: "identity");
-
-            migrationBuilder.DropTable(
-                name: "inbox_messages",
                 schema: "identity");
 
             migrationBuilder.DropTable(

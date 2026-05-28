@@ -16,15 +16,11 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
-    public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
-
     public DbSet<StoredDomainEvent> DomainEvents => Set<StoredDomainEvent>();
 
     string IModuleDbContext.ModuleName => "identity";
 
     DbSet<OutboxMessage> IModuleDbContext.OutboxMessages => OutboxMessages;
-
-    DbSet<InboxMessage> IModuleDbContext.InboxMessages => InboxMessages;
 
     DbSet<StoredDomainEvent> IModuleDbContext.DomainEvents => DomainEvents;
 

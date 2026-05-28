@@ -1,4 +1,3 @@
-using System.Reflection;
 using ModularTemplate.SharedKernel.Messaging;
 using Shouldly;
 
@@ -66,12 +65,31 @@ public sealed class MessageTypeRegistryTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void DurableCommandHandler_WhenInspected_ReturnsTaskWithoutResultPayload()
+    public void Register_WhenMessageHasIdentityAttribute_UsesStableIdentity()
     {
-        MethodInfo handleMethod = typeof(IDurableCommandHandler<TestDurableCommand>)
-            .GetMethod(nameof(IDurableCommandHandler<TestDurableCommand>.HandleAsync))!;
+        var registry = new MessageTypeRegistry();
 
-        handleMethod.ReturnType.ShouldBe(typeof(Task));
+        registry.Register<AttributedCommand>();
+
+        registry.GetMessageTypeName<AttributedCommand>()
+            .ShouldBe("identity.attributed-command.v1");
+        registry.ResolveClrType("identity.attributed-command.v1")
+            .ShouldBe(typeof(AttributedCommand));
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void RegisterFromAssembly_WhenMessagesHaveIdentityAttributes_RegistersStableIdentities()
+    {
+        var registry = new MessageTypeRegistry();
+
+        IReadOnlyCollection<MessageTypeRegistration> registrations =
+            registry.RegisterFromAssembly(typeof(AttributedCommand).Assembly);
+
+        registrations.ShouldContain(registration => registration.ClrType == typeof(AttributedCommand)
+            && registration.MessageTypeName == "identity.attributed-command.v1");
+        registry.ResolveClrType("identity.attributed-command.v1")
+            .ShouldBe(typeof(AttributedCommand));
     }
 
     [Fact]
@@ -94,4 +112,7 @@ public sealed class MessageTypeRegistryTests
     private sealed record TestIntegrationEvent : IIntegrationEvent;
 
     private sealed record TestDurableCommand : IDurableCommand;
+
+    [MessageIdentity("identity.attributed-command.v1")]
+    private sealed record AttributedCommand : IDurableCommand;
 }

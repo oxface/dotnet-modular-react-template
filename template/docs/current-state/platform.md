@@ -13,10 +13,10 @@ The shipped local platform includes:
 - Admin and web Vite app resources.
 - Named local data volumes for PostgreSQL, Redis, and Keycloak.
 
-Mailpit, local AI resources, eval runners, durable workflow orchestration, and
-external workflow resources are not part of the shipped template surface.
-Durable outbox/inbox persistence and local workers are shipped as backend
-platform libraries rather than orchestration resources.
+Mailpit, local AI resources, eval runners, durable workflow orchestration,
+Azure Service Bus emulator, and external workflow resources are not part of the
+shipped template surface. Durable outbox persistence and local workers are
+shipped as backend platform libraries rather than orchestration resources.
 
 The shipped auth slice uses Host-owned OIDC and cookie authentication for
 browser sessions. The Host stores authentication ticket state server-side in

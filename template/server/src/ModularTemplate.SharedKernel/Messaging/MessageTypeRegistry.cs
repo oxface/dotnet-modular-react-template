@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Reflection;
 
 namespace ModularTemplate.SharedKernel.Messaging;
 
@@ -7,6 +8,26 @@ public sealed class MessageTypeRegistry : IMessageTypeRegistry
     private readonly Dictionary<Type, string> _typeNamesByClrType = [];
     private readonly Dictionary<string, Type> _clrTypesByTypeName = new(StringComparer.Ordinal);
     private readonly object _sync = new();
+
+    public MessageTypeRegistration Register<TMessage>()
+        where TMessage : IMessage
+    {
+        return Register(typeof(TMessage));
+    }
+
+    public MessageTypeRegistration Register(Type clrType)
+    {
+        ArgumentNullException.ThrowIfNull(clrType);
+
+        MessageIdentityAttribute identity = clrType
+            .GetCustomAttributes(typeof(MessageIdentityAttribute), inherit: false)
+            .OfType<MessageIdentityAttribute>()
+            .SingleOrDefault()
+            ?? throw new InvalidOperationException(
+                $"Message type '{clrType.FullName}' must declare {nameof(MessageIdentityAttribute)}.");
+
+        return Register(clrType, identity.Name);
+    }
 
     public MessageTypeRegistration Register<TMessage>(string messageTypeName)
         where TMessage : IMessage
@@ -55,6 +76,19 @@ public sealed class MessageTypeRegistry : IMessageTypeRegistry
             _clrTypesByTypeName.Add(normalizedTypeName, clrType);
             return new MessageTypeRegistration(clrType, normalizedTypeName);
         }
+    }
+
+    public IReadOnlyCollection<MessageTypeRegistration> RegisterFromAssembly(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+
+        return assembly
+            .GetTypes()
+            .Where(static type => typeof(IMessage).IsAssignableFrom(type)
+                && type is { IsAbstract: false, IsInterface: false }
+                && type.GetCustomAttributes(typeof(MessageIdentityAttribute), inherit: false).Any())
+            .Select(Register)
+            .ToArray();
     }
 
     public string GetMessageTypeName<TMessage>()

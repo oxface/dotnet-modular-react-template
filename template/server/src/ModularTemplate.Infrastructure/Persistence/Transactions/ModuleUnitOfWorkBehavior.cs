@@ -2,7 +2,8 @@ using Mediator;
 
 namespace ModularTemplate.Infrastructure.Persistence.Transactions;
 
-public sealed class ModuleUnitOfWorkBehavior<TCommand, TResponse>(IUnitOfWork unitOfWork)
+public sealed class ModuleUnitOfWorkBehavior<TCommand, TResponse>(
+    IModuleUnitOfWorkResolver unitOfWorkResolver)
     : IPipelineBehavior<TCommand, TResponse>
     where TCommand : IBaseCommand
 {
@@ -11,8 +12,14 @@ public sealed class ModuleUnitOfWorkBehavior<TCommand, TResponse>(IUnitOfWork un
         MessageHandlerDelegate<TCommand, TResponse> next,
         CancellationToken cancellationToken)
     {
+        IModuleUnitOfWork? unitOfWork = unitOfWorkResolver.Resolve(typeof(TCommand));
         TResponse response = await next(message, cancellationToken);
-        await unitOfWork.SaveChangesTransactionalAsync(cancellationToken);
+
+        if (unitOfWork is not null)
+        {
+            await unitOfWork.SaveChangesTransactionalAsync(cancellationToken);
+        }
+
         return response;
     }
 }

@@ -4,6 +4,8 @@ namespace ModularTemplate.Infrastructure.Outbox;
 
 public sealed class OutboxMessage
 {
+    public const int MaxErrorLength = 2048;
+
     private OutboxMessage(
         Guid id,
         Guid messageId,
@@ -146,7 +148,7 @@ public sealed class OutboxMessage
         ArgumentNullException.ThrowIfNull(retryDelayProvider);
 
         AttemptCount += 1;
-        Error = error.Trim();
+        Error = TruncateError(error.Trim());
         FailedAtUtc = DateTimeOffset.UtcNow;
         LockedAtUtc = null;
         LockedBy = null;
@@ -170,5 +172,15 @@ public sealed class OutboxMessage
         }
 
         Status = PersistedMessageStatus.Pending;
+    }
+
+    private static string TruncateError(string error)
+    {
+        if (error.Length <= MaxErrorLength)
+        {
+            return error;
+        }
+
+        return error[..MaxErrorLength];
     }
 }

@@ -10,8 +10,8 @@ namespace ModularTemplate.Infrastructure.Outbox;
 public sealed class OutboxDispatcher(
     IEnumerable<IModuleDbContext> moduleContexts,
     IOutboxTransport outboxTransport,
-    ILocalSubscriptionRegistry subscriptionRegistry,
     IOptions<DurableMessagingOptions> options,
+    IRetryDelayPolicy retryDelayPolicy,
     ILogger<OutboxDispatcher> logger)
     : IOutboxDispatcher
 {
@@ -100,39 +100,7 @@ public sealed class OutboxDispatcher(
         {
             try
             {
-                if (message.MessageKind == MessageKind.Event)
-                {
-                    IReadOnlyList<string> subscribers =
-                        subscriptionRegistry.GetEventSubscribers(message.MessageType);
-
-                    if (subscribers.Count == 0)
-                    {
-                        logger.LogDebug(
-                            "Outbox event {MessageType} has no subscribers; marking processed",
-                            message.MessageType);
-                        message.MarkProcessed();
-                        dispatchedCount++;
-                        continue;
-                    }
-
-                    foreach (string subscriber in subscribers)
-                    {
-                        await outboxTransport.DispatchAsync(message, subscriber, cancellationToken);
-                    }
-
-                    message.MarkProcessed();
-                    dispatchedCount++;
-                    continue;
-                }
-
-                // Command: TargetModule is required on the message itself.
-                if (string.IsNullOrWhiteSpace(message.TargetModule))
-                {
-                    throw new InvalidOperationException(
-                        $"Outbox command message '{message.Id}' (type '{message.MessageType}') requires TargetModule.");
-                }
-
-                await outboxTransport.DispatchAsync(message, message.TargetModule, cancellationToken);
+                await outboxTransport.DispatchAsync(message, cancellationToken);
                 message.MarkProcessed();
                 dispatchedCount++;
             }
@@ -143,7 +111,7 @@ public sealed class OutboxDispatcher(
                     "Outbox dispatch failed for message {MessageId} type {MessageType}",
                     message.MessageId,
                     message.MessageType);
-                message.MarkFailed(ex.Message, RetryDelays.ForAttempt);
+                message.MarkFailed(ex.Message, retryDelayPolicy.GetDelay);
             }
         }
 

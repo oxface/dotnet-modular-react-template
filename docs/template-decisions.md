@@ -5,9 +5,8 @@ maintenance context for the template itself and is not intended to become
 inherited product ADR history.
 
 Stable product-facing rules belong in `template/docs/`. Generated repositories
-ship an initialized OpenSpec workspace, but they do not ship pre-populated
-OpenSpec specs; products add specs when they have real system behavior to
-specify.
+do not ship OpenSpec scaffolding; durable product and architecture decisions
+belong in the generated repository's stable docs.
 
 ## Implemented Direction
 
@@ -17,11 +16,9 @@ specify.
   `docs`, `deploy`, and `scripts` roots.
 - Use `ModularTemplate` as the placeholder .NET namespace and package prefix.
 - Keep the root solution in `.slnx` format as `ModularTemplate.slnx`.
-- Keep OpenSpec initialized but empty in generated repositories so new
-  products start with a clean spec workspace and no inherited capability specs.
 - Keep hard product governance in `template/docs/governance.md`.
 - Keep EF Core DbContexts in module Infrastructure projects and stamp
-  durable outbox/inbox/domain-event tables into each module schema.
+  durable outbox/domain-event tables into each module schema.
 - Include an intentional baseline `InitialCreate` EF migration in generated
   products so the inherited Migrator can create the first local schema.
 - Keep auth mechanics in the Host and local identity/application-access
@@ -43,8 +40,6 @@ specify.
   TanStack Query helpers are not enabled in the API-client generator.
 - Use a default generated-product GitHub Actions workflow named `Verify` for
   pull requests and pushes to `main`.
-- Do not run OpenSpec validation in generated-product CI until a product owns
-  non-empty OpenSpec artifacts.
 - Run explicit backend restore, build, and filtered `Unit`/`Application` test
   steps in CI, with backend test coverage collected and uploaded as a workflow
   artifact.

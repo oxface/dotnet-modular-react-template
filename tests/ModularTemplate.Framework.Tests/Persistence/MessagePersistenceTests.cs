@@ -12,59 +12,45 @@ public sealed class MessagePersistenceTests(PostgreSqlFixture postgreSqlFixture)
 {
     [Fact]
     [Trait("Category", "Integration")]
-    public async Task SaveChangesAsync_WhenOutboxAndInboxMessagesAreAdded_PersistsRows()
+    public async Task SaveChangesAsync_WhenOutboxMessageIsAdded_PersistsRow()
     {
         await using var dbContext = CreateDbContext();
         await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
         await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
         Guid messageId = Guid.NewGuid();
-        var outboxMessage = OutboxMessage.Create(
+
+        dbContext.OutboxMessages.Add(OutboxMessage.Create(
             messageId,
             MessageKind.Event,
-            "ModularTemplate.identity.local-user-created.v1",
+            "identity.local-user-created.v1",
             "identity",
             targetModule: null,
             correlationId: Guid.NewGuid(),
             causationId: null,
             operationId: null,
-            payload: "{\"localUserId\":\"00000000-0000-0000-0000-000000000001\"}");
-        var inboxMessage = InboxMessage.Create(
-            Guid.NewGuid(),
-            MessageKind.Command,
-            "ModularTemplate.identity.grant-access.v1",
-            sourceModule: "operations",
-            targetModule: "identity",
-            correlationId: Guid.NewGuid(),
-            causationId: null,
-            operationId: null,
-            idempotencyKey: "grant-initial-admin",
-            payload: "{\"localUserId\":\"00000000-0000-0000-0000-000000000001\"}");
+            payload: "{\"localUserId\":\"00000000-0000-0000-0000-000000000001\"}"));
 
-        dbContext.OutboxMessages.Add(outboxMessage);
-        dbContext.InboxMessages.Add(inboxMessage);
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
         OutboxMessage storedOutbox = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
-        InboxMessage storedInbox = await dbContext.InboxMessages.SingleAsync(CancellationToken.None);
         storedOutbox.MessageId.ShouldBe(messageId);
         storedOutbox.Status.ShouldBe(PersistedMessageStatus.Pending);
-        storedInbox.TargetModule.ShouldBe("identity");
-        storedInbox.Status.ShouldBe(PersistedMessageStatus.Pending);
+        storedOutbox.MessageType.ShouldBe("identity.local-user-created.v1");
     }
 
     [Fact]
     [Trait("Category", "Integration")]
-    public async Task SaveChangesAsync_WhenInboxMessageIdIsDuplicated_ThrowsDbUpdateException()
+    public async Task SaveChangesAsync_WhenOutboxMessageIdIsDuplicated_ThrowsDbUpdateException()
     {
         await using var dbContext = CreateDbContext();
         await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
         await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
         Guid duplicateMessageId = Guid.NewGuid();
 
-        dbContext.InboxMessages.Add(CreateInboxMessage(duplicateMessageId));
+        dbContext.OutboxMessages.Add(CreateOutboxMessage(duplicateMessageId));
         await dbContext.SaveChangesAsync(CancellationToken.None);
 
-        dbContext.InboxMessages.Add(CreateInboxMessage(duplicateMessageId));
+        dbContext.OutboxMessages.Add(CreateOutboxMessage(duplicateMessageId));
 
         await Should.ThrowAsync<DbUpdateException>(
             async () => await dbContext.SaveChangesAsync(CancellationToken.None));
@@ -79,18 +65,17 @@ public sealed class MessagePersistenceTests(PostgreSqlFixture postgreSqlFixture)
         return new IdentityDbContext(options);
     }
 
-    private static InboxMessage CreateInboxMessage(Guid messageId)
+    private static OutboxMessage CreateOutboxMessage(Guid messageId)
     {
-        return InboxMessage.Create(
+        return OutboxMessage.Create(
             messageId,
             MessageKind.Command,
-            "ModularTemplate.identity.grant-access.v1",
+            "identity.grant-access.v1",
             sourceModule: "operations",
             targetModule: "identity",
             correlationId: Guid.NewGuid(),
             causationId: null,
             operationId: null,
-            idempotencyKey: null,
             payload: "{\"localUserId\":\"00000000-0000-0000-0000-000000000001\"}");
     }
 }

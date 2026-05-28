@@ -11,9 +11,6 @@ var database = postgres.AddDatabase("modular-template-host", "modular_template")
 var sessionTickets = builder.AddRedis("session-tickets", port: 6379)
     .WithDataVolume("redis-session-data");
 
-var serviceBus = builder.AddAzureServiceBus("service-bus")
-    .RunAsEmulator();
-
 var keycloakUsername = builder.AddParameter("keycloak-username");
 var keycloakPassword = builder.AddParameter("keycloak-password", secret: true);
 var keycloak = builder.AddKeycloak("keycloak", 8080, keycloakUsername, keycloakPassword)
@@ -30,7 +27,6 @@ var host = builder.AddProject<Projects.ModularTemplate_Host>("host")
     .WithExternalHttpEndpoints()
     .WithReference(database)
     .WithReference(sessionTickets)
-    .WithReference(serviceBus)
     .WithEnvironment("Authentication__Oidc__Authority", "http://localhost:8080/realms/modular-template")
     .WithEnvironment("Authentication__Oidc__ClientId", "modular-template-host")
     .WithEnvironment("Authentication__Oidc__CallbackPath", "/auth/callback")
@@ -38,7 +34,6 @@ var host = builder.AddProject<Projects.ModularTemplate_Host>("host")
     .WithEnvironment("Authentication__Oidc__RequireHttpsMetadata", "false")
     .WaitFor(database)
     .WaitFor(sessionTickets)
-    .WaitFor(serviceBus)
     .WaitFor(keycloak)
     .WaitForCompletion(migrator);
 

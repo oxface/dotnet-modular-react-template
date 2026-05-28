@@ -4,7 +4,6 @@ Repository helper scripts live here.
 
 ## Available Scripts
 
-- `setup-openspec.sh` installs the pinned OpenSpec CLI globally.
 - `check-api-client.js` verifies that the checked-in OpenAPI document and
   generated frontend API client are current. The root `openapi:generate` and
   `api-client:generate` package scripts refresh those artifacts directly

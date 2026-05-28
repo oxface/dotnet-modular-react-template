@@ -21,12 +21,14 @@ public sealed class HostApplicationFactory(
     {
         builder.UseEnvironment("Development");
         builder.UseSetting("Messaging:Transport", "InMemory");
+        builder.UseSetting("Messaging:Enabled", "false");
 
         builder.ConfigureAppConfiguration((_, configurationBuilder) =>
         {
             configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Messaging:Transport"] = "InMemory"
+                ["Messaging:Transport"] = "InMemory",
+                ["Messaging:Enabled"] = "false"
             });
         });
 

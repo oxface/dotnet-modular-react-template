@@ -27,6 +27,7 @@ public static class TransportConfiguration
 
         builder.Services.AddSingleton<IMessageTypeRegistry>(sp =>
             MessageTypeRegistryFactory.Create(sp.GetServices<MessagingRegistrationSource>()));
+        builder.Services.AddScoped<IModuleUnitOfWorkContext, ModuleUnitOfWorkContext>();
         builder.Services.AddScoped<IModuleUnitOfWorkResolver, ModuleUnitOfWorkResolver>();
         builder.Services.AddScoped<IDurableCommandSender, DurableCommandSender>();
         builder.Services.AddScoped<IRetryDelayPolicy, ConfiguredRetryDelayPolicy>();

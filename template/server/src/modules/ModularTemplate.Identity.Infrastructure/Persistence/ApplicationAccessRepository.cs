@@ -3,7 +3,7 @@ using ModularTemplate.Identity.Access;
 
 namespace ModularTemplate.Identity.Infrastructure.Persistence;
 
-public sealed class ApplicationAccessRepository(IIdentityDbContext dbContext)
+public sealed class ApplicationAccessRepository(IdentityDbContext dbContext)
     : IApplicationAccessRepository
 {
     public Task<ApplicationAccess?> GetByLocalUserIdAsync(

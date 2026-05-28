@@ -1,4 +1,4 @@
-using System.Reflection;
+using Mediator;
 using ModularTemplate.SharedKernel.Extensions;
 
 namespace ModularTemplate.Infrastructure.Persistence;
@@ -8,41 +8,44 @@ public sealed class ModulePersistenceRegistration
     public ModulePersistenceRegistration(
         string moduleName,
         Type dbContextType,
-        IReadOnlyCollection<Assembly> commandAssemblies)
+        IReadOnlyCollection<Type> commandTypes)
     {
         ArgumentNullException.ThrowIfNull(dbContextType);
-        ArgumentNullException.ThrowIfNull(commandAssemblies);
+        ArgumentNullException.ThrowIfNull(commandTypes);
 
-        Assembly[] normalizedCommandAssemblies = commandAssemblies
-            .Select(assembly => assembly
+        Type[] normalizedCommandTypes = commandTypes
+            .Select(commandType => commandType
                 ?? throw new ArgumentException(
-                    "Command assemblies must not contain null values.",
-                    nameof(commandAssemblies)))
+                    "Command types must not contain null values.",
+                    nameof(commandTypes)))
             .Distinct()
             .ToArray();
 
-        if (normalizedCommandAssemblies.Length == 0)
+        foreach (Type commandType in normalizedCommandTypes)
         {
-            throw new ArgumentException(
-                "At least one command assembly is required.",
-                nameof(commandAssemblies));
+            if (!typeof(IBaseCommand).IsAssignableFrom(commandType))
+            {
+                throw new ArgumentException(
+                    $"Type '{commandType.FullName}' must implement {nameof(IBaseCommand)}.",
+                    nameof(commandTypes));
+            }
         }
 
         ModuleName = moduleName.TrimRequired(nameof(moduleName));
         DbContextType = dbContextType;
-        CommandAssemblies = normalizedCommandAssemblies;
+        CommandTypes = normalizedCommandTypes;
     }
 
     public string ModuleName { get; }
 
     public Type DbContextType { get; }
 
-    public IReadOnlyCollection<Assembly> CommandAssemblies { get; }
+    public IReadOnlyCollection<Type> CommandTypes { get; }
 
     public bool HandlesCommand(Type commandType)
     {
         ArgumentNullException.ThrowIfNull(commandType);
 
-        return CommandAssemblies.Contains(commandType.Assembly);
+        return CommandTypes.Contains(commandType);
     }
 }

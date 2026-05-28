@@ -3,7 +3,7 @@ using ModularTemplate.Operations.Operations;
 
 namespace ModularTemplate.Operations.Infrastructure.Persistence;
 
-public sealed class OperationRepository(IOperationsDbContext dbContext) : IOperationRepository
+public sealed class OperationRepository(OperationsDbContext dbContext) : IOperationRepository
 {
     public Task<Operation?> GetByIdAsync(Guid operationId, CancellationToken cancellationToken)
     {

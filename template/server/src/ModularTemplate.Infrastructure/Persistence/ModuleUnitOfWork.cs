@@ -15,6 +15,7 @@ public sealed class ModuleUnitOfWork<TDbContext>(
     TDbContext context,
     IServiceProvider serviceProvider,
     IMessageTypeRegistry messageTypeRegistry,
+    IModuleUnitOfWorkContext unitOfWorkContext,
     IOptions<DurableMessagingOptions> options)
     : IModuleUnitOfWork
     where TDbContext : DbContext, IModuleDbContext
@@ -31,17 +32,19 @@ public sealed class ModuleUnitOfWork<TDbContext>(
         }
     }
 
-    public async Task SaveChangesTransactionalAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<T> ExecuteTransactionalAsync<T>(
+        Func<CancellationToken, ValueTask<T>> operation,
+        CancellationToken cancellationToken = default)
     {
-        if (!context.ChangeTracker.HasChanges())
-        {
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(operation);
+
+        using IDisposable moduleScope = unitOfWorkContext.StartModuleScope(context.ModuleName);
 
         if (context.Database.CurrentTransaction is not null)
         {
-            await SaveAsync(cancellationToken);
-            return;
+            T result = await operation(cancellationToken);
+            await SaveChangesAsync(cancellationToken);
+            return result;
         }
 
         IDbContextTransaction? transaction = null;
@@ -50,8 +53,10 @@ public sealed class ModuleUnitOfWork<TDbContext>(
         {
             transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
-            await SaveAsync(cancellationToken);
+            T result = await operation(cancellationToken);
+            await SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            return result;
         }
         catch
         {

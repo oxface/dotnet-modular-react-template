@@ -27,14 +27,13 @@ public static class IdentityInfrastructureConfiguration
                 npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity"));
         });
 
-        services.AddScoped<IIdentityDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
         services.AddScoped<ILocalUserRepository, LocalUserRepository>();
         services.AddScoped<IApplicationAccessRepository, ApplicationAccessRepository>();
         services.AddScoped<IModuleDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
         services.AddScoped<IOutboxWriter, OutboxWriter<IdentityDbContext>>();
         services.AddModulePersistence<IdentityDbContext>(
             "identity",
-            typeof(GrantInitialAdminAccessCommand));
+            typeof(GrantInitialAdminAccessCommandHandler));
         services.AddMessagingAssembly<GrantInitialAdminAccessCommand>();
         services.AddMessagingAssembly<IApplicationAccessAuthorizer>();
         services.AddMessagingAssembly<IdentityDbContext>();

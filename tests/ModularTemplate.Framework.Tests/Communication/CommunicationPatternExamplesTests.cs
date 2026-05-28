@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using ModularTemplate.Infrastructure.Outbox;
+using ModularTemplate.Infrastructure.Persistence;
 using ModularTemplate.Operations.Contracts.Operations;
 using ModularTemplate.SharedKernel.Messaging;
 using Shouldly;
@@ -31,15 +32,20 @@ public sealed class CommunicationPatternExamplesTests
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
-        var sender = new DurableCommandSender([outboxWriter], registry, MessagingOptions());
+        var unitOfWorkContext = new ModuleUnitOfWorkContext();
+        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
         Guid operationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        CommandSubmission submission = sender.Send(
-            new RebuildOperationProjectionCommand(operationId),
-            new DurableCommandSubmissionOptions(
-                SourceModule: "identity",
-                TargetModule: "operations",
-                OperationId: operationId));
+        CommandSubmission submission;
+        using (unitOfWorkContext.StartModuleScope("identity"))
+        {
+            submission = sender.Send(
+                new RebuildOperationProjectionCommand(operationId),
+                new DurableCommandSubmissionOptions(
+                    SourceModule: "identity",
+                    TargetModule: "operations",
+                    OperationId: operationId));
+        }
 
         submission.Status.ShouldBe(CommandSubmissionStatus.Accepted);
         submission.OperationId.ShouldBe(operationId);
@@ -61,10 +67,15 @@ public sealed class CommunicationPatternExamplesTests
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
-        var sender = new DurableCommandSender([outboxWriter], registry, MessagingOptions());
+        var unitOfWorkContext = new ModuleUnitOfWorkContext();
+        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
         var orchestration = new ExampleModuleOwnedOrchestration(operationsQueries, sender);
 
-        CommandSubmission submission = await orchestration.StartAsync(operationId, CancellationToken.None);
+        CommandSubmission submission;
+        using (unitOfWorkContext.StartModuleScope("identity"))
+        {
+            submission = await orchestration.StartAsync(operationId, CancellationToken.None);
+        }
 
         submission.Status.ShouldBe(CommandSubmissionStatus.Accepted);
         submission.OperationId.ShouldBe(operationId);
@@ -88,7 +99,7 @@ public sealed class CommunicationPatternExamplesTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task HostOrchestrationExample_WhenUserWorkflowSpansModules_ComposesContractsWithoutPersistence()
+    public async Task HostOrchestrationExample_WhenUserWorkflowSpansModules_ComposesContractsAndDelegatesDurableSend()
     {
         Guid operationId = Guid.Parse("55555555-5555-5555-5555-555555555555");
         var operationsQueries = new FakeOperationsQueries(
@@ -97,10 +108,15 @@ public sealed class CommunicationPatternExamplesTests
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
-        var sender = new DurableCommandSender([outboxWriter], registry, MessagingOptions());
+        var unitOfWorkContext = new ModuleUnitOfWorkContext();
+        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
         var hostWorkflow = new ExampleHostWorkflow(operationsQueries, sender);
 
-        HostWorkflowResponse response = await hostWorkflow.StartAsync(operationId, CancellationToken.None);
+        HostWorkflowResponse response;
+        using (unitOfWorkContext.StartModuleScope("identity"))
+        {
+            response = await hostWorkflow.StartAsync(operationId, CancellationToken.None);
+        }
 
         response.OperationId.ShouldBe(operationId);
         response.SubmissionStatus.ShouldBe(CommandSubmissionStatus.Accepted);

@@ -10,7 +10,7 @@ public sealed class CurrentUserProvider(IMediator mediator) : ICurrentUserProvid
         CancellationToken cancellationToken)
     {
         return await mediator.Send(
-            new ResolveCurrentUserCommand(identity),
+            new SynchronizeCurrentUserCommand(identity),
             cancellationToken);
     }
 }

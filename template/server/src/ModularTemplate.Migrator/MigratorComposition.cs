@@ -21,7 +21,7 @@ public static class MigratorComposition
             options.ServiceLifetime = ServiceLifetime.Scoped;
             options.Assemblies =
             [
-                typeof(ResolveCurrentUserCommand).Assembly,
+                typeof(SynchronizeCurrentUserCommand).Assembly,
                 typeof(ApplicationAccessRepository).Assembly
             ];
             options.PipelineBehaviors =

@@ -7,7 +7,7 @@ using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 namespace ModularTemplate.Operations.Infrastructure.Persistence;
 
 public sealed class OperationsDbContext(DbContextOptions<OperationsDbContext> options)
-    : DbContext(options), IOperationsDbContext, IModuleDbContext
+    : DbContext(options), IModuleDbContext
 {
     public DbSet<Operation> Operations => Set<Operation>();
 

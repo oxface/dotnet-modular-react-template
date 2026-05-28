@@ -3,7 +3,7 @@ using ModularTemplate.Identity.Users;
 
 namespace ModularTemplate.Identity.Infrastructure.Persistence;
 
-public sealed class LocalUserRepository(IIdentityDbContext dbContext) : ILocalUserRepository
+public sealed class LocalUserRepository(IdentityDbContext dbContext) : ILocalUserRepository
 {
     public Task<LocalUser?> GetByProviderSubjectAsync(
         string provider,

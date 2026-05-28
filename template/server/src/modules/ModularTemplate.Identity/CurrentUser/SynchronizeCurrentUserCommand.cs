@@ -5,16 +5,16 @@ using ModularTemplate.Identity.Users;
 
 namespace ModularTemplate.Identity.CurrentUser;
 
-public sealed record ResolveCurrentUserCommand(
+public sealed record SynchronizeCurrentUserCommand(
     AuthenticatedIdentity? Identity) : ICommand<CurrentUserContext>;
 
-public sealed class ResolveCurrentUserCommandHandler(
+public sealed class SynchronizeCurrentUserCommandHandler(
     ILocalUserRepository localUserRepository,
     IApplicationAccessRepository applicationAccessRepository)
-    : ICommandHandler<ResolveCurrentUserCommand, CurrentUserContext>
+    : ICommandHandler<SynchronizeCurrentUserCommand, CurrentUserContext>
 {
     public async ValueTask<CurrentUserContext> Handle(
-        ResolveCurrentUserCommand command,
+        SynchronizeCurrentUserCommand command,
         CancellationToken cancellationToken)
     {
         AuthenticatedIdentity? identity = command.Identity;

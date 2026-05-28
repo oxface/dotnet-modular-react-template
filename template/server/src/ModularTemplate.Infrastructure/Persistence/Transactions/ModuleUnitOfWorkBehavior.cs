@@ -13,13 +13,14 @@ public sealed class ModuleUnitOfWorkBehavior<TCommand, TResponse>(
         CancellationToken cancellationToken)
     {
         IModuleUnitOfWork? unitOfWork = unitOfWorkResolver.Resolve(typeof(TCommand));
-        TResponse response = await next(message, cancellationToken);
 
-        if (unitOfWork is not null)
+        if (unitOfWork is null)
         {
-            await unitOfWork.SaveChangesTransactionalAsync(cancellationToken);
+            return await next(message, cancellationToken);
         }
 
-        return response;
+        return await unitOfWork.ExecuteTransactionalAsync(
+            ct => next(message, ct),
+            cancellationToken);
     }
 }

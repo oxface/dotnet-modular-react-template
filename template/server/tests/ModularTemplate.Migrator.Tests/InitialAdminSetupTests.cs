@@ -39,7 +39,7 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
         firstExitCode.ShouldBe(0);
         secondExitCode.ShouldBe(0);
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
-        IIdentityDbContext dbContext = scope.ServiceProvider.GetRequiredService<IIdentityDbContext>();
+        IdentityDbContext dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var user = dbContext.LocalUsers.Single(x => x.Provider == "oidc" && x.Subject == "subject-1");
         dbContext.ApplicationAccess.Count(x => x.LocalUserId == user.Id).ShouldBe(1);
         dbContext.ApplicationAccess.Single(x => x.LocalUserId == user.Id).IsActive.ShouldBeTrue();
@@ -61,7 +61,7 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
             CancellationToken.None);
         await using (AsyncServiceScope scope = host.Services.CreateAsyncScope())
         {
-            IIdentityDbContext dbContext = scope.ServiceProvider.GetRequiredService<IIdentityDbContext>();
+            IdentityDbContext dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
             ApplicationAccess access = dbContext.ApplicationAccess.Single();
             access.Revoke();
             await dbContext.SaveChangesAsync(CancellationToken.None);
@@ -85,7 +85,7 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
         blockedExitCode.ShouldBe(1);
         forcedExitCode.ShouldBe(0);
         await using AsyncServiceScope verifyScope = host.Services.CreateAsyncScope();
-        IIdentityDbContext verifyDbContext = verifyScope.ServiceProvider.GetRequiredService<IIdentityDbContext>();
+        IdentityDbContext verifyDbContext = verifyScope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         verifyDbContext.ApplicationAccess.Single().IsActive.ShouldBeTrue();
     }
 

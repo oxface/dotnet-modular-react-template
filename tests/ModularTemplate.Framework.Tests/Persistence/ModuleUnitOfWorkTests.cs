@@ -17,7 +17,7 @@ public sealed class ModuleUnitOfWorkTests
 {
     [Fact]
     [Trait("Category", "Unit")]
-    public void Resolve_WhenCommandAssemblyIsRegistered_ReturnsMatchingModuleUnitOfWork()
+    public void Resolve_WhenCommandTypeIsRegistered_ReturnsMatchingModuleUnitOfWork()
     {
         var identityUnitOfWork = new TestModuleUnitOfWork("identity");
         var operationsUnitOfWork = new TestModuleUnitOfWork("operations");
@@ -26,7 +26,7 @@ public sealed class ModuleUnitOfWorkTests
                 new ModulePersistenceRegistration(
                     "identity",
                     typeof(IdentityDbContext),
-                    [typeof(TestCommand).Assembly])
+                    [typeof(TestCommand)])
             ],
             [identityUnitOfWork, operationsUnitOfWork]);
 
@@ -37,7 +37,7 @@ public sealed class ModuleUnitOfWorkTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void Resolve_WhenCommandAssemblyIsNotRegistered_ReturnsNull()
+    public void Resolve_WhenCommandTypeIsNotRegistered_ReturnsNull()
     {
         var identityUnitOfWork = new TestModuleUnitOfWork("identity");
         var resolver = new ModuleUnitOfWorkResolver(
@@ -45,7 +45,7 @@ public sealed class ModuleUnitOfWorkTests
                 new ModulePersistenceRegistration(
                     "identity",
                     typeof(IdentityDbContext),
-                    [typeof(IdentityDbContext).Assembly])
+                    [typeof(OtherCommand)])
             ],
             [identityUnitOfWork]);
 
@@ -56,18 +56,18 @@ public sealed class ModuleUnitOfWorkTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void Resolve_WhenCommandAssemblyIsRegisteredForMultipleModules_Throws()
+    public void Resolve_WhenCommandTypeIsRegisteredForMultipleModules_Throws()
     {
         var resolver = new ModuleUnitOfWorkResolver(
             [
                 new ModulePersistenceRegistration(
                     "identity",
                     typeof(IdentityDbContext),
-                    [typeof(TestCommand).Assembly]),
+                    [typeof(TestCommand)]),
                 new ModulePersistenceRegistration(
                     "operations",
                     typeof(IdentityDbContext),
-                    [typeof(TestCommand).Assembly])
+                    [typeof(TestCommand)])
             ],
             [new TestModuleUnitOfWork("identity"), new TestModuleUnitOfWork("operations")]);
 
@@ -81,14 +81,32 @@ public sealed class ModuleUnitOfWorkTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void AddModulePersistence_WhenNoCommandAssemblyMarkersAreProvided_Throws()
+    public void AddModulePersistence_WhenNoCommandHandlerAssemblyMarkersAreProvided_RegistersModuleWithoutCommands()
     {
         var services = new ServiceCollection();
 
-        ArgumentException exception = Should.Throw<ArgumentException>(
-            () => services.AddModulePersistence<IdentityDbContext>("identity"));
+        services.AddModulePersistence<IdentityDbContext>("identity");
 
-        exception.ParamName.ShouldBe("commandAssemblyMarkers");
+        services.Any(service =>
+            service.ServiceType == typeof(ModulePersistenceRegistration)
+            && service.ImplementationInstance is ModulePersistenceRegistration registration
+            && registration.ModuleName == "identity"
+            && registration.CommandTypes.Count == 0).ShouldBeTrue();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModulePersistence_WhenCommandHandlerAssemblyMarkerIsProvided_RegistersHandledCommands()
+    {
+        var services = new ServiceCollection();
+
+        services.AddModulePersistence<IdentityDbContext>("identity", typeof(TestCommandHandler));
+
+        ModulePersistenceRegistration registration = services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModulePersistenceRegistration>()
+            .Single();
+        registration.CommandTypes.ShouldBe([typeof(TestCommand)], ignoreOrder: true);
     }
 
     [Fact]
@@ -104,7 +122,7 @@ public sealed class ModuleUnitOfWorkTests
             (_, _) => new ValueTask<Unit>(Unit.Value),
             CancellationToken.None);
 
-        unitOfWork.TransactionalSaveCount.ShouldBe(1);
+        unitOfWork.TransactionalExecutionCount.ShouldBe(1);
     }
 
     [Fact]
@@ -137,6 +155,7 @@ public sealed class ModuleUnitOfWorkTests
             identityContext,
             serviceProvider,
             registry,
+            new ModuleUnitOfWorkContext(),
             Options.Create(new DurableMessagingOptions()));
         identityContext.LocalUsers.Add(
             LocalUser.Create("oidc", "subject-1", "Ada", "ada@example.test"));
@@ -159,6 +178,16 @@ public sealed class ModuleUnitOfWorkTests
 
     private sealed record TestCommand : ICommand;
 
+    private sealed record OtherCommand : ICommand;
+
+    private sealed class TestCommandHandler : ICommandHandler<TestCommand>
+    {
+        public ValueTask<Unit> Handle(TestCommand command, CancellationToken cancellationToken)
+        {
+            return new ValueTask<Unit>(Unit.Value);
+        }
+    }
+
     [MessageIdentity("test.integration-event.v1")]
     private sealed record TestIntegrationEvent(Guid LocalUserId) : IIntegrationEvent;
 
@@ -177,17 +206,19 @@ public sealed class ModuleUnitOfWorkTests
     {
         public string ModuleName { get; } = moduleName;
 
-        public int TransactionalSaveCount { get; private set; }
+        public int TransactionalExecutionCount { get; private set; }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task SaveChangesTransactionalAsync(CancellationToken cancellationToken = default)
+        public async ValueTask<T> ExecuteTransactionalAsync<T>(
+            Func<CancellationToken, ValueTask<T>> operation,
+            CancellationToken cancellationToken = default)
         {
-            TransactionalSaveCount++;
-            return Task.CompletedTask;
+            TransactionalExecutionCount++;
+            return await operation(cancellationToken);
         }
     }
 

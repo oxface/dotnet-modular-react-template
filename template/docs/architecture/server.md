@@ -93,6 +93,22 @@ Command handlers should get decision-making data through repositories or
 command-side read ports, not by calling query handlers. Query handlers are
 application read use cases for callers that need read-side data.
 
+Cross-module synchronous reads should use in-process query contracts from the
+target module's Contracts project. Cross-module asynchronous work should use
+durable commands or integration events through the outbox/inbox pipeline.
+Durable commands are send-and-forget: callers may receive an acceptance record
+and operation id, but handler results are observed later through query
+contracts, operation status, read models, or follow-up integration events.
+Module code should submit durable commands through `IDurableCommandSubmitter`
+so the source module outbox row is created consistently.
+See [Intermodule Communication](intermodule-communication.md) for the detailed
+pattern guide, message lifecycle, and module scaffolding checklist.
+Host-level orchestration is reserved for API/user workflows that do not belong
+to one module; module-owned orchestration should stay inside the owning module.
+Generated products should cover real communication workflows with product tests.
+Template-framework communication examples are maintained in the factory root
+test project, outside the generated-product payload.
+
 Aggregates own domain transitions and raise domain events for relevant actions.
 Child entities owned by an aggregate root should keep constructors, factories,
 and mutators private or internal to the aggregate unless the model documents a

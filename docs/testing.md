@@ -21,7 +21,8 @@ Expected:
   `npm publish`, because package-manager commands check package `engines` and
   `devEngines` with the ambient Node runtime that launched them.
 - `pnpm exec node -v` reports Node 24.15.0 or newer.
-- `pnpm verify` passes.
+- `pnpm verify` passes, including root framework tests that protect template
+  infrastructure not intended to ship as generated-product tests.
 - `pnpm template:verify:full` passes against Docker or Podman.
 
 If `node -v` is not Node 24, activate Node 24 in the shell before release
@@ -71,9 +72,9 @@ From the factory root:
 
 ```sh
 mkdir -p /tmp/dotnet-modular-react-template-pack
-pnpm pack --pack-destination /tmp/dotnet-modular-react-template-pack
+PACKED_TEMPLATE="$(pnpm pack --pack-destination /tmp/dotnet-modular-react-template-pack | tail -n 1)"
 
-pnpm dlx /tmp/dotnet-modular-react-template-pack/dotnet-modular-react-template-0.0.0.tgz \
+pnpm dlx "${PACKED_TEMPLATE}" \
   -- --product-name "Smoke Desk" --output /tmp/smoke-desk
 ```
 

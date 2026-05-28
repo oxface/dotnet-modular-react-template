@@ -6,6 +6,7 @@ frontends, and local orchestration for supporting services.
 Architecture details are split by area:
 
 - [Server](architecture/server.md)
+- [Intermodule Communication](architecture/intermodule-communication.md)
 - [Web](architecture/web.md)
 - [Orchestration](architecture/orchestration.md)
 - [Workflows](architecture/workflows.md)

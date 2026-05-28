@@ -1,3 +1,4 @@
+using System.Reflection;
 using ModularTemplate.SharedKernel.Messaging;
 using Shouldly;
 
@@ -61,6 +62,33 @@ public sealed class MessageTypeRegistryTests
 
         Should.Throw<KeyNotFoundException>(
             () => registry.ResolveClrType("ModularTemplate.identity.unknown.v1"));
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void DurableCommandHandler_WhenInspected_ReturnsTaskWithoutResultPayload()
+    {
+        MethodInfo handleMethod = typeof(IDurableCommandHandler<TestDurableCommand>)
+            .GetMethod(nameof(IDurableCommandHandler<TestDurableCommand>.HandleAsync))!;
+
+        handleMethod.ReturnType.ShouldBe(typeof(Task));
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void CommandSubmission_WhenAccepted_CarriesSubmissionStatusAndOptionalOperationIdOnly()
+    {
+        Guid submissionId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        Guid operationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        var submission = new CommandSubmission(
+            submissionId,
+            operationId,
+            CommandSubmissionStatus.Accepted);
+
+        submission.SubmissionId.ShouldBe(submissionId);
+        submission.OperationId.ShouldBe(operationId);
+        submission.Status.ShouldBe(CommandSubmissionStatus.Accepted);
     }
 
     private sealed record TestIntegrationEvent : IIntegrationEvent;

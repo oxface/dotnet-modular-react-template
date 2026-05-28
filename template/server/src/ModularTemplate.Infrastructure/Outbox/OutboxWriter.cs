@@ -6,5 +6,7 @@ namespace ModularTemplate.Infrastructure.Outbox;
 public sealed class OutboxWriter<TDbContext>(TDbContext context) : IOutboxWriter
     where TDbContext : DbContext, IModuleDbContext
 {
+    public string ModuleName => context.ModuleName;
+
     public void Write(OutboxMessage outboxMessage) => context.OutboxMessages.Add(outboxMessage);
 }

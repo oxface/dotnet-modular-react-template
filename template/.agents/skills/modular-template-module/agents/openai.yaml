@@ -1,0 +1,4 @@
+interface:
+  display_name: "Modular Template Module"
+  short_description: "Scaffold backend modules in the template."
+  default_prompt: "Use $modular-template-module to scaffold a new backend module using the template conventions."

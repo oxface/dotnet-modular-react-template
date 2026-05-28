@@ -1,1407 +1,990 @@
-# Modular Monolith Durable Messaging & Module Persistence Refactor Plan
+# Modular Monolith Migration Runbook
 
 ## Status
 
-Large parts of this direction now exist in the template payload: module-owned
-`DbContext` types and schemas, module-owned migrations, shared Infrastructure
-library folders for Persistence/Outbox/Transport, local durable workers, and
-an Operations status slice.
-Treat the rest of this document as background direction and backlog, not as a
-fresh inventory of missing work.
+This document is now a migration runbook based on the current template payload.
+It records the modular-monolith shape that was implemented after the initial
+planning notes, so the same approach can be applied to an existing product
+repository.
 
-Current staleness to watch:
+The template now has:
 
-- Completed OpenSpec changes under `template/openspec/changes/` should be
-  archived when the team is ready for accepted specs to become the source of
-  truth.
-- Product-facing docs under `template/docs/` are the durable reference once
-  they conflict with this todo handoff.
+- module-owned `DbContext` types, PostgreSQL schemas, and EF migrations
+- outbox, inbox, and persisted domain-event tables inside each module schema
+- shared infrastructure folders for persistence, outbox, and transport
+- module-local outbox writers selected by source module
+- an acceptance-only durable command submitter
+- durable outbox dispatch and inbox processing workers
+- Rebus transport with in-memory and Azure Service Bus modes
+- Rebus inbox writes with duplicate-envelope protection
+- startup validation for Azure Service Bus transport
+- an Operations module and query contract example
+- executable examples for in-process queries, durable commands, choreography,
+  module-owned orchestration, and host-level orchestration
+- unit-of-work enforcement that rejects direct multi-module persistence
 
-## Goal
+Product-facing docs under `template/docs/` should become the durable reference
+for generated repositories. This file is a maintainer handoff/runbook.
 
-Refactor ModularTemplate toward a production-realistic modular monolith architecture with:
+## Migration Map
 
-- DbContext per module
-- PostgreSQL schema per module
-- module-owned migrations
-- persistent domain events
-- durable outbox/inbox messaging
-- message-driven cross-module communication
-- in-process module query contracts
-- durable cross-module command submissions
-- first-class operation/process tracking
-- explicit module boundaries suitable for future extraction
+Use the template as the target shape, not as a one-shot copy operation. For an
+existing project, migrate by moving one boundary at a time:
 
-This is intended to become the reference implementation before backporting the same architecture into the reusable template.
+1. separate the project/folder structure so module domain/application,
+   contracts, and infrastructure code are distinct
+2. split the global/app `DbContext` into module-owned contexts and schemas
+3. move each module's domain-event persistence into the same context as its
+   aggregates
+4. add module-owned outbox and inbox tables to each module schema
+5. replace direct cross-module writes with contracts, durable commands, or
+   integration events
+6. add Rebus transport and workers after outbox/inbox persistence is in place
+7. prove one durable vertical slice before moving the rest of the modules
 
----
+The migration is successful when the old platform persistence layer has no
+module entity mappings left. Shared infrastructure can coordinate persistence
+and transport, but it should not own product data.
 
-## Architectural Direction
+## Target Architecture
 
-ModularTemplate should use a modular monolith architecture.
+The application remains a modular monolith:
 
-The app remains:
+- one deployable host
+- one runtime process
+- one physical PostgreSQL database
+- one observability surface
+- explicit module boundaries
 
-- single deployable unit
-- single runtime process
-- single physical database
-- single observability surface
-- simple local debugging model
+Each module owns:
 
-But each module should own:
+- its domain/application code
+- its contracts project
+- its infrastructure project
+- its `DbContext`
+- its PostgreSQL schema
+- its EF migrations and migrations history table
+- its domain-event, outbox, and inbox tables
+- its endpoint registration
 
-- its own domain model
-- its own application layer
-- its own infrastructure
-- its own DbContext
-- its own PostgreSQL schema
-- its own migrations
-- its own domain events
-- its own inbox/outbox tables, or at minimum logically module-scoped inbox/outbox records
-- its own endpoint registration
+The important shift is that persistence is no longer centralized in a platform
+`DbContext`. The platform supplies shared infrastructure, but the module owns
+its data.
 
-Cross-module communication should be explicit and consumer-driven.
+## Current Project Shape
 
-Modules should be closed by default.
+The implemented template uses this shape:
 
-The only default public surface of a module is its HTTP endpoints.
+```text
+template/server/src/
+  ModularTemplate.Host/
+    Configuration/
+      ModuleConfiguration.cs
 
-Additional intermodule contracts should be added only when a real consumer needs them.
+  ModularTemplate.Infrastructure/
+    Outbox/
+      DurableCommandSubmitter.cs
+      DurableMessagingOptions.cs
+      InboxMessageConfiguration.cs
+      InboxMessage.cs
+      InboxProcessor.cs
+      InboxProcessorBackgroundService.cs
+      IInboxProcessor.cs
+      ILocalSubscriptionRegistry.cs
+      IOutboxDispatcher.cs
+      IOutboxTransport.cs
+      IOutboxWriter.cs
+      LocalSubscriptionRegistry.cs
+      OutboxMessageConfiguration.cs
+      OutboxDispatcher.cs
+      OutboxDispatcherBackgroundService.cs
+      OutboxMessage.cs
+      OutboxWriter.cs
+      RetryDelays.cs
+    Persistence/
+      DomainEvents/
+        StoredDomainEvent.cs
+        StoredDomainEventConfiguration.cs
+      Transactions/
+        ModuleUnitOfWorkBehavior.cs
+      IModuleDbContext.cs
+      ModuleUnitOfWork.cs
+      OutboxModelBuilderExtensions.cs
+    Transport/
+      AzureServiceBusNamespaceProbe.cs
+      DurableTransportEnvelope.cs
+      IServiceBusNamespaceProbe.cs
+      MessagingTransportConfiguration.cs
+      RebusDurableTransportHandler.cs
+      RebusOutboxTransport.cs
+      ServiceBusTransportStartupValidationHostedService.cs
+      TransportConfiguration.cs
 
----
+  ModularTemplate.Migrator/
+    MigratorRunner.cs
 
-## Communication Model
+  ModularTemplate.SharedKernel/
+    Domain/
+    Messaging/
+    Validation/
 
-ModularTemplate should support two general intermodule interaction families:
+  modules/
+    ModularTemplate.Identity/
+    ModularTemplate.Identity.Contracts/
+    ModularTemplate.Identity.Infrastructure/
+      Migrations/
+      Persistence/
+        IdentityDbContext.cs
 
-1. In-process interaction
-2. Durable interaction
+    ModularTemplate.Operations/
+    ModularTemplate.Operations.Contracts/
+    ModularTemplate.Operations.Infrastructure/
+      Migrations/
+      Persistence/
+        OperationsDbContext.cs
+```
 
-### In-process interaction
+For a product repository, preserve the same dependency direction even if the
+module names differ.
 
-Use in-process contracts when the consumer needs data or a result immediately.
+Tests mirror the same split:
 
-Default use cases:
+```text
+template/server/tests/
+  ModularTemplate.Host.Tests/
+    Configuration/
+      ServiceBusTransportStartupValidationHostedServiceTests.cs
 
-- queries
-- lookups
-- validation
-- small synchronous capabilities
-- immediate command results when truly required
+  ModularTemplate.Migrator.Tests/
 
-Rules:
+  ModularTemplate.Framework.Tests/
+    Communication/
+      CommunicationPatternExamplesTests.cs
+    Messaging/
+      MessageTypeRegistryTests.cs
+    Persistence/
+      DurableCommandSubmitterTests.cs
+      DurableMessagingTests.cs
+      MessagePersistenceTests.cs
+      ModuleUnitOfWorkTests.cs
+      RebusTransportTests.cs
+```
 
-- Return DTOs/read models.
-- Do not expose EF entities.
-- Do not expose IQueryable.
-- Do not expose module internals.
-- Do not let consumers reference another module's Application, Domain, or Infrastructure projects.
-- Consumers may reference another module's Contracts project only.
+For a real migration, keep these test categories separate:
+communication-pattern examples explain architectural choices, while
+PostgreSQL-backed persistence tests prove durability, locking, retries, and
+schema ownership. Framework guardrails belong in the factory root when they are
+not useful generated-product tests.
+
+## Dependency Rules
+
+Use these rules as the architectural contract:
+
+- Host composes modules and may reference module contracts, module projects, and
+  module infrastructure projects.
+- A module may reference its own contracts and shared kernel.
+- A module infrastructure project may reference its own module and contracts.
+- A module contracts project must not reference EF Core, ASP.NET Core,
+  infrastructure, application internals, or domain entities.
+- A module must not reference another module's domain/application/infrastructure.
+- Cross-module synchronous access goes through another module's contracts only.
+- Cross-module commands and asynchronous facts go through durable messaging.
+- Direct writes to more than one module `DbContext` in the same unit of work are
+  rejected.
+
+Architecture tests should enforce these rules once the migration settles.
+
+## Module Persistence
+
+Each module has one concrete EF context implementing `IModuleDbContext`.
+That context maps both product tables and the module's messaging tables. This
+is the key implementation detail: domain events, outbox rows, inbox rows, and
+aggregate changes all live in the same module schema and are saved by the same
+module context.
 
 Example:
 
 ```csharp
-public interface IIncidentsQueries
+public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> options)
+    : DbContext(options), IIdentityDbContext, IModuleDbContext
 {
-    Task<IncidentDetails?> GetIncidentAsync(IncidentId incidentId, CancellationToken cancellationToken);
-}
-Durable interaction
+    public DbSet<LocalUser> LocalUsers => Set<LocalUser>();
+    public DbSet<ApplicationAccess> ApplicationAccess => Set<ApplicationAccess>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+    public DbSet<StoredDomainEvent> DomainEvents => Set<StoredDomainEvent>();
 
-Use durable messaging when the consumer wants to request work but does not need the business result immediately.
+    string IModuleDbContext.ModuleName => "identity";
 
-Default use cases:
+    DbSet<OutboxMessage> IModuleDbContext.OutboxMessages => OutboxMessages;
+    DbSet<InboxMessage> IModuleDbContext.InboxMessages => InboxMessages;
+    DbSet<StoredDomainEvent> IModuleDbContext.DomainEvents => DomainEvents;
 
-cross-module commands
-side effects
-long-running work
-retryable work
-external integrations
-notifications
-workflow steps
-AI processing
-background analysis
-
-Rules:
-
-Durable commands return acceptance/submission metadata, not final business result.
-Results are observed later via operation status, query, or event.
-Durable command handlers must be idempotent.
-Durable messages must be persisted before processing.
-Durable message processing must support retry and failure state.
-
-Example:
-
-public interface IIncidentsSubmissions
-{
-    Task<CommandSubmission> SubmitRegisterIncidentAsync(
-        RegisterIncidentSubmission request,
-        CancellationToken cancellationToken);
-}
-
-Return model:
-
-public sealed record CommandSubmission(
-    Guid SubmissionId,
-    Guid? OperationId,
-    CommandSubmissionStatus Status);
-Default Policy
-
-Use this policy throughout ModularTemplate:
-
-Interaction	Default
-External client to module	HTTP endpoint
-Endpoint to own module application logic	Immediate in-process
-Module to another module query	In-process query contract
-Module to another module command	Durable submission
-Module to another module command needing immediate result	Explicit in-process command contract exception
-Module publishes fact to consumers	Integration event through outbox
-Multi-module long-running process	Operation/process manager module
-Important Terminology
-Domain event
-
-A domain event is an internal module fact.
-
-It is raised by domain model behavior and persisted as part of the module transaction.
-
-Domain events are not automatically public contracts.
-
-Example:
-
-public sealed record IncidentRegisteredDomainEvent(
-    IncidentId IncidentId,
-    WorkspaceId WorkspaceId,
-    DateTimeOffset RegisteredAt);
-Integration event
-
-An integration event is a public, stable fact exposed by a module for other modules to consume.
-
-Integration events are consumer-driven. Do not create integration events unless there is a real consumer.
-
-Example:
-
-public sealed record IncidentRegisteredIntegrationEvent(
-    Guid IncidentId,
-    Guid WorkspaceId,
-    DateTimeOffset RegisteredAt);
-Outbox message
-
-An outbox message is a persisted transport envelope owned by the producing module.
-
-It guarantees that a message that leaves the current transaction boundary is not lost after data is saved.
-
-Inbox message
-
-An inbox message is a persisted transport envelope owned by the consuming module.
-
-It guarantees durable processing, deduplication, retries, and idempotency.
-
-Event Publishing Rule
-
-Any event or command that leaves the current transaction boundary must go through durable messaging.
-
-Use the outbox for:
-
-integration events
-cross-module events
-durable commands
-retryable background work
-externally observable events
-events consumed asynchronously
-events that must survive process crash
-
-Local same-module reactions may run in-process if they are part of the same transaction.
-
-Cross-module reactions must not run as direct domain event handlers.
-
-Target Flow: Choreography
-
-Producer module transaction:
-
-1. Load aggregate.
-2. Execute domain behavior.
-3. Aggregate records domain event.
-4. DbContext persists aggregate changes.
-5. DbContext persists domain event.
-6. Application/infrastructure maps selected domain events to integration events.
-7. Integration events are written to producer outbox.
-8. Transaction commits.
-
-Dispatcher:
-
-1. Poll pending producer outbox messages.
-2. Resolve local subscriptions.
-3. For each subscriber, write message to consumer inbox.
-4. Mark outbox message as dispatched when all local inbox deliveries succeed.
-
-Consumer inbox processor:
-
-1. Poll pending inbox messages for module.
-2. Deserialize message.
-3. Resolve strongly typed handler.
-4. Execute handler inside consumer module transaction.
-5. Persist consumer module changes.
-6. Persist any new domain events/outbox messages.
-7. Mark inbox message processed.
-8. On failure, increment retry metadata and schedule next attempt.
-9. After retry limit, mark as failed/dead-letter.
-Target Flow: Durable Command Submission
-
-Consumer/orchestrator submits durable command:
-
-1. Caller creates durable command.
-2. Caller writes command to its own outbox, or uses messaging infrastructure to create an outbox message.
-3. Dispatcher delivers command to target module inbox.
-4. Target module inbox processor executes command handler.
-5. Handler uses target module application layer internally.
-6. Target module commits state changes.
-7. Target module publishes resulting integration events through its own outbox.
-
-Durable command submission returns:
-
-Accepted / Rejected / Duplicate
-
-It does not return final business result.
-
-Final result should be obtained via:
-
-operation status
-later query
-completion event
-process manager state
-Module Persistence Model
-
-Move to:
-
-One physical PostgreSQL database
-One DbContext per module
-One schema per module
-One migration history per module
-
-Example schemas:
-
-operations.*
-workflows.*
-incidents.*
-integrations.*
-notifications.*
-audit.*
-
-Each module DbContext should configure its own default schema:
-
-protected override void OnModelCreating(ModelBuilder modelBuilder)
-{
-    modelBuilder.HasDefaultSchema("incidents");
-    modelBuilder.ApplyConfigurationsFromAssembly(typeof(IncidentsDbContext).Assembly);
-}
-
-Each module should own its own migrations.
-
-Recommended EF migrations history table per module:
-
-options.UseNpgsql(
-    connectionString,
-    npgsql =>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "incidents");
-    });
-
-No module should directly access another module's DbContext.
-
-No module should directly mutate another module's tables.
-
-Avoid cross-module foreign keys by default.
-
-Use IDs across module boundaries, not EF navigation properties.
-
-Module Project Structure
-
-Adapt to existing ModularTemplate structure, but aim for this conceptual shape:
-
-src/
-  ModularTemplate.Host/
-
-  Modules/
-    Operations/
-      ModularTemplate.Operations.Contracts/
-      ModularTemplate.Operations.Domain/
-      ModularTemplate.Operations.Application/
-      ModularTemplate.Operations.Infrastructure/
-      ModularTemplate.Operations.Endpoints/
-
-    Incidents/
-      ModularTemplate.Incidents.Contracts/
-      ModularTemplate.Incidents.Domain/
-      ModularTemplate.Incidents.Application/
-      ModularTemplate.Incidents.Infrastructure/
-      ModularTemplate.Incidents.Endpoints/
-
-    Notifications/
-      ModularTemplate.Notifications.Contracts/
-      ModularTemplate.Notifications.Domain/
-      ModularTemplate.Notifications.Application/
-      ModularTemplate.Notifications.Infrastructure/
-      ModularTemplate.Notifications.Endpoints/
-
-If current project structure is flatter, preserve existing conventions where practical, but keep the dependency rules.
-
-Dependency Rules
-
-Enforce these rules:
-
-Host may reference module Contracts, Infrastructure, and Endpoints for composition.
-
-Module.Endpoints may reference own module Application and Contracts.
-
-Module.Infrastructure may reference own module Application, Domain, and Contracts.
-
-Module.Application may reference own module Domain.
-
-Module.Application may reference another module's Contracts only if explicitly needed.
-
-Module.Domain must not reference other modules.
-
-Module.Contracts must not reference Infrastructure, EF Core, ASP.NET Core, or module Application.
-
-No module may reference another module's Domain, Application, Infrastructure, or Endpoints.
-
-Cross-module access must happen through Contracts only.
-
-Add architecture tests later if not already present.
-
-Prefer to add the rules now in code organization even if tests come in a later step.
-
-Contracts Policy
-
-Modules are closed by default.
-
-Do not create public contracts speculatively.
-
-Add contracts only when a real consumer needs them.
-
-Allowed contract types:
-
-Queries
-Immediate command contracts
-Durable command submissions
-Integration events
-DTOs/read models
-IDs/value objects safe across boundaries
-
-Avoid exposing:
-
-EF entities
-IQueryable
-repositories
-DbContext
-application commands
-internal domain events
-domain aggregates
-infrastructure services
-
-Recommended naming:
-
-I{Module}Queries
-I{Module}Commands
-I{Module}Submissions
-
-Example:
-
-public interface IIncidentsQueries
-{
-    Task<IncidentDetails?> GetIncidentAsync(IncidentId incidentId, CancellationToken cancellationToken);
-}
-
-public interface IIncidentsSubmissions
-{
-    Task<CommandSubmission> SubmitRegisterIncidentAsync(
-        RegisterIncidentSubmission request,
-        CancellationToken cancellationToken);
-}
-
-Use I{Module}Commands only for explicit immediate cross-module command exceptions.
-
-Operations Module
-
-Add a first-class Operations module.
-
-Purpose:
-
-track long-running work
-track durable command results
-expose operation status
-hold correlation between submitted commands and business results
-coordinate process/saga state where appropriate
-
-Operations module should own:
-
-operations.operations
-operations.operation_steps
-operations.operation_events
-
-Minimal operation state:
-
-OperationId
-OperationType
-Status
-CorrelationId
-CausationId
-CreatedAtUtc
-UpdatedAtUtc
-CompletedAtUtc
-FailedAtUtc
-FailureReason
-ResultJson
-MetadataJson
-
-Statuses:
-
-Pending
-Running
-Completed
-Failed
-Cancelled
-
-Operation step state:
-
-OperationStepId
-OperationId
-StepName
-Status
-AttemptCount
-StartedAtUtc
-CompletedAtUtc
-FailedAtUtc
-FailureReason
-InputJson
-OutputJson
-
-Operations module should expose endpoint:
-
-GET /api/operations/{operationId}
-
-Durable HTTP commands may return:
-
-202 Accepted
-Location: /api/operations/{operationId}
-Messaging Infrastructure
-
-Create reusable messaging infrastructure that can be reused by all modules.
-
-Keep it explicit and dependency-light.
-
-Use:
-
-BackgroundService
-EF Core polling
-PostgreSQL tables
-strongly typed handlers
-System.Text.Json serialization
-
-Do not introduce Quartz/Hangfire/Wolverine at this stage.
-
-The infrastructure should be designed so a broker adapter can be added later.
-
-Message Envelope
-
-Create a common message envelope for persisted transport messages.
-
-Suggested fields:
-
-Id
-MessageId
-MessageKind
-MessageType
-SourceModule
-TargetModule
-CorrelationId
-CausationId
-OperationId
-IdempotencyKey
-PayloadJson
-MetadataJson
-Status
-AttemptCount
-MaxAttempts
-NextAttemptAtUtc
-CreatedAtUtc
-LockedAtUtc
-LockedBy
-ProcessedAtUtc
-FailedAtUtc
-Error
-
-Message kind:
-
-Command
-Event
-
-Message status:
-
-Pending
-Processing
-Processed
-Failed
-DeadLettered
-Cancelled
-
-Important uniqueness:
-
-MessageId should be globally unique.
-Inbox should deduplicate by MessageId.
-Optional idempotency key uniqueness should be supported.
-Outbox Table
-
-Each module should have an outbox table in its schema.
-
-Example:
-
-incidents.outbox_messages
-notifications.outbox_messages
-operations.outbox_messages
-
-Outbox message should include:
-
-Id
-MessageId
-MessageKind
-MessageType
-SourceModule
-TargetModule nullable
-CorrelationId
-CausationId
-OperationId nullable
-PayloadJson
-MetadataJson
-Status
-AttemptCount
-NextAttemptAtUtc
-CreatedAtUtc
-DispatchedAtUtc
-FailedAtUtc
-Error
-
-Outbox dispatch behavior:
-
-Pending messages are selected.
-Messages are locked.
-Dispatcher resolves target subscribers.
-Dispatcher writes messages to consumer inboxes.
-Dispatcher marks outbox message Processed/Dispatched.
-Failures increment attempt count.
-Messages exceeding retry policy go to DeadLettered/Failed.
-Inbox Table
-
-Each module should have an inbox table in its schema.
-
-Example:
-
-incidents.inbox_messages
-notifications.inbox_messages
-operations.inbox_messages
-
-Inbox message should include:
-
-Id
-MessageId
-MessageKind
-MessageType
-SourceModule
-TargetModule
-CorrelationId
-CausationId
-OperationId nullable
-IdempotencyKey nullable
-PayloadJson
-MetadataJson
-Status
-AttemptCount
-NextAttemptAtUtc
-ReceivedAtUtc
-LockedAtUtc
-LockedBy
-ProcessedAtUtc
-FailedAtUtc
-Error
-
-Inbox processing behavior:
-
-Pending messages are selected.
-Messages are locked.
-Handler is resolved by MessageType and TargetModule.
-Handler executes inside target module transaction.
-Handler marks message processed only after transaction succeeds.
-Handler failures are retried.
-Poison messages are marked DeadLettered after max attempts.
-Persistent Domain Events
-
-Each module should persist domain events.
-
-Example table:
-
-incidents.domain_events
-
-Suggested fields:
-
-Id
-EventId
-AggregateId
-AggregateType
-EventType
-PayloadJson
-MetadataJson
-OccurredAtUtc
-RecordedAtUtc
-CorrelationId
-CausationId
-UserId nullable
-OperationId nullable
-PublishedAtUtc nullable
-
-Domain events should be recorded during aggregate mutation.
-
-Domain events should be persisted in the same transaction as aggregate changes.
-
-Domain events are internal to the module by default.
-
-Do not publish every domain event as an integration event.
-
-Add a mapping from domain event to integration event only when needed.
-
-Example:
-
-IncidentRegisteredDomainEvent
-  -> IncidentRegisteredIntegrationEvent
-Domain Event Capture
-
-Implement a mechanism for aggregates to record domain events.
-
-Possible model:
-
-public abstract class AggregateRoot
-{
-    private readonly List<IDomainEvent> _domainEvents = [];
-
-    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
-
-    protected void Raise(IDomainEvent domainEvent)
-    {
-        _domainEvents.Add(domainEvent);
-    }
-
-    public void ClearDomainEvents()
-    {
-        _domainEvents.Clear();
+        modelBuilder.HasDefaultSchema("identity");
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(IdentityDbContext).Assembly);
+        modelBuilder.ApplyOutboxConfiguration("identity");
     }
 }
+```
 
-During SaveChangesAsync, the module DbContext or UnitOfWork should:
+Register the context with a module-local migrations history table:
 
-1. Collect domain events from tracked aggregate roots.
-2. Persist domain event records.
-3. Map selected domain events to integration events.
-4. Persist corresponding outbox messages.
-5. Clear domain events after successful persistence.
-
-Be careful not to clear events before transaction success.
-
-Integration Event Mapping
-
-Create explicit mappers per module.
-
-Example:
-
-public interface IIntegrationEventMapper
+```csharp
+services.AddDbContext<IdentityDbContext>((sp, options) =>
 {
-    IReadOnlyCollection<IIntegrationEvent> Map(IDomainEvent domainEvent);
-}
+    string connectionString = sp.GetRequiredService<IConfiguration>()
+        .GetConnectionString("modular-template-host")
+        ?? throw new InvalidOperationException("Connection string is required.");
 
-Or strongly typed mappers:
+    options.UseNpgsql(
+        connectionString,
+        npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "identity"));
+});
 
+services.AddScoped<IIdentityDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
+services.AddScoped<IModuleDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
+services.AddScoped<IOutboxWriter, OutboxWriter<IdentityDbContext>>();
+```
+
+The migration output for a module should create all module-owned tables in that
+module schema, including:
+
+- domain tables, such as `identity.local_users`
+- `identity.domain_events`
+- `identity.outbox_messages`
+- `identity.inbox_messages`
+- `identity.__EFMigrationsHistory`
+
+Do not keep a global `platform` schema for messaging.
+
+When migrating an existing database with production data, decide per module
+whether the first module migration creates new tables or moves existing tables
+into the module schema. For data-preserving migrations, prefer explicit SQL in
+the EF migration over drop/recreate behavior. Typical operations are:
+
+- create the module schema if it does not exist
+- move or rename existing tables into that schema
+- move indexes, constraints, and sequences with the table when PostgreSQL does
+  not do so automatically for the specific object
+- create the module-local `__EFMigrationsHistory` table
+- seed or mark the module migration as applied only after the physical database
+  shape matches the model
+
+Do this one module at a time. The app should be able to start and run against
+the migrated module before the next module is moved.
+
+## Unit Of Work
+
+`ModuleUnitOfWork` is registered as the shared `IUnitOfWork`. It inspects all
+registered `IModuleDbContext` instances and saves exactly one changed context.
+
+This is intentional. A command handler should mutate one module transaction. If
+it needs another module to do work, it should call an in-process contract for a
+query or submit durable work through the outbox.
+
+The unit of work also:
+
+1. collects domain events from tracked aggregate roots
+2. writes `StoredDomainEvent` rows into the same module context
+3. maps selected domain events to integration events
+4. writes integration events to the same module outbox
+5. saves everything in one module transaction
+
+This replaces the old pattern of sharing an `NpgsqlConnection` and transaction
+across a platform context plus several module contexts.
+
+The boundary violation is deliberate operational feedback. During migration,
+use it to find workflows that still depend on direct multi-module writes. Do
+not bypass it by reintroducing a shared transaction across contexts; split the
+workflow into one module transaction plus durable follow-up work.
+
+## Domain Events And Integration Events
+
+A domain event is an internal module fact raised by aggregate behavior. It is
+stored in the owning module's `domain_events` table.
+
+An integration event is a public, stable message contract emitted only when a
+real consumer needs it. Do not publish every domain event automatically.
+
+Because `StoredDomainEvent` is part of each module context, persisted domain
+events should be treated as module-private audit/diagnostic state. Other modules
+should never query another module's `domain_events` table. Cross-module
+notification starts only after a mapper creates an integration event and the
+unit of work writes it to the same module's outbox.
+
+Use explicit mappers:
+
+```csharp
 public interface IIntegrationEventMapper<in TDomainEvent>
     where TDomainEvent : IDomainEvent
 {
+    string SourceModule { get; }
+
     IReadOnlyCollection<IIntegrationEvent> Map(TDomainEvent domainEvent);
 }
+```
+
+The mapper creates integration events, and the unit of work persists them as
+outbox messages with stable message type names from `IMessageTypeRegistry`.
+
+## Durable Messaging Model
+
+Durable messaging is used for:
+
+- cross-module commands
+- cross-module events
+- retryable side effects
+- externally observable work
+- work that must survive process restart
+
+Use in-process contracts for immediate queries and rare immediate commands.
+
+Durable commands are always send-and-forget. Submitting a durable command can
+return an acceptance record, submission id, and optional operation id, but it
+must not wait for the target module handler or return the handler's result
+payload. If the caller needs a result, model that result as state:
+
+1. create or reuse an operation/read model owned by the initiating workflow
+2. submit the durable command with the operation id
+3. let the target handler update its module state and, when needed, publish an
+   integration event or update an agreed status contract
+4. expose the observable result through a query contract or status endpoint
+
+Do not make durable command handlers request/response APIs. The command result
+is observed later through reads, operation status, or follow-up integration
+events.
+
+`IDurableCommandSubmitter` is the application-facing API. It resolves the
+source module's `IOutboxWriter`, serializes the command with a stable message
+type name, writes an outbox row, and returns `CommandSubmissionStatus.Accepted`.
+It does not dispatch the message directly and it does not know whether the
+target handler will eventually succeed. That separation keeps command
+submission in the caller's module transaction and leaves delivery to the outbox
+worker.
+
+Use `OperationId` when a caller needs to observe progress later. It should be a
+stable identifier for state owned by a module, not an implicit RPC correlation
+that promises an immediate handler result.
+
+### Choosing A Communication Pattern
+
+Use these rules when replacing cross-module calls:
+
+- In-process query contracts are the default for synchronous cross-module reads.
+  Query contracts live in the target module's `.Contracts` project and return
+  provider-neutral DTOs.
+- Immediate in-process command contracts are allowed only when a caller truly
+  needs same-request consistency and the command can still respect the
+  single-module unit-of-work rule.
+- Durable commands are for asynchronous work requested of a specific target
+  module. They require `TargetModule` and are accepted, retried, or dead-lettered
+  independently from the caller. Application code should submit them through
+  `IDurableCommandSubmitter` instead of constructing raw outbox rows.
+- Integration events are public facts emitted by one module and consumed by zero
+  or more subscribers. Use them for choreography and eventual consistency, not
+  for asking a specific module to do work.
+
+When a workflow spans modules:
+
+- Put module-owned orchestration inside the module that owns the business
+  process or aggregate lifecycle. That module may read other modules through
+  query contracts and request asynchronous work through durable commands.
+- Put host-level orchestration in the Host only for API/user workflows that do
+  not naturally belong to one module. The Host coordinates contracts and command
+  submissions; it does not mutate multiple module contexts directly.
+- Add a separate orchestration layer only when a durable process manager,
+  scheduler, or workflow runtime is explicitly accepted as product scope.
+- Prefer choreography through integration events when independent modules can
+  react to facts without a central coordinator.
+
+Executable examples live in
+`tests/ModularTemplate.Framework.Tests/Communication/CommunicationPatternExamplesTests.cs`.
+They currently cover:
+
+- synchronous reads through a target module query contract
+- durable command submission that returns acceptance only
+- module-owned orchestration that reads through a contract and submits durable
+  work with an operation id
+- choreography through integration event handlers
+- host-level orchestration that composes contracts without touching persistence
+
+These are good examples to keep. They make the intended communication choices
+concrete without inventing product domain behavior. Treat them as executable
+architecture documentation, not as durability tests. The durability guarantees
+belong in the PostgreSQL-backed outbox, inbox, unit-of-work, and Rebus tests.
+
+### Outbox
+
+Each module owns an outbox table in its own schema:
+
+```text
+identity.outbox_messages
+operations.outbox_messages
+```
+
+An outbox message records:
+
+- message identity and kind (`Command` or `Event`)
+- stable message type name
+- source and optional target module
+- correlation, causation, and optional operation id
+- JSON payload and metadata
+- status, attempts, retry timing, locks, and error text
+
+Outbox rows are created in two places:
+
+- `ModuleUnitOfWork` maps selected domain events to integration events and adds
+  event outbox rows to the changed module context before saving
+- `IDurableCommandSubmitter` writes command outbox rows through the source
+  module's `IOutboxWriter`
+
+`OutboxDispatcher` loops through all registered `IModuleDbContext` instances.
+For each context it atomically claims a batch using PostgreSQL `FOR UPDATE SKIP
+LOCKED`, including stale `Processing` rows whose lock timed out.
+
+Dispatch behavior:
+
+- events resolve subscribers through `ILocalSubscriptionRegistry`
+- events with no subscribers are marked processed
+- commands require `TargetModule`
+- failures increment retry metadata
+- exhausted messages become dead-lettered
+
+The dispatcher delegates delivery to `IOutboxTransport`. In the current
+template, that transport is Rebus. If a product later swaps the broker, keep the
+outbox/inbox database contract stable and replace only the transport adapter.
+
+### Inbox
+
+Each module owns an inbox table in its own schema:
+
+```text
+identity.inbox_messages
+operations.inbox_messages
+```
+
+`InboxProcessor` also loops through all registered module contexts and claims
+pending/failed/stale rows with `FOR UPDATE SKIP LOCKED`.
+
+Inbox rows are written by the transport handler. With Rebus,
+`RebusDurableTransportHandler` receives a `DurableTransportEnvelope`, locates
+the target module context by `TargetModule`, and inserts an inbox row into that
+module's schema. Duplicate envelopes are ignored by checking the message id and
+target module before insert.
+
+Processing behavior:
+
+1. resolve CLR type from stable message type name
+2. deserialize JSON payload
+3. build `MessageContext`
+4. resolve `IDurableCommandHandler<T>` or `IIntegrationEventHandler<T>`
+5. run the handler through the current DI scope
+6. mark the inbox message processed only after handler success
+7. retry or dead-letter on failure
+
+Handlers are resolved from the processor's current scope so target-module state
+changes and inbox status are saved through the same scoped module context.
+The handler should mutate only the target module context. If it needs more
+cross-module work, it should submit another durable command or publish an
+integration event from its own module transaction.
+
+## Transport
+
+Transport is infrastructure, not a module. It lives under
+`ModularTemplate.Infrastructure/Transport`.
+
+The implemented transport uses Rebus:
+
+- `RebusOutboxTransport` converts outbox rows to a durable transport envelope
+- `RebusDurableTransportHandler` receives envelopes and writes inbox rows
+- `DurableTransportEnvelope` is the broker payload
+- `TransportConfiguration` registers Rebus, workers, registries, and options
+- `IOutboxTransport` is the adapter boundary between outbox persistence and the
+  broker
+
+Transport modes:
+
+- `InMemory` for testing/local scenarios when configured
+- `AzureServiceBus` for normal non-testing default
+
+`MessagingTransportConfiguration.ResolveTransport` chooses the configured
+`Messaging:Transport`; if omitted, it uses `InMemory` in the `Testing`
+environment and `AzureServiceBus` otherwise.
+
+When Azure Service Bus is selected:
+
+- `ConnectionStrings:service-bus` is required
+- `ServiceBusTransportStartupValidationHostedService` probes the namespace at
+  startup
+- validation failures should fail fast instead of letting durable messages pile
+  up behind a broken broker configuration
+
+This is intentionally not a second application host. The modular monolith still
+runs in one deployable process; Rebus and Service Bus provide durable handoff
+between module-owned outbox and inbox tables so work can survive restarts and
+transient failures.
+
+## Host Composition
+
+The host composes modules and platform infrastructure.
+
+Current composition points:
+
+- `builder.AddModularTemplateHost()` configures the host
+- `services.AddModularTemplateMediator()` registers Mediator and
+  `ModuleUnitOfWorkBehavior<,>`
+- `services.AddModularTemplateModules()` registers Identity and Operations
+  module/application/infrastructure services
+- `builder.AddTransport()` registers durable messaging infrastructure
+- `endpoints.MapModularTemplateModuleEndpoints()` maps module endpoints
+
+When migrating another product, keep `Program.cs` thin and move composition into
+host configuration extensions. Composition is the Host's job; business state is
+still owned by the modules.
+
+Do not let host-level workflows become a back door to shared persistence. A Host
+endpoint may call module query contracts and submit durable commands, but it
+should not resolve multiple module contexts and save them directly.
+
+## Migrator
+
+The migrator should migrate module contexts only:
+
+1. `IdentityDbContext`
+2. `OperationsDbContext`
+3. additional module contexts as they are added
+
+There is no platform persistence context to migrate.
+
+For an existing product, migration runner changes should be boring and explicit.
+List each module context by name, migrate it, and avoid reflection-based
+"migrate everything" logic until the boundary model is stable. This makes
+release reviews and rollback planning much easier.
+
+When adding a module:
+
+1. create the module infrastructure project
+2. add its `DbContext`
+3. configure schema and migrations history table
+4. add initial migration under the module infrastructure project
+5. register the context as `IModuleDbContext`
+6. add it to `MigratorRunner`
+
+If the module is migrated from an existing shared context, remove its entities
+from the old context in the same migration step that proves the new module
+context owns those tables. Running two EF models against the same mutable table
+is a temporary bridge at best and should not survive the module cutover.
+
+## Operations Module
+
+Operations is the neutral example domain module shipped with the template. It
+is not transport infrastructure.
+
+It currently owns:
+
+- `operations.operations`
+- `OperationsDbContext`
+- `IOperationsQueries`
+- operation status endpoint registration
+
+Use it as the pattern for a module-owned schema, contracts project,
+infrastructure project, endpoint registration, and tests. Product repositories
+can rename or replace it with their first real domain module.
+
+## Message Contracts
+
+Message contracts live in shared kernel or module contracts depending on who
+owns the contract. Persist stable names rather than CLR full names.
+
+Example naming:
+
+```text
+ModularTemplate.identity.user-registered.v1
+ModularTemplate.operations.rebuild-read-model.v1
+```
 
 Rules:
 
-Mapping is explicit.
-No automatic publication of all domain events.
-No generic Created/Updated/Deleted integration events by default.
-Integration event payloads should be stable and minimal.
-Consumers should query for details if needed.
-Message Handlers
-
-Use strongly typed handlers.
-
-Command handler:
-
-public interface IDurableCommandHandler<in TCommand>
-    where TCommand : IDurableCommand
-{
-    Task HandleAsync(TCommand command, MessageContext context, CancellationToken cancellationToken);
-}
-
-Event handler:
-
-public interface IIntegrationEventHandler<in TEvent>
-    where TEvent : IIntegrationEvent
-{
-    Task HandleAsync(TEvent integrationEvent, MessageContext context, CancellationToken cancellationToken);
-}
-
-Message context:
-
-public sealed record MessageContext(
-    Guid MessageId,
-    string SourceModule,
-    string TargetModule,
-    Guid CorrelationId,
-    Guid? CausationId,
-    Guid? OperationId,
-    string? IdempotencyKey,
-    DateTimeOffset CreatedAtUtc);
-
-The persisted message should deserialize into the strongly typed command/event before handler invocation.
-
-Message Routing
-
-Create an explicit local subscription registry.
-
-The registry should know:
-
-MessageType
-MessageKind
-SourceModule optional
-TargetModule
-HandlerType
-
-For commands:
-
-There should be one target module.
-There should be one logical command handler.
-
-For events:
-
-There may be zero, one, or many subscribers.
-
-Do not require every event to have subscribers.
-
-Dispatcher behavior for an event with no subscribers:
-
-Mark outbox message as dispatched.
-No inbox messages are created.
-
-Dispatcher behavior for command with no target handler:
-
-Mark failed/dead-lettered.
-This is configuration error.
-Transaction Boundaries
-
-Inside a module:
-
-Application command handler executes in one module transaction.
-Aggregate changes, persistent domain events, and outbox messages commit together.
-
-Across modules:
-
-Do not use distributed transactions.
-Do not use cross-module EF changes inside one implicit transaction by default.
-Use outbox/inbox messaging.
-
-Allowed exception:
-
-Explicit in-process command contract may be used when immediate result/consistency is required.
-This should be rare and obvious in code.
-Background Services
-
-Implement at least two background workers:
-
-OutboxDispatcherBackgroundService
-InboxProcessorBackgroundService
-
-Depending on implementation simplicity, these can either:
-
-A. Process all module outboxes/inboxes using registered module stores
-
-or:
-
-B. Be registered per module
-
-Start with the simpler model that fits existing DI.
-
-Polling configuration:
-
-Enabled
-PollingInterval
-BatchSize
-MaxAttempts
-LockTimeout
-
-Use conservative defaults:
-
-PollingInterval: 1-5 seconds
-BatchSize: 20-100
-MaxAttempts: 5
-LockTimeout: 1-5 minutes
-
-Add jitter/backoff later if needed.
-
-Locking
-
-Avoid double-processing messages when multiple app instances run.
-
-Even if ModularTemplate currently runs as one instance, implement safe locking now because this is template infrastructure.
-
-Use database-level locking or optimistic locking.
-
-Possible approaches:
-
-SELECT ... FOR UPDATE SKIP LOCKED
-
-or update-based claiming:
-
-UPDATE outbox_messages
-SET status = 'Processing',
-    locked_at_utc = now(),
-    locked_by = instance_id
-WHERE id IN (...)
-  AND status = 'Pending'
-  AND next_attempt_at_utc <= now()
-RETURNING *
-
-Prefer an approach that works cleanly with PostgreSQL.
-
-Retry Policy
-
-Failed processing should not immediately lose the message.
-
-Retry fields:
-
-AttemptCount
-MaxAttempts
-NextAttemptAtUtc
-Error
-
-Suggested retry delay:
-
-Attempt 1: immediate or short delay
-Attempt 2: 10 seconds
-Attempt 3: 1 minute
-Attempt 4: 5 minutes
-Attempt 5: 15 minutes
-Then DeadLettered
-
-Keep retry policy simple initially.
-
-Make retry calculation centralized.
-
-Serialization
-
-Use System.Text.Json.
-
-Persist:
-
-PayloadJson
-MetadataJson
-MessageType
-
-MessageType should be stable.
-
-Avoid using raw CLR full names as the only persisted contract if possible.
-
-Prefer explicit message type names:
-
-incidents.incident-registered.v1
-notifications.send-notification.v1
-operations.operation-completed.v1
-
-Create a message type registry mapping:
-
-message type name -> CLR type
-CLR type -> message type name
-
-This is important for future compatibility and refactoring.
-
-Versioning
-
-Support versioned message names from the beginning.
-
-Example:
-
-ModularTemplate.incidents.incident-registered.v1
-ModularTemplate.notifications.send-message.v1
-
-Rules:
-
-Do not break existing message payloads casually.
-Add v2 when payload contract changes incompatibly.
-Keep old handlers if unprocessed old messages may exist.
-
-This matters because messages are persisted.
-
-Observability
-
-Add structured logging around:
-
-domain event persisted
-outbox message created
-outbox dispatch started
-outbox dispatch succeeded
-outbox dispatch failed
-inbox message received
-inbox processing started
-inbox processing succeeded
-inbox processing failed
-message dead-lettered
-operation created
-operation completed
-operation failed
-
-Always include:
-
-MessageId
-CorrelationId
-CausationId
-OperationId
-SourceModule
-TargetModule
-MessageType
-AttemptCount
-
-Do not overdo metrics initially, but keep the logging fields consistent.
-
-HTTP Behavior for Durable Work
-
-For endpoints that initiate durable workflows:
-
-Return:
-
-202 Accepted
-Location: /api/operations/{operationId}
-
-Response body:
-
-{
-  "operationId": "...",
-  "status": "Pending"
-}
-
-For immediate commands:
-
-Return normal synchronous result:
-
-201 Created
-
-or:
-
-200 OK
-
-Be explicit in endpoint naming and behavior.
-
-Do not pretend durable commands completed synchronously.
-
-Initial Implementation Scope
-
-Do not try to migrate the entire app at once.
-
-Implement the infrastructure with one or two real module examples.
-
-Recommended first modules:
-
-Operations
-Notifications
-
-or:
-
-Operations
-One existing ModularTemplate domain module
-
-Notifications is a good candidate because it naturally fits durable side effects.
-
-Operations is needed because durable command results need a place to live.
-
-Step-by-Step Implementation Plan
-Step 1: Inspect current ModularTemplate structure
-
-Review:
-
-solution layout
-existing modules
-existing DbContext usage
-current migrations
-current endpoint registration
-current Mediator usage
-current domain event implementation if any
-current background services
-current project references
-
-Produce a short internal note in code comments or a temporary markdown file describing what currently exists.
-
-Do not make assumptions.
-
-Step 2: Introduce module DbContext/schema convention
-
-For each selected module:
-
-Create module DbContext.
-Set default schema.
-Configure migrations history table for module schema.
-Move module EF configurations under module infrastructure.
-Ensure module entities are only mapped in owning module DbContext.
-
-Acceptance criteria:
-
-App starts.
-Migrations can be generated per module.
-Database schema is module-specific.
-No selected module depends on a global app DbContext.
-Step 3: Add common messaging abstractions
-
-Create shared abstractions in an appropriate shared kernel or building-blocks project.
-
-Suggested abstractions:
-
-IDomainEvent
-IIntegrationEvent
-IDurableCommand
-IMessage
-IMessageHandler
-IDurableCommandHandler<T>
-IIntegrationEventHandler<T>
-MessageContext
-CommandSubmission
-CommandSubmissionStatus
-
-Keep shared abstractions minimal.
-
-Do not add business concepts here.
-
-Step 4: Add persistent domain event model
-
-For selected module:
-
-Add domain_events table.
-Add aggregate domain event collection.
-Capture domain events during SaveChanges/UnitOfWork.
-Persist domain event records in same transaction.
-
-Acceptance criteria:
-
-When aggregate behavior raises a domain event, it is persisted.
-Domain event persists with aggregate state.
-If transaction fails, neither aggregate changes nor domain event persist.
-Step 5: Add outbox model
-
-For selected module:
-
-Add outbox_messages table.
-Add outbox entity/configuration.
-Add service for appending outbox messages.
-Add integration event mapper from selected domain event.
-Persist outbox messages in same transaction as aggregate changes.
-
-Acceptance criteria:
-
-When selected domain event occurs, mapped integration event is written to outbox.
-If aggregate transaction fails, outbox message is not persisted.
-If transaction succeeds, outbox message is pending for dispatch.
-Step 6: Add inbox model
-
-For selected consumer module:
-
-Add inbox_messages table.
-Add inbox entity/configuration.
-Add deduplication by MessageId.
-Add status/attempt fields.
-
-Acceptance criteria:
-
-Dispatcher can insert pending inbox message.
-Duplicate MessageId is ignored or handled idempotently.
-Inbox message can transition Pending -> Processing -> Processed.
-Step 7: Add message type registry
-
-Create registry that maps:
-
-CLR type -> stable message type name
-stable message type name -> CLR type
-
-Example:
-
-registry.Register<IncidentRegisteredIntegrationEvent>(
-    "ModularTemplate.incidents.incident-registered.v1");
-
-Acceptance criteria:
-
-Outbox messages persist stable message type names.
-Inbox processor can deserialize based on message type.
-Renaming CLR type does not automatically break persisted messages.
-Step 8: Add local subscription registry
-
-Create registry for local delivery.
-
-It should support:
-
-event subscriptions: one event -> many target modules/handlers
-command routing: one command -> one target module/handler
-
-Acceptance criteria:
-
-Dispatcher can resolve subscribers for integration event.
-Dispatcher can resolve target for durable command.
-Missing command target is treated as configuration error.
-Event with no subscribers is allowed.
-Step 9: Implement outbox dispatcher
-
-Create BackgroundService.
-
-Behavior:
-
-Poll pending outbox messages.
-Claim batch safely.
-Resolve subscribers/target.
-Write messages to consumer inboxes.
-Mark outbox message dispatched.
-Handle failures and retries.
-
-Acceptance criteria:
-
-Pending outbox messages are delivered to inbox.
-Already dispatched messages are not delivered again.
-Failures are retried.
-Messages eventually dead-letter after max attempts.
-Step 10: Implement inbox processor
-
-Create BackgroundService.
-
-Behavior:
-
-Poll pending inbox messages.
-Claim batch safely.
-Resolve strongly typed handler.
-Deserialize payload.
-Execute handler in target module transaction.
-Mark processed on success.
-Retry on failure.
-Dead-letter after max attempts.
-
-Acceptance criteria:
-
-Pending inbox messages invoke handler.
-Handler can mutate target module state.
-Handler can create new domain events/outbox messages.
-Message is not marked processed if handler transaction fails.
-Step 11: Add Operations module
-
-Add Operations module with:
-
-OperationsDbContext
-operations schema
-Operation aggregate/entity
-OperationStep entity if needed
-endpoint to query operation status
-contracts for operation status
-
-Minimum API:
-
-GET /api/operations/{operationId}
-
-Acceptance criteria:
-
-Durable workflow can create operation.
-Operation status can be queried.
-Operation can be marked Completed or Failed by message handlers.
-Step 12: Implement one end-to-end durable workflow
-
-Pick a simple real ModularTemplate scenario.
+- include a version suffix from the beginning
+- add `v2` for incompatible payload changes
+- keep old handlers if old unprocessed messages may still exist
+- do not rename persisted message names casually
+
+### Adding A Durable Command
+
+Use a durable command when one module needs another module to do work
+asynchronously.
+
+1. Define a command type that implements `IDurableCommand`. Put it in shared
+   kernel only when it is platform-wide; otherwise put it in the owning
+   contracts package.
+2. Register the CLR type with a stable name in `IMessageTypeRegistry`.
+3. Submit it through `IDurableCommandSubmitter` with `SourceModule` and
+   `TargetModule`.
+4. Implement `IDurableCommandHandler<TCommand>` in the target module.
+5. If the initiating caller needs a later result, include an `OperationId` on
+   the submission options and expose status/result through a query contract or
+   endpoint.
 
 Example shape:
 
-HTTP endpoint receives command.
-Endpoint creates operation.
-Application stores operation.
-Application writes durable command/event to outbox.
-Outbox dispatcher delivers to target inbox.
-Target inbox handler processes message.
-Target publishes completion event.
-Operations module receives completion event.
-Operation becomes Completed.
-GET /api/operations/{id} returns Completed.
+```csharp
+public sealed record RebuildCustomerSummary(Guid CustomerId) : IDurableCommand;
 
-Acceptance criteria:
+messageTypeRegistry.Register<RebuildCustomerSummary>(
+    "ModularTemplate.reporting.rebuild-customer-summary.v1");
 
-End-to-end flow works after app restart.
-If app crashes after outbox write but before processing, message is eventually processed after restart.
-If handler fails, message retries.
-If handler keeps failing, message is dead-lettered and operation can reflect failure.
-Step 13: Add in-process query contract example
-
-Pick one module that another module needs to query.
-
-Create:
-
-{Module}.Contracts/I{Module}Queries.cs
-Implementation in module infrastructure/application
-Registration in module DI
-Consumer uses interface only
-
-Acceptance criteria:
-
-Consumer can query module read model in-process.
-Consumer does not reference target module Application/Infrastructure/Domain.
-Query returns DTO/read model only.
-Step 14: Add architecture tests
-
-Add tests to enforce dependencies.
-
-Rules:
-
-Domain projects do not reference Application, Infrastructure, Endpoints, other modules.
-Application projects do not reference Infrastructure.
-Contracts projects do not reference EF Core or ASP.NET Core.
-Modules do not reference other modules except Contracts.
-No module references another module's Infrastructure.
-No module references another module's Application.
-No module references another module's Domain.
-
-Acceptance criteria:
-
-Architecture tests fail on forbidden references.
-Current solution passes.
-Step 15: Add integration tests
-
-Add tests for:
-
-domain event persistence
-outbox creation
-outbox dispatch to inbox
-inbox processing success
-inbox retry on failure
-inbox idempotency
-operation status completion
-message type registry resolution
-
-Use real PostgreSQL if the project already supports test containers.
-
-Avoid mocking the entire persistence flow.
-
-Durability should be tested against real database behavior.
-
-Step 16: Document conventions
-
-Add or update project documentation:
-
-docs/architecture/modular-monolith.md
-docs/architecture/messaging.md
-docs/architecture/module-contracts.md
-
-Document:
-
-when to use in-process query
-when to use immediate command
-when to use durable command
-when to create integration event
-how domain events become integration events
-how operation status works
-how to add a new module
-how to add a new durable message
-how to add a new subscriber
-
-Keep docs concise but actionable.
-
-Non-Goals for First Pass
-
-Do not implement external broker yet.
-
-Do not introduce Wolverine yet.
-
-Do not introduce Quartz/Hangfire yet.
-
-Do not convert every module at once.
-
-Do not create integration events for every domain event.
-
-Do not create generic CRUD integration events.
-
-Do not expose every module operation as public contract.
-
-Do not build distributed transactions.
-
-Do not build full event sourcing.
-
-Do not build advanced replay UI.
-
-Do not build complex saga DSL.
-
-Do not over-generalize before one end-to-end flow works.
-
-Design Constraints
-
-The implementation should be:
-
-explicit
-boring
-debuggable
-testable
-dependency-light
-production-realistic
-suitable for template extraction
-
-Prefer clarity over clever abstractions.
-
-Prefer a small working vertical slice over broad incomplete infrastructure.
-
-Prefer strongly typed handlers over dynamic runtime magic.
-
-Prefer stable message names over raw CLR type names.
-
-Prefer module ownership over global shared services.
-
-Expected Final Shape
-
-After this refactor, ModularTemplate should support:
-
-- module-owned DbContexts and schemas
-- persistent domain events
-- explicit domain-event-to-integration-event mapping
-- durable outbox publishing
-- durable inbox consumption
-- local message dispatcher
-- local inbox processors
-- operation tracking
-- in-process query contracts
-- durable command submissions
-- retry/dead-letter behavior
-- architecture boundaries
-- end-to-end durable workflow test
-
-This should become the reference implementation for updating the reusable modular monolith template.
-
-Suggested Work Strategy for Agent
-
-Use high reasoning for architecture and boundary changes.
-
-Work in small vertical slices.
-
-Do not attempt a full rewrite.
-
-Preferred sequence:
-
-1. Inspect existing structure.
-2. Introduce abstractions.
-3. Convert one module to module DbContext/schema.
-4. Add persistent domain events.
-5. Add outbox.
-6. Add inbox.
-7. Add dispatcher/processor.
-8. Add Operations module.
-9. Build one end-to-end durable flow.
-10. Add tests.
-11. Document conventions.
-12. Only then generalize.
-
-At every step, keep the app compiling and runnable.
-
-If a design decision is ambiguous, prefer the simpler implementation that preserves module boundaries and can be generalized later.
+CommandSubmission submission = durableCommandSubmitter.Submit(
+    command,
+    new DurableCommandSubmissionOptions(
+        SourceModule: "identity",
+        TargetModule: "reporting",
+        OperationId: operationId));
 ```
+
+The handler returns `Task`, not `Task<T>`:
+
+```csharp
+public sealed class RebuildCustomerSummaryHandler
+    : IDurableCommandHandler<RebuildCustomerSummary>
+{
+    public async Task HandleAsync(
+        RebuildCustomerSummary command,
+        MessageContext context,
+        CancellationToken cancellationToken)
+    {
+        // Mutate reporting state and optionally update operation/read-model
+        // state using context.OperationId.
+    }
+}
+```
+
+`IDurableCommandSubmitter` writes to the source module outbox writer selected by
+`SourceModule`. The caller's current module unit of work commits the outbox row
+with the source module state change.
+
+### Adding An Integration Event
+
+Use an integration event when one module has completed a fact that other modules
+may independently react to.
+
+1. Keep the internal domain event inside the source module.
+2. Add an `IIntegrationEvent` contract only when a real consumer exists.
+3. Register the event with a stable message type name.
+4. Add an `IIntegrationEventMapper<TDomainEvent>` that maps selected domain
+   events to integration events.
+5. Register event subscribers through `ILocalSubscriptionRegistry`.
+6. Implement `IIntegrationEventHandler<TEvent>` in each subscriber module.
+
+Events are fan-out messages. If no subscriber is registered, the outbox event is
+marked processed without creating an inbox row.
+
+## Migration Sequence For A Product Repository
+
+Use this sequence when applying the template architecture to an existing
+project.
+
+### 1. Inventory Current Boundaries
+
+List:
+
+- modules and current project references
+- all EF contexts and migrations
+- schemas and tables
+- current migration history tables and migration assemblies
+- cross-schema foreign keys and EF navigation properties
+- background workers
+- domain event implementation
+- cross-module calls and direct table access
+- current broker or queue usage
+- request flows that currently update multiple modules
+- workflows that currently expect an immediate command result from another
+  module
+
+Do not move code until the current dependency graph is understood.
+
+### 2. Create Shared Infrastructure
+
+Add or move:
+
+- `SharedKernel/Domain`
+- `SharedKernel/Messaging`
+- `Infrastructure/Persistence`
+- `Infrastructure/Persistence/DomainEvents`
+- `Infrastructure/Persistence/Transactions`
+- `Infrastructure/Outbox`
+- `Infrastructure/Transport`
+
+Keep Outbox and Transport as folders in shared Infrastructure, not as domain
+modules.
+
+At this stage, keep behavior mostly unchanged. The goal is to create the places
+where module-owned persistence and durable messaging will live, then move
+features into them gradually.
+
+### 3. Convert One Module To Its Own Context
+
+Pick a low-risk module first.
+
+For that module:
+
+- create `{Module}`, `{Module}.Contracts`, and `{Module}.Infrastructure`
+  projects or folders if they do not already exist
+- create `{Module}DbContext`
+- set `HasDefaultSchema("{module}")`
+- configure module migrations history table
+- move EF configurations into module infrastructure
+- expose only a narrow module context interface to module code
+- register concrete context as `IModuleDbContext`
+- generate a module-owned migration
+
+Acceptance checks:
+
+- module tables are created in the module schema
+- existing data is preserved when this is a production migration
+- no global app/platform context maps the module's entities
+- app starts
+- module tests pass
+
+### 4. Add Module-Owned Domain Events, Outbox, And Inbox
+
+In the module context:
+
+- add `DbSet<StoredDomainEvent>`
+- add `DbSet<OutboxMessage>`
+- add `DbSet<InboxMessage>`
+- call `ApplyOutboxConfiguration("{module}")`
+- expose the messaging sets through explicit `IModuleDbContext`
+  implementation
+- register `IOutboxWriter` as `OutboxWriter<{Module}DbContext>`
+
+Regenerate the module migration so the same schema contains:
+
+- `domain_events`
+- `outbox_messages`
+- `inbox_messages`
+
+Acceptance checks:
+
+- aggregate changes and domain events commit together
+- mapped integration events create outbox rows
+- failed transactions do not leave orphan messages
+- outbox and inbox uniqueness constraints prevent duplicate processing
+
+### 5. Replace Cross-Module Writes
+
+Search for code that mutates more than one module in one request or command.
+Also search for direct reads against another module's tables; those should move
+behind target-module contracts even when they are read-only.
+
+Replace with:
+
+- in-process query contracts for reads
+- explicit immediate command contracts only when immediate consistency is truly
+  required
+- durable command submission for asynchronous cross-module work
+- integration events for facts consumed by other modules
+
+If old code expected a result from another module's command, split the flow:
+
+- submit durable work and return acceptance plus an optional operation id
+- record any result in module-owned state, an operation record, or a read model
+- expose that result through a query contract or endpoint
+- use integration events for completion facts that other modules can react to
+
+Acceptance checks:
+
+- `ModuleUnitOfWork` can reject multi-context mutations without breaking valid
+  flows
+- modules do not reference other modules' infrastructure or domain projects
+- durable command submissions do not block waiting for handler results
+- result-oriented workflows expose operation/read-model status through queries
+
+Use the communication examples as decision tests here. Add or adapt examples
+when a real workflow introduces a new pattern, but keep them small and
+domain-neutral enough that reviewers can understand the architectural choice.
+
+### 6. Add Transport And Workers
+
+Register:
+
+- `ILocalSubscriptionRegistry`
+- `IMessageTypeRegistry`
+- `IDurableCommandSubmitter`
+- `IOutboxDispatcher`
+- `IInboxProcessor`
+- `OutboxDispatcherBackgroundService`
+- `InboxProcessorBackgroundService`
+- Rebus in-memory transport for tests
+- Rebus Azure Service Bus transport for deployed environments
+
+Configure:
+
+```json
+{
+  "Messaging": {
+    "Enabled": true,
+    "Transport": "AzureServiceBus",
+    "PollingInterval": "00:00:02",
+    "BatchSize": 20,
+    "MaxAttempts": 5,
+    "LockTimeout": "00:05:00"
+  },
+  "ConnectionStrings": {
+    "service-bus": "<connection-string>"
+  }
+}
+```
+
+Acceptance checks:
+
+- `InMemory` transport works in tests
+- Azure Service Bus transport fails fast when configured incorrectly
+- outbox dispatcher and inbox processor can run with no pending messages
+- duplicate Rebus envelopes create only one target inbox row
+
+### 7. Add One End-To-End Durable Flow
+
+Implement one vertical slice:
+
+1. HTTP endpoint accepts work
+2. application changes one module
+3. module transaction persists state, domain event, and outbox message
+4. outbox dispatches through Rebus
+5. inbox writes into the target module schema
+6. inbox processor invokes a strongly typed handler
+7. handler mutates the target module
+8. target module saves its inbox status and state together
+
+Acceptance checks:
+
+- flow works after process restart
+- handler failure retries
+- repeated failure dead-letters
+- concurrent workers do not double-process the same row
+- operation id/correlation metadata reaches the durable command handler when a
+  caller will query status later
+
+Pick a slice with real business value but low blast radius. Avoid migrating the
+most entangled workflow first; the first slice should validate the architecture,
+not carry every legacy edge case at once.
+
+### 8. Move Remaining Modules
+
+Repeat the module-context conversion one module at a time.
+
+For each module:
+
+- own schema
+- own migrations
+- own context
+- own domain-event/outbox/inbox tables
+- no cross-module EF navigation properties
+- no cross-module foreign keys by default
+- explicit contracts only where there is a real consumer
+
+Do not postpone cleanup of the old shared context until the end. After each
+module moves, remove the obsolete mappings, services, and tests for that module
+from the old layer so later work cannot accidentally depend on them again.
+
+### 9. Stabilize And Document The New Rules
+
+After all modules move:
+
+- add architecture tests for project references and forbidden dependencies
+- document how to add module migrations
+- document how to add durable commands and integration events
+- document local `InMemory` transport and deployed Azure Service Bus setup
+- add operational notes for inspecting pending, failed, and dead-lettered
+  outbox/inbox rows
+- remove temporary migration bridges and compatibility code
+
+This is when the runbook content should be promoted into stable product docs.
+
+## Testing Checklist
+
+Keep these tests or equivalents:
+
+- communication-pattern examples for in-process query contracts, durable
+  command acceptance, module-owned orchestration, choreography, and host
+  orchestration
+- module context creates its schema and tables
+- module migrations apply through the migrator
+- unit of work persists aggregate, domain events, and outbox atomically
+- unit of work rejects changes in multiple module contexts
+- outbox command delivery creates target inbox row
+- durable command submitter writes to the requested source module outbox
+- durable command handlers expose no direct response payload
+- durable command operation ids reach handler `MessageContext`
+- module-owned orchestration can combine query contracts with durable command
+  submission without direct multi-module persistence
+- integration event inbox processing invokes typed event handlers
+- event with no subscribers is marked processed
+- event with subscribers creates one inbox row per subscriber
+- outbox transport failure retries and dead-letters
+- inbox handler success marks processed
+- inbox handler failure retries and dead-letters
+- stale `Processing` messages are reclaimed
+- concurrent workers claim each message once
+- target module routing writes to the target schema and not the source schema
+- duplicate transport envelopes are idempotent at the inbox boundary
+- Rebus in-memory transport writes inbox messages
+- Azure Service Bus startup validation handles configured/unconfigured modes
+- generated API client remains stable after bootstrap rename
+
+Use PostgreSQL-backed tests for durability behavior. Mocking EF or the broker is
+not enough for the locking and transaction guarantees.
+
+The current communication examples are worth keeping because they document
+intent in code. I would keep them in a `Communication` folder, separate from
+`Persistence`, and avoid making them heavier. They should answer "which pattern
+should this workflow use?" The persistence and transport tests should answer
+"does this survive concurrency, retries, restarts, and duplicate delivery?"
+
+## Documentation Checklist
+
+Update product docs after the migration:
+
+- module structure and dependency rules
+- when to use contracts vs durable messaging
+- how to observe durable command results through operation/read-model queries
+- where to place host-level, module-owned, or separate orchestration
+- how to add a module
+- how to add a durable command
+- how to add an integration event and subscriber
+- how to add a module migration
+- how to configure local/in-memory transport
+- how to configure Azure Service Bus
+- how to inspect outbox/inbox/dead-lettered messages
+
+## Non-Goals
+
+Do not add these during the migration unless a separate accepted design calls
+for them:
+
+- distributed transactions
+- cross-module EF navigation properties
+- generic CRUD integration events
+- publishing every domain event automatically
+- event sourcing
+- complex saga DSL
+- Quartz/Hangfire/Wolverine as a second background-work stack
+- speculative public contracts without a consumer
+
+## Done Criteria
+
+The migration is complete when:
+
+- there is no platform/global persistence context
+- every module has its own schema, `DbContext`, and migrations
+- each module schema contains its own domain-event, outbox, and inbox tables
+- durable workers run through shared Infrastructure
+- Rebus in-memory and Azure Service Bus modes are configured and tested
+- direct multi-module persistence is rejected
+- cross-module reads use contracts
+- cross-module commands/events use durable messaging
+- migrator applies module contexts only
+- architecture tests cover forbidden project references
+- end-to-end tests cover outbox, inbox, retries, dead-lettering, and locking

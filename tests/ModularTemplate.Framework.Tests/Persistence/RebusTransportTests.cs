@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
 using ModularTemplate.Infrastructure.Outbox;
@@ -50,11 +49,10 @@ public sealed class RebusTransportTests(PostgreSqlFixture postgreSqlFixture)
             Payload: "{\"subject\":\"welcome\"}",
             MetadataJson: null,
             CreatedAtUtc: DateTimeOffset.UtcNow,
-            MaxAttempts: 5);
+            MaxAttempts: 2);
 
         var handler = new RebusDurableTransportHandler(
-            [(IModuleDbContext)dbContext],
-            Microsoft.Extensions.Options.Options.Create(new DurableMessagingOptions()));
+            [(IModuleDbContext)dbContext]);
 
         await handler.Handle(envelope);
 
@@ -64,6 +62,7 @@ public sealed class RebusTransportTests(PostgreSqlFixture postgreSqlFixture)
         inbox.MessageType.ShouldBe("ModularTemplate.notifications.send-email.v1");
         inbox.SourceModule.ShouldBe("notifications");
         inbox.TargetModule.ShouldBe("identity");
+        inbox.MaxAttempts.ShouldBe(2);
         inbox.Status.ShouldBe(PersistedMessageStatus.Pending);
     }
 
@@ -90,8 +89,7 @@ public sealed class RebusTransportTests(PostgreSqlFixture postgreSqlFixture)
             MaxAttempts: 5);
 
         var handler2 = new RebusDurableTransportHandler(
-            [(IModuleDbContext)dbContext],
-            Microsoft.Extensions.Options.Options.Create(new DurableMessagingOptions()));
+            [(IModuleDbContext)dbContext]);
 
         // First delivery.
         await handler2.Handle(envelope);
@@ -102,6 +100,37 @@ public sealed class RebusTransportTests(PostgreSqlFixture postgreSqlFixture)
         IModuleDbContext iCtx2 = dbContext;
         int count = await iCtx2.InboxMessages.CountAsync(CancellationToken.None);
         count.ShouldBe(1);
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task RebusDurableTransportHandler_WhenTargetModuleIsUnknown_Throws()
+    {
+        await using IdentityDbContext dbContext = CreateDbContext();
+        await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
+        await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
+
+        var envelope = new DurableTransportEnvelope(
+            MessageId: Guid.NewGuid(),
+            MessageKind: MessageKind.Command,
+            MessageType: "ModularTemplate.unknown.test-command.v1",
+            SourceModule: "identity",
+            TargetModule: "unknown",
+            CorrelationId: Guid.NewGuid(),
+            CausationId: null,
+            OperationId: null,
+            Payload: "{}",
+            MetadataJson: null,
+            CreatedAtUtc: DateTimeOffset.UtcNow,
+            MaxAttempts: 5);
+
+        var handler = new RebusDurableTransportHandler(
+            [(IModuleDbContext)dbContext]);
+
+        InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await handler.Handle(envelope));
+
+        exception.Message.ShouldContain("unknown");
     }
 
     [Fact]
@@ -132,8 +161,7 @@ public sealed class RebusTransportTests(PostgreSqlFixture postgreSqlFixture)
             MaxAttempts: 5);
 
         var handler = new RebusDurableTransportHandler(
-            [(IModuleDbContext)identityContext, (IModuleDbContext)operationsContext],
-            Microsoft.Extensions.Options.Options.Create(new DurableMessagingOptions()));
+            [(IModuleDbContext)identityContext, (IModuleDbContext)operationsContext]);
 
         await handler.Handle(envelope);
 

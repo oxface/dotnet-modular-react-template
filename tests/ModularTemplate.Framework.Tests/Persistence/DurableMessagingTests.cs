@@ -192,6 +192,108 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
 
     [Fact]
     [Trait("Category", "Integration")]
+    public async Task ProcessPendingAsync_WhenHandlerChangesTargetModuleThenFails_RollsBackHandlerChanges()
+    {
+        await using OperationsDbContext setupContext = CreateOperationsDbContext();
+        await setupContext.Database.EnsureDeletedAsync(CancellationToken.None);
+        await setupContext.Database.EnsureCreatedAsync(CancellationToken.None);
+        var command = new FailingCreateOperationCommand("failed-durable-handler-operation");
+        setupContext.InboxMessages.Add(InboxMessage.Create(
+            Guid.NewGuid(),
+            MessageKind.Command,
+            "ModularTemplate.operations.failing-create-operation.v1",
+            sourceModule: "identity",
+            targetModule: "operations",
+            correlationId: Guid.NewGuid(),
+            causationId: null,
+            operationId: null,
+            idempotencyKey: null,
+            payload: JsonSerializer.Serialize(command),
+            maxAttempts: 2));
+        await setupContext.SaveChangesAsync(CancellationToken.None);
+
+        var registry = new MessageTypeRegistry();
+        registry.Register<FailingCreateOperationCommand>(
+            "ModularTemplate.operations.failing-create-operation.v1");
+        await using ServiceProvider serviceProvider = new ServiceCollection()
+            .AddDbContext<OperationsDbContext>(options => options.UseNpgsql(postgreSqlFixture.ConnectionString))
+            .AddScoped<IModuleDbContext>(sp => sp.GetRequiredService<OperationsDbContext>())
+            .AddScoped<IDurableCommandHandler<FailingCreateOperationCommand>, FailingCreateOperationCommandHandler>()
+            .BuildServiceProvider();
+
+        using IServiceScope scope = serviceProvider.CreateScope();
+        var processContext = scope.ServiceProvider.GetRequiredService<OperationsDbContext>();
+        var processor = new InboxProcessor(
+            scope.ServiceProvider,
+            [(IModuleDbContext)processContext],
+            registry,
+            Options.Create(new DurableMessagingOptions { BatchSize = 20, MaxAttempts = 5 }),
+            NullLogger<InboxProcessor>.Instance);
+
+        int processedCount = await processor.ProcessPendingAsync(CancellationToken.None);
+
+        processedCount.ShouldBe(0);
+        await using OperationsDbContext verifyContext = CreateOperationsDbContext();
+        InboxMessage inbox = await verifyContext.InboxMessages.SingleAsync(CancellationToken.None);
+        int operationsCount = await verifyContext.Operations.CountAsync(CancellationToken.None);
+        inbox.Status.ShouldBe(PersistedMessageStatus.Failed);
+        inbox.AttemptCount.ShouldBe(1);
+        operationsCount.ShouldBe(0);
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task ProcessPendingAsync_WhenIntegrationEventHasHandlers_InvokesEachHandler()
+    {
+        await using var dbContext = CreateDbContext();
+        await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
+        await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
+        var integrationEvent = new TestIntegrationEvent("user-1");
+        dbContext.InboxMessages.Add(InboxMessage.Create(
+            Guid.NewGuid(),
+            MessageKind.Event,
+            "ModularTemplate.identity.user-seen.v1",
+            sourceModule: "identity",
+            targetModule: "operations",
+            correlationId: Guid.NewGuid(),
+            causationId: null,
+            operationId: null,
+            idempotencyKey: null,
+            payload: JsonSerializer.Serialize(integrationEvent)));
+        await dbContext.SaveChangesAsync(CancellationToken.None);
+
+        var registry = new MessageTypeRegistry();
+        registry.Register<TestIntegrationEvent>("ModularTemplate.identity.user-seen.v1");
+        var invocationTracker = new HandlerInvocationTracker();
+        ServiceProvider serviceProvider = new ServiceCollection()
+            .AddSingleton(invocationTracker)
+            .AddScoped<IIntegrationEventHandler<TestIntegrationEvent>, TestIntegrationEventHandler>()
+            .BuildServiceProvider();
+
+        try
+        {
+            var processor = new InboxProcessor(
+                serviceProvider,
+                [(IModuleDbContext)dbContext],
+                registry,
+                Options.Create(new DurableMessagingOptions { BatchSize = 20, MaxAttempts = 5 }),
+                NullLogger<InboxProcessor>.Instance);
+
+            int processedCount = await processor.ProcessPendingAsync(CancellationToken.None);
+
+            processedCount.ShouldBe(1);
+            invocationTracker.HandledUserIds.ShouldBe(["user-1"]);
+            InboxMessage inbox = await dbContext.InboxMessages.SingleAsync(CancellationToken.None);
+            inbox.Status.ShouldBe(PersistedMessageStatus.Processed);
+        }
+        finally
+        {
+            await serviceProvider.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
     public async Task ProcessPendingAsync_WhenHandlerAlwaysFails_DeadLettersAfterMaxAttempts()
     {
         await using var dbContext = CreateDbContext();
@@ -384,6 +486,63 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
 
     [Fact]
     [Trait("Category", "Integration")]
+    public async Task FullPipeline_WhenCommandHasOperationId_PropagatesOperationIdToHandlerContext()
+    {
+        await using var dispatchContext = CreateDbContext();
+        await dispatchContext.Database.EnsureDeletedAsync(CancellationToken.None);
+        await dispatchContext.Database.EnsureCreatedAsync(CancellationToken.None);
+        Guid operationId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var command = new TestDurableCommand("operation-job");
+        dispatchContext.OutboxMessages.Add(OutboxMessage.Create(
+            messageId: Guid.NewGuid(),
+            messageKind: MessageKind.Command,
+            messageType: "ModularTemplate.operations.test-command.v1",
+            sourceModule: "identity",
+            targetModule: "operations",
+            correlationId: Guid.NewGuid(),
+            causationId: null,
+            operationId,
+            payload: JsonSerializer.Serialize(command)));
+        await dispatchContext.SaveChangesAsync(CancellationToken.None);
+
+        var dispatcher = new OutboxDispatcher(
+            [(IModuleDbContext)dispatchContext],
+            new TestOutboxTransport(dispatchContext),
+            new LocalSubscriptionRegistry(),
+            Options.Create(new DurableMessagingOptions { BatchSize = 20 }),
+            NullLogger<OutboxDispatcher>.Instance);
+        await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+        await using var processContext = CreateDbContext();
+        var registry = new MessageTypeRegistry();
+        registry.Register<TestDurableCommand>("ModularTemplate.operations.test-command.v1");
+        var invocationTracker = new HandlerInvocationTracker();
+        ServiceProvider sp = new ServiceCollection()
+            .AddSingleton(invocationTracker)
+            .AddScoped<IDurableCommandHandler<TestDurableCommand>, TestDurableCommandHandler>()
+            .BuildServiceProvider();
+        try
+        {
+            var processor = new InboxProcessor(
+                sp,
+                [(IModuleDbContext)processContext],
+                registry,
+                Options.Create(new DurableMessagingOptions { BatchSize = 20 }),
+                NullLogger<InboxProcessor>.Instance);
+
+            await processor.ProcessPendingAsync(CancellationToken.None);
+
+            invocationTracker.HandledJobIds.ShouldBe(["operation-job"]);
+            invocationTracker.HandledOperationIds.ShouldBe([operationId]);
+        }
+        finally
+        {
+            await sp.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
     public async Task DispatchPendingAsync_WhenMessageIsStaleProcessing_ReclaimsAndDispatchesIt()
     {
         await using var dbContext = CreateDbContext();
@@ -526,7 +685,11 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
 
     private sealed record TestDurableCommand(string JobId) : IDurableCommand;
 
+    private sealed record TestIntegrationEvent(string UserId) : IIntegrationEvent;
+
     private sealed record CreateOperationCommand(string Name) : IDurableCommand;
+
+    private sealed record FailingCreateOperationCommand(string Name) : IDurableCommand;
 
     private sealed class CreateOperationCommandHandler(OperationsDbContext dbContext)
         : IDurableCommandHandler<CreateOperationCommand>
@@ -541,6 +704,19 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         }
     }
 
+    private sealed class FailingCreateOperationCommandHandler(OperationsDbContext dbContext)
+        : IDurableCommandHandler<FailingCreateOperationCommand>
+    {
+        public Task HandleAsync(
+            FailingCreateOperationCommand command,
+            MessageContext context,
+            CancellationToken cancellationToken)
+        {
+            dbContext.Operations.Add(Operation.Create(command.Name));
+            throw new InvalidOperationException("Simulated processing failure after operation creation.");
+        }
+    }
+
     private sealed class TestDurableCommandHandler(HandlerInvocationTracker tracker)
         : IDurableCommandHandler<TestDurableCommand>
     {
@@ -550,6 +726,20 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             CancellationToken cancellationToken)
         {
             tracker.HandledJobIds.Add(command.JobId);
+            tracker.HandledOperationIds.Add(context.OperationId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TestIntegrationEventHandler(HandlerInvocationTracker tracker)
+        : IIntegrationEventHandler<TestIntegrationEvent>
+    {
+        public Task HandleAsync(
+            TestIntegrationEvent integrationEvent,
+            MessageContext context,
+            CancellationToken cancellationToken)
+        {
+            tracker.HandledUserIds.Add(integrationEvent.UserId);
             return Task.CompletedTask;
         }
     }
@@ -557,6 +747,10 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
     private sealed class HandlerInvocationTracker
     {
         public List<string> HandledJobIds { get; } = [];
+
+        public List<Guid?> HandledOperationIds { get; } = [];
+
+        public List<string> HandledUserIds { get; } = [];
     }
 
     private sealed record FailingCommand(string JobId) : IDurableCommand;

@@ -20,6 +20,7 @@ public static class TransportConfiguration
         builder.Services.AddSingleton<ILocalSubscriptionRegistry, LocalSubscriptionRegistry>();
         builder.Services.AddSingleton<IMessageTypeRegistry, MessageTypeRegistry>();
         builder.Services.AddScoped<IUnitOfWork, ModuleUnitOfWork>();
+        builder.Services.AddScoped<IDurableCommandSubmitter, DurableCommandSubmitter>();
         builder.Services.AddOptions<DurableMessagingOptions>()
             .Bind(builder.Configuration.GetSection("Messaging"));
 

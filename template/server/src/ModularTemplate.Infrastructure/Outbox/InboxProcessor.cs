@@ -85,40 +85,70 @@ public sealed class InboxProcessor(
                 _options.BatchSize),
             cancellationToken);
 
-        IReadOnlyList<InboxMessage> pendingMessages = await ctx.InboxMessages
+        IReadOnlyList<Guid> pendingMessageIds = await ctx.InboxMessages
             .Where(x => x.LockedBy == claimToken)
             .OrderBy(x => x.ReceivedAtUtc)
+            .Select(x => x.Id)
             .ToArrayAsync(cancellationToken);
 
-        if (pendingMessages.Count == 0)
+        if (pendingMessageIds.Count == 0)
         {
             return 0;
         }
 
         int processedCount = 0;
 
-        foreach (InboxMessage message in pendingMessages)
+        foreach (Guid messageId in pendingMessageIds)
         {
-            try
+            if (await ProcessMessageAsync(ctx, messageId, cancellationToken))
             {
-                await HandleMessageAsync(message, cancellationToken);
-                message.MarkProcessed();
                 processedCount++;
-            }
-            catch (Exception ex)
-            {
-                Exception rootException = ex.GetBaseException();
-                logger.LogError(
-                    ex,
-                    "Inbox processing failed for message {MessageId} type {MessageType}",
-                    message.MessageId,
-                    message.MessageType);
-                message.MarkFailed(rootException.Message, RetryDelays.ForAttempt);
             }
         }
 
-        await ctx.SaveChangesAsync(cancellationToken);
         return processedCount;
+    }
+
+    private async Task<bool> ProcessMessageAsync(
+        IModuleDbContext ctx,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        InboxMessage message = await ctx.InboxMessages.SingleAsync(x => x.Id == messageId, cancellationToken);
+
+        await using var transaction = await ctx.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            await HandleMessageAsync(message, cancellationToken);
+            message.MarkProcessed();
+            await ctx.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Exception rootException = ex.GetBaseException();
+            logger.LogError(
+                ex,
+                "Inbox processing failed for message {MessageId} type {MessageType}",
+                message.MessageId,
+                message.MessageType);
+
+            await transaction.RollbackAsync(CancellationToken.None);
+            ctx.ChangeTracker.Clear();
+
+            InboxMessage failedMessage =
+                await ctx.InboxMessages.SingleAsync(x => x.Id == messageId, cancellationToken);
+            failedMessage.MarkFailed(rootException.Message, RetryDelays.ForAttempt);
+            await ctx.SaveChangesAsync(cancellationToken);
+            return false;
+        }
     }
 
     private static string DelimitSchema(string schema)

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Modular Template Communication"
+  short_description: "Add module communication patterns."
+  default_prompt: "Use $modular-template-communication to add a cross-module communication flow using the template conventions."

@@ -68,6 +68,23 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "inbox_messages",
+                schema: "identity",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    MessageId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    ModuleName = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    HandlerName = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
+                    ReceivedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    ProcessedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_inbox_messages", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "outbox_messages",
                 schema: "identity",
                 columns: table => new
@@ -126,6 +143,19 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_inbox_messages_ModuleName_MessageId_HandlerName",
+                schema: "identity",
+                table: "inbox_messages",
+                columns: new[] { "ModuleName", "MessageId", "HandlerName" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_inbox_messages_ReceivedAtUtc",
+                schema: "identity",
+                table: "inbox_messages",
+                column: "ReceivedAtUtc");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_outbox_messages_MessageId",
                 schema: "identity",
                 table: "outbox_messages",
@@ -158,6 +188,10 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "local_users",
+                schema: "identity");
+
+            migrationBuilder.DropTable(
+                name: "inbox_messages",
                 schema: "identity");
 
             migrationBuilder.DropTable(

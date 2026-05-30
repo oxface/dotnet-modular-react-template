@@ -23,6 +23,9 @@ Durable direction:
   module and platform libraries.
 - Domain events and outbox messages are persisted in each module schema by the
   shared Infrastructure library.
+- Inbox message records are persisted in each module schema so receive-side
+  handlers can skip duplicate deliveries by message id and stable message
+  identity.
 - ServiceDefaults provides OpenTelemetry, service discovery, default HTTP
   resilience, and development health endpoints.
 - Host configures problem-details responses, baseline exception handling, and
@@ -60,9 +63,12 @@ EF entities, aggregate internals, `ClaimsPrincipal`, provider SDK types, or
 Host-specific HTTP concepts.
 
 Host `Program.cs` should stay a composition outline. Module registration should
-be delegated to a configuration extension that wires module services,
-infrastructure adapters, Mediator assemblies, module pipeline behavior, and
-module endpoint mapping.
+be delegated to module-owned configuration extensions, ideally one `Add{Module}Module`
+service extension and one `Map{Module}Module` endpoint extension where the
+module owns endpoints. Those extensions wire module services, infrastructure
+adapters, module persistence, and module messaging. Mediator source generation
+requires compile-time-visible handler assembly markers, so Host and Migrator
+composition must list module Mediator assemblies explicitly.
 
 ## DDD And CQRS Direction
 
@@ -108,10 +114,13 @@ Module code should send durable commands through `IDurableCommandSender` from
 inside the source module's command unit of work so the source module outbox row
 is committed consistently with module state.
 Receive-side Rebus handlers should be transport adapters that delegate state
-changes to target-module Mediator commands; persistence remains in the Mediator
-module unit-of-work pipeline.
+changes to target-module application behavior. Because transport delivery starts
+outside the Mediator pipeline, the module-scoped Rebus adapter owns the
+receiving module transaction; target Mediator calls participate inside that
+transaction when they are used.
 See [Intermodule Communication](intermodule-communication.md) for the detailed
-pattern guide, message lifecycle, and module scaffolding checklist.
+pattern guide, message lifecycle, ordering, retention, and module scaffolding
+checklist.
 Host-level orchestration is reserved for API/user workflows that do not belong
 to one module; module-owned orchestration should stay inside the owning module.
 Generated products should cover real communication workflows with product tests.

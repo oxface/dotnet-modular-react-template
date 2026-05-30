@@ -20,14 +20,12 @@ public sealed class HostApplicationFactory(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
-        builder.UseSetting("Messaging:Transport", "InMemory");
         builder.UseSetting("Messaging:Enabled", "false");
 
         builder.ConfigureAppConfiguration((_, configurationBuilder) =>
         {
             configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Messaging:Transport"] = "InMemory",
                 ["Messaging:Enabled"] = "false"
             });
         });

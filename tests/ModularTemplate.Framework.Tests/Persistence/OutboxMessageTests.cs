@@ -27,4 +27,42 @@ public sealed class OutboxMessageTests
         message.Error.ShouldNotBeNull();
         message.Error.Length.ShouldBe(OutboxMessage.MaxErrorLength);
     }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Create_WhenCommandHasNoTargetModule_Throws()
+    {
+        ArgumentException exception = Should.Throw<ArgumentException>(
+            () => OutboxMessage.Create(
+                Guid.NewGuid(),
+                MessageKind.Command,
+                "test.command.v1",
+                sourceModule: "identity",
+                targetModule: null,
+                correlationId: Guid.NewGuid(),
+                causationId: null,
+                operationId: null,
+                payload: "{}"));
+
+        exception.Message.ShouldContain("target module");
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Create_WhenEventHasTargetModule_Throws()
+    {
+        ArgumentException exception = Should.Throw<ArgumentException>(
+            () => OutboxMessage.Create(
+                Guid.NewGuid(),
+                MessageKind.Event,
+                "test.event.v1",
+                sourceModule: "identity",
+                targetModule: "operations",
+                correlationId: Guid.NewGuid(),
+                causationId: null,
+                operationId: null,
+                payload: "{}"));
+
+        exception.Message.ShouldContain("must not specify a target module");
+    }
 }

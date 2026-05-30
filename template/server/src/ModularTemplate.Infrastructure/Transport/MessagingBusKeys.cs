@@ -4,8 +4,8 @@ namespace ModularTemplate.Infrastructure.Transport;
 
 public static class MessagingBusKeys
 {
-    public static string Internal(string moduleName)
+    public static string ModuleQueue(string moduleName)
     {
-        return $"{moduleName.TrimRequired(nameof(moduleName))}:internal";
+        return $"{moduleName.TrimRequired(nameof(moduleName))}:queue";
     }
 }

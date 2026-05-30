@@ -112,6 +112,7 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         return new OutboxDispatcher(
             [(IModuleDbContext)dbContext],
             transport,
+            new AlwaysAcquiredOutboxDispatchLock(),
             options,
             new ConfiguredRetryDelayPolicy(options),
             NullLogger<OutboxDispatcher>.Instance);
@@ -146,6 +147,24 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
 
             DispatchedMessageIds.Add(outboxMessage.MessageId);
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class AlwaysAcquiredOutboxDispatchLock : IOutboxDispatchLock
+    {
+        public Task<IAsyncDisposable?> TryAcquireAsync(
+            IModuleDbContext dbContext,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IAsyncDisposable?>(new Lease());
+        }
+
+        private sealed class Lease : IAsyncDisposable
+        {
+            public ValueTask DisposeAsync()
+            {
+                return ValueTask.CompletedTask;
+            }
         }
     }
 }

@@ -28,15 +28,28 @@ public static class ModulePersistenceServiceCollectionExtensions
 
         Type[] commandTypes = FindHandledCommandTypes(commandHandlerAssemblyMarkers);
         services.TryAddScoped<IModuleUnitOfWorkContext, ModuleUnitOfWorkContext>();
-        services.AddScoped<IModuleUnitOfWork, ModuleUnitOfWork<TDbContext>>();
-        services.AddSingleton(new ModulePersistenceRegistration(
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IModuleUnitOfWork, ModuleUnitOfWork<TDbContext>>());
+        AddModulePersistenceRegistration(
+            services,
             normalizedModuleName,
             typeof(TDbContext),
             commandTypes
                 .Distinct()
-                .ToArray()));
+                .ToArray());
 
         return services;
+    }
+
+    private static void AddModulePersistenceRegistration(
+        IServiceCollection services,
+        string moduleName,
+        Type dbContextType,
+        Type[] commandTypes)
+    {
+        services.AddSingleton(new ModulePersistenceRegistration(
+            moduleName,
+            dbContextType,
+            commandTypes));
     }
 
     private static Type[] FindHandledCommandTypes(IEnumerable<Type> commandHandlerAssemblyMarkers)

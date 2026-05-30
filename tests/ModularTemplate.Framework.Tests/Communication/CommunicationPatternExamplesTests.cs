@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
+using ModularTemplate.Infrastructure.Transport;
 using ModularTemplate.Operations.Contracts.Operations;
 using ModularTemplate.SharedKernel.Messaging;
 using Shouldly;
@@ -33,7 +34,12 @@ public sealed class CommunicationPatternExamplesTests
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
-        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
+        var sender = new DurableCommandSender(
+            [outboxWriter],
+            HandlerRegistrations(),
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
         Guid operationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
         CommandSubmission submission;
@@ -68,7 +74,12 @@ public sealed class CommunicationPatternExamplesTests
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
-        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
+        var sender = new DurableCommandSender(
+            [outboxWriter],
+            HandlerRegistrations(),
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
         var orchestration = new ExampleModuleOwnedOrchestration(operationsQueries, sender);
 
         CommandSubmission submission;
@@ -109,7 +120,12 @@ public sealed class CommunicationPatternExamplesTests
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
-        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
+        var sender = new DurableCommandSender(
+            [outboxWriter],
+            HandlerRegistrations(),
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
         var hostWorkflow = new ExampleHostWorkflow(operationsQueries, sender);
 
         HostWorkflowResponse response;
@@ -147,6 +163,18 @@ public sealed class CommunicationPatternExamplesTests
         {
             Modules = ["identity", "operations"]
         });
+    }
+
+    private static ModuleMessageHandlerRegistration[] HandlerRegistrations()
+    {
+        return
+        [
+            new ModuleMessageHandlerRegistration(
+                "operations",
+                typeof(RebuildOperationProjectionCommand),
+                typeof(object),
+                "operations.rebuild-operation-projection.v1")
+        ];
     }
 
     private sealed class ExampleReadConsumer(IOperationsQueries operationsQueries)

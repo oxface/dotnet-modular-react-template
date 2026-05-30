@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModularTemplate.Operations;
@@ -13,6 +14,21 @@ namespace ModularTemplate.Operations.Infrastructure;
 
 public static class OperationsInfrastructureConfiguration
 {
+    public static IServiceCollection AddOperationsModule(this IServiceCollection services)
+    {
+        services.AddOperationsApplicationServices();
+        services.AddOperationsInfrastructure();
+
+        return services;
+    }
+
+    public static IEndpointRouteBuilder MapOperationsModule(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapOperationsEndpoints();
+
+        return endpoints;
+    }
+
     public static IServiceCollection AddOperationsInfrastructure(this IServiceCollection services)
     {
         services.AddDbContext<OperationsDbContext>((sp, options) =>
@@ -32,9 +48,11 @@ public static class OperationsInfrastructureConfiguration
         services.AddScoped<IModuleDbContext>(sp => sp.GetRequiredService<OperationsDbContext>());
         services.AddScoped<IOutboxWriter, OutboxWriter<OperationsDbContext>>();
         services.AddModulePersistence<OperationsDbContext>("operations");
-        services.AddMessagingAssembly<Operation>();
-        services.AddMessagingAssembly<IOperationsQueries>();
-        services.AddMessagingAssembly<OperationsDbContext>();
+        services.AddModuleMessaging(
+            "operations",
+            typeof(Operation),
+            typeof(IOperationsQueries),
+            typeof(OperationsDbContext));
 
         return services;
     }

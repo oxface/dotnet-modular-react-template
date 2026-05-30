@@ -107,13 +107,33 @@ public sealed class OutboxMessage
             throw new ArgumentOutOfRangeException(nameof(maxAttempts), maxAttempts, "Max attempts must be greater than zero.");
         }
 
+        string? normalizedTargetModule = targetModule?.Trim();
+        if (messageKind == MessageKind.Command && string.IsNullOrWhiteSpace(normalizedTargetModule))
+        {
+            throw new ArgumentException("Command outbox messages require a target module.", nameof(targetModule));
+        }
+
+        if (messageKind == MessageKind.Event && !string.IsNullOrWhiteSpace(normalizedTargetModule))
+        {
+            throw new ArgumentException("Event outbox messages must not specify a target module.", nameof(targetModule));
+        }
+
+        if (messageKind is not MessageKind.Command and not MessageKind.Event)
+        {
+            throw new ArgumentOutOfRangeException(nameof(messageKind), messageKind, "Unsupported outbox message kind.");
+        }
+
+        normalizedTargetModule = string.IsNullOrWhiteSpace(normalizedTargetModule)
+            ? null
+            : normalizedTargetModule;
+
         return new OutboxMessage(
             Guid.NewGuid(),
             messageId,
             messageKind,
             messageType.Trim(),
             sourceModule.Trim(),
-            targetModule?.Trim(),
+            normalizedTargetModule,
             correlationId,
             causationId,
             operationId,
@@ -123,16 +143,6 @@ public sealed class OutboxMessage
             maxAttempts);
     }
 
-    public void MarkProcessing(string lockedBy)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(lockedBy);
-
-        Status = PersistedMessageStatus.Processing;
-        LockedAtUtc = DateTimeOffset.UtcNow;
-        LockedBy = lockedBy.Trim();
-        Error = null;
-    }
-
     public void MarkProcessed()
     {
         Status = PersistedMessageStatus.Processed;
@@ -140,6 +150,14 @@ public sealed class OutboxMessage
         LockedAtUtc = null;
         LockedBy = null;
         Error = null;
+    }
+
+    public void RefreshLock()
+    {
+        if (Status == PersistedMessageStatus.Processing)
+        {
+            LockedAtUtc = DateTimeOffset.UtcNow;
+        }
     }
 
     public void MarkFailed(string error, Func<int, TimeSpan> retryDelayProvider)
@@ -162,16 +180,6 @@ public sealed class OutboxMessage
 
         Status = PersistedMessageStatus.Failed;
         NextAttemptAtUtc = DateTimeOffset.UtcNow.Add(retryDelayProvider(AttemptCount));
-    }
-
-    public void Requeue()
-    {
-        if (Status != PersistedMessageStatus.Failed)
-        {
-            return;
-        }
-
-        Status = PersistedMessageStatus.Pending;
     }
 
     private static string TruncateError(string error)

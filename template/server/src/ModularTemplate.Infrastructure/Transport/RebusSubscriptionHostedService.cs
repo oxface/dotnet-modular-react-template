@@ -22,7 +22,7 @@ internal sealed class RebusSubscriptionHostedService(
         foreach (ModuleEventSubscription subscription in subscriptions)
         {
             await busRegistry
-                .GetBus(MessagingBusKeys.Internal(subscription.ModuleName))
+                .GetBus(MessagingBusKeys.ModuleQueue(subscription.ModuleName))
                 .Subscribe(subscription.EventType);
         }
     }

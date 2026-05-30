@@ -96,7 +96,32 @@ public sealed class ModulePersistenceRegistrationTests
             .Select(service => service.ImplementationInstance)
             .OfType<ModulePersistenceRegistration>()
             .Single();
-        registration.CommandTypes.ShouldBe([typeof(TestIdentityCommand)], ignoreOrder: true);
+        registration.CommandTypes.ShouldBe(
+            [typeof(TestIdentityCommand), typeof(TestOperationsCommand)],
+            ignoreOrder: true);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModulePersistence_WhenCalledTwiceWithSameModule_AddsRegistrationsWithoutDuplicatingUnitOfWork()
+    {
+        var services = new ServiceCollection();
+
+        services.AddModulePersistence<IdentityDbContext>("identity", typeof(TestIdentityCommandHandler));
+        services.AddModulePersistence<IdentityDbContext>("identity", typeof(TestOperationsCommandHandler));
+
+        ModulePersistenceRegistration[] registrations = services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModulePersistenceRegistration>()
+            .Where(registration => registration.ModuleName == "identity")
+            .ToArray();
+        registrations.SelectMany(registration => registration.CommandTypes).Distinct().ShouldBe(
+            [typeof(TestIdentityCommand), typeof(TestOperationsCommand)],
+            ignoreOrder: true);
+        services.Count(service =>
+                service.ServiceType == typeof(IModuleUnitOfWork)
+                && service.ImplementationType == typeof(ModuleUnitOfWork<IdentityDbContext>))
+            .ShouldBe(1);
     }
 
     [Fact]
@@ -169,6 +194,14 @@ public sealed class ModulePersistenceRegistrationTests
     private sealed class TestIdentityCommandHandler : ICommandHandler<TestIdentityCommand, string>
     {
         public ValueTask<string> Handle(TestIdentityCommand command, CancellationToken cancellationToken)
+        {
+            return new ValueTask<string>("handled");
+        }
+    }
+
+    private sealed class TestOperationsCommandHandler : ICommandHandler<TestOperationsCommand, string>
+    {
+        public ValueTask<string> Handle(TestOperationsCommand command, CancellationToken cancellationToken)
         {
             return new ValueTask<string>("handled");
         }

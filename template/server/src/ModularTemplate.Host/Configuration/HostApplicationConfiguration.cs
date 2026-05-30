@@ -29,7 +29,7 @@ public static class HostApplicationConfiguration
             builder.SetConfigurationValueIfMissing(
                 "ConnectionStrings:modular-template-host",
                 "Host=localhost;Port=5432;Database=modular_template_openapi;Username=postgres;Password=postgres");
-            builder.SetConfigurationValueIfMissing("Messaging:Transport", "InMemory");
+            builder.SetConfigurationValueIfMissing("Messaging:Enabled", "false");
         }
 
         return builder;
@@ -42,8 +42,8 @@ public static class HostApplicationConfiguration
         builder.AddHostAuthentication();
         builder.AddProblemDetails();
         builder.Services.AddOpenApi();
-        builder.Services.AddModularTemplateMediator();
         builder.Services.AddModularTemplateModules();
+        builder.Services.AddModularTemplateMediator();
 
         return builder;
     }

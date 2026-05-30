@@ -2,8 +2,7 @@ namespace ModularTemplate.Infrastructure.Outbox;
 
 public enum DurableMessagingTransport
 {
-    Postgres = 1,
-    InMemory = 2
+    Postgres = 1
 }
 
 public sealed class DurableMessagingOptions

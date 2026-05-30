@@ -10,7 +10,7 @@ namespace ModularTemplate.Operations;
 
 public static class OperationsModuleConfiguration
 {
-    public static IServiceCollection AddOperationsModule(this IServiceCollection services)
+    public static IServiceCollection AddOperationsApplicationServices(this IServiceCollection services)
     {
         return services;
     }

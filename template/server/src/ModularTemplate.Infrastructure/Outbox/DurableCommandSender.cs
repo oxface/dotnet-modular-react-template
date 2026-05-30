@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using ModularTemplate.Infrastructure.Persistence;
+using ModularTemplate.Infrastructure.Transport;
 using ModularTemplate.SharedKernel.Extensions;
 using ModularTemplate.SharedKernel.Messaging;
 
@@ -8,6 +9,7 @@ namespace ModularTemplate.Infrastructure.Outbox;
 
 public sealed class DurableCommandSender(
     IEnumerable<IOutboxWriter> outboxWriters,
+    IEnumerable<ModuleMessageHandlerRegistration> messageHandlerRegistrations,
     IMessageTypeRegistry messageTypeRegistry,
     IModuleUnitOfWorkContext unitOfWorkContext,
     IOptions<DurableMessagingOptions> options)
@@ -20,6 +22,12 @@ public sealed class DurableCommandSender(
         DurableCommandSubmissionOptions options)
         where TCommand : IDurableCommand
     {
+        if (!_options.Enabled)
+        {
+            throw new InvalidOperationException(
+                "Durable messaging is disabled. Durable commands cannot be accepted because no dispatcher will deliver them.");
+        }
+
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.SourceModule);
@@ -32,10 +40,12 @@ public sealed class DurableCommandSender(
         ValidateActiveSourceModule(sourceModule);
 
         IOutboxWriter writer = ResolveWriter(sourceModule);
+        Type commandType = command.GetType();
+        ValidateTargetModuleHandler(targetModule, commandType);
         Guid submissionId = Guid.NewGuid();
         Guid correlationId = options.CorrelationId ?? submissionId;
-        string messageType = messageTypeRegistry.GetMessageTypeName(command.GetType());
-        string payload = JsonSerializer.Serialize(command, command.GetType());
+        string messageType = messageTypeRegistry.GetMessageTypeName(commandType);
+        string payload = JsonSerializer.Serialize(command, commandType);
         int maxAttempts = options.MaxAttempts ?? _options.MaxAttempts;
 
         writer.Write(OutboxMessage.Create(
@@ -100,6 +110,31 @@ public sealed class DurableCommandSender(
 
         throw new InvalidOperationException(
             $"Durable command source module '{sourceModule}' does not match the active module unit of work '{currentModuleName}'.");
+    }
+
+    private void ValidateTargetModuleHandler(string targetModule, Type commandType)
+    {
+        ModuleMessageHandlerRegistration[] matchingRegistrations = messageHandlerRegistrations
+            .Where(registration =>
+                string.Equals(registration.ModuleName, targetModule, StringComparison.Ordinal)
+                && registration.MessageType == commandType)
+            .ToArray();
+
+        if (matchingRegistrations.Length == 1)
+        {
+            return;
+        }
+
+        if (matchingRegistrations.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"No module message handler is registered for durable command '{commandType.FullName}' " +
+                $"in target module '{targetModule}'.");
+        }
+
+        throw new InvalidOperationException(
+            $"Multiple module message handlers are registered for durable command '{commandType.FullName}' " +
+            $"in target module '{targetModule}'.");
     }
 
     private static string NormalizeModule(string moduleName, string parameterName)

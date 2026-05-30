@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using ModularTemplate.Infrastructure.Inbox;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 
@@ -19,6 +20,8 @@ public interface IModuleDbContext
     string ModuleName { get; }
 
     DbSet<OutboxMessage> OutboxMessages { get; }
+
+    DbSet<InboxMessage> InboxMessages { get; }
 
     DbSet<StoredDomainEvent> DomainEvents { get; }
 

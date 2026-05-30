@@ -9,26 +9,28 @@ public sealed class ModuleUnitOfWorkResolver(
     {
         ArgumentNullException.ThrowIfNull(commandType);
 
-        ModulePersistenceRegistration[] matchingRegistrations = registrations
+        string[] matchingModuleNames = registrations
             .Where(registration => registration.HandlesCommand(commandType))
+            .Select(registration => registration.ModuleName)
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-        if (matchingRegistrations.Length == 0)
+        if (matchingModuleNames.Length == 0)
         {
             return null;
         }
 
-        if (matchingRegistrations.Length > 1)
+        if (matchingModuleNames.Length > 1)
         {
             string modules = string.Join(
                 ", ",
-                matchingRegistrations.Select(registration => registration.ModuleName).Order());
+                matchingModuleNames.Order());
 
             throw new InvalidOperationException(
                 $"Command type '{commandType.FullName}' is mapped to more than one module persistence registration: {modules}.");
         }
 
-        string moduleName = matchingRegistrations[0].ModuleName;
+        string moduleName = matchingModuleNames[0];
         IModuleUnitOfWork[] matchingUnitOfWorks = unitOfWorks
             .Where(unitOfWork => string.Equals(unitOfWork.ModuleName, moduleName, StringComparison.Ordinal))
             .ToArray();

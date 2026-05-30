@@ -8,7 +8,9 @@ using ModularTemplate.Identity.Users.Events;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
 using ModularTemplate.Infrastructure.Persistence.Transactions;
+using ModularTemplate.Infrastructure.Transport;
 using ModularTemplate.SharedKernel.Messaging;
+using Rebus.Handlers;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;
@@ -81,6 +83,29 @@ public sealed class ModuleUnitOfWorkTests
 
     [Fact]
     [Trait("Category", "Unit")]
+    public void Resolve_WhenCommandTypeIsRegisteredForSameModuleMoreThanOnce_ReturnsMatchingModuleUnitOfWork()
+    {
+        var identityUnitOfWork = new TestModuleUnitOfWork("identity");
+        var resolver = new ModuleUnitOfWorkResolver(
+            [
+                new ModulePersistenceRegistration(
+                    "identity",
+                    typeof(IdentityDbContext),
+                    [typeof(TestCommand)]),
+                new ModulePersistenceRegistration(
+                    "identity",
+                    typeof(IdentityDbContext),
+                    [typeof(TestCommand)])
+            ],
+            [identityUnitOfWork]);
+
+        IModuleUnitOfWork? unitOfWork = resolver.Resolve(typeof(TestCommand));
+
+        unitOfWork.ShouldBeSameAs(identityUnitOfWork);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
     public void AddModulePersistence_WhenNoCommandHandlerAssemblyMarkersAreProvided_RegistersModuleWithoutCommands()
     {
         var services = new ServiceCollection();
@@ -107,6 +132,48 @@ public sealed class ModuleUnitOfWorkTests
             .OfType<ModulePersistenceRegistration>()
             .Single();
         registration.CommandTypes.ShouldBe([typeof(TestCommand)], ignoreOrder: true);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModuleMessaging_WhenHandlerAssemblyMarkerIsProvided_RegistersModuleScopedRebusAdapter()
+    {
+        var services = new ServiceCollection();
+
+        services.AddModuleMessaging("identity", typeof(TestModuleMessageHandler));
+
+        ModuleMessageHandlerRegistration registration = services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleMessageHandlerRegistration>()
+            .Single(registration => registration.HandlerType == typeof(TestModuleMessageHandler));
+        registration.ModuleName.ShouldBe("identity");
+        registration.MessageType.ShouldBe(typeof(TestIntegrationEvent));
+        registration.HandlerType.ShouldBe(typeof(TestModuleMessageHandler));
+        registration.MessageIdentity.ShouldBe("test.integration-event.v1");
+        services.Any(service =>
+            service.ServiceType == typeof(IHandleMessages<TestIntegrationEvent>)
+            && service.ImplementationType == typeof(ModuleScopedRebusHandler<TestIntegrationEvent>))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModuleMessaging_WhenCalledWithOverlappingAssemblies_DoesNotDuplicateHandlerRegistrations()
+    {
+        var services = new ServiceCollection();
+
+        services.AddModuleMessaging("identity", typeof(TestModuleMessageHandler));
+        services.AddModuleMessaging("identity", typeof(TestModuleMessageHandler));
+
+        services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleMessageHandlerRegistration>()
+            .Count(registration => registration.HandlerType == typeof(TestModuleMessageHandler))
+            .ShouldBe(1);
+        services.Count(service =>
+                service.ServiceType == typeof(IHandleMessages<TestIntegrationEvent>)
+                && service.ImplementationType == typeof(ModuleScopedRebusHandler<TestIntegrationEvent>))
+            .ShouldBe(1);
     }
 
     [Fact]
@@ -199,6 +266,14 @@ public sealed class ModuleUnitOfWorkTests
         public IReadOnlyCollection<IIntegrationEvent> Map(LocalUserCreatedDomainEvent domainEvent)
         {
             return [new TestIntegrationEvent(domainEvent.LocalUserId)];
+        }
+    }
+
+    private sealed class TestModuleMessageHandler : IModuleMessageHandler<TestIntegrationEvent>
+    {
+        public Task HandleAsync(TestIntegrationEvent message, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 

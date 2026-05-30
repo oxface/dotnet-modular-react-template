@@ -15,7 +15,7 @@ public sealed class OutboxRouteResolver(IOptions<DurableMessagingOptions> option
 
         string sourceModule = NormalizeModule(message.SourceModule, nameof(message.SourceModule));
         ValidateConfiguredModule(sourceModule, nameof(message.SourceModule));
-        string busKey = MessagingBusKeys.Internal(sourceModule);
+        string busKey = MessagingBusKeys.ModuleQueue(sourceModule);
 
         if (message.MessageKind == MessageKind.Event)
         {

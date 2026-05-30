@@ -13,7 +13,8 @@ The shipped backend includes:
   migrations so generated products can create the first local schemas.
 - `ModularTemplate.Infrastructure` platform library with Persistence, Outbox,
   and Transport capabilities for Mediator-selected module unit-of-work
-  handling, durable outbox persistence, polling, and Rebus transport dispatch.
+  handling, durable outbox persistence, receive-side inbox deduplication,
+  per-module ordered polling, and Rebus/PostgreSQL transport dispatch.
 - `ModularTemplate.ServiceDefaults` for OpenTelemetry, service discovery,
   default HTTP resilience, and development health endpoints.
 - SharedKernel primitives for entity, aggregate root, value object,

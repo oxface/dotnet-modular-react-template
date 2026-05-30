@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Users;
+using ModularTemplate.Infrastructure.Inbox;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
 using ModularTemplate.Infrastructure.Persistence.DomainEvents;
@@ -16,11 +17,15 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
+    public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+
     public DbSet<StoredDomainEvent> DomainEvents => Set<StoredDomainEvent>();
 
     string IModuleDbContext.ModuleName => "identity";
 
     DbSet<OutboxMessage> IModuleDbContext.OutboxMessages => OutboxMessages;
+
+    DbSet<InboxMessage> IModuleDbContext.InboxMessages => InboxMessages;
 
     DbSet<StoredDomainEvent> IModuleDbContext.DomainEvents => DomainEvents;
 

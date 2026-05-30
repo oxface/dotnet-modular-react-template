@@ -23,10 +23,10 @@ public sealed class RebusOutboxTransportTests
         bus.Advanced.Returns(advanced);
         advanced.Routing.Returns(routing);
         IBusRegistry busRegistry = Substitute.For<IBusRegistry>();
-        busRegistry.GetBus("identity:internal").Returns(bus);
+        busRegistry.GetBus("identity:queue").Returns(bus);
         IOutboxRouteResolver routeResolver = Substitute.For<IOutboxRouteResolver>();
         routeResolver.Resolve(Arg.Any<OutboxMessage>())
-            .Returns(new OutboxRoute("identity:internal", "modular-template.operations"));
+            .Returns(new OutboxRoute("identity:queue", "modular-template.operations"));
         var transport = new RebusOutboxTransport(busRegistry, registry, routeResolver);
         OutboxMessage outboxMessage = OutboxMessage.Create(
             Guid.NewGuid(),
@@ -59,10 +59,10 @@ public sealed class RebusOutboxTransportTests
         registry.Register<TestEvent>();
         IBus bus = Substitute.For<IBus>();
         IBusRegistry busRegistry = Substitute.For<IBusRegistry>();
-        busRegistry.GetBus("identity:internal").Returns(bus);
+        busRegistry.GetBus("identity:queue").Returns(bus);
         IOutboxRouteResolver routeResolver = Substitute.For<IOutboxRouteResolver>();
         routeResolver.Resolve(Arg.Any<OutboxMessage>())
-            .Returns(new OutboxRoute("identity:internal", DestinationAddress: null));
+            .Returns(new OutboxRoute("identity:queue", DestinationAddress: null));
         var transport = new RebusOutboxTransport(busRegistry, registry, routeResolver);
         OutboxMessage outboxMessage = OutboxMessage.Create(
             Guid.NewGuid(),
@@ -103,7 +103,7 @@ public sealed class RebusOutboxTransportTests
 
         OutboxRoute route = resolver.Resolve(message);
 
-        route.BusKey.ShouldBe("identity:internal");
+        route.BusKey.ShouldBe("identity:queue");
         route.DestinationAddress.ShouldBe("sample.operations");
     }
 

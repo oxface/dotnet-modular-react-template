@@ -116,6 +116,7 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
                 "application_access",
                 "local_users",
                 "domain_events",
+                "inbox_messages",
                 "outbox_messages",
                 "__EFMigrationsHistory",
             ]);
@@ -125,6 +126,7 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
             [
                 "operations",
                 "domain_events",
+                "inbox_messages",
                 "outbox_messages",
                 "__EFMigrationsHistory",
             ]);

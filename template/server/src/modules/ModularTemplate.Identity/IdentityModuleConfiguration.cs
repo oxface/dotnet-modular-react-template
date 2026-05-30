@@ -8,7 +8,7 @@ namespace ModularTemplate.Identity;
 
 public static class IdentityModuleConfiguration
 {
-    public static IServiceCollection AddIdentityModule(this IServiceCollection services)
+    public static IServiceCollection AddIdentityApplicationServices(this IServiceCollection services)
     {
         services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
         services.AddScoped<IApplicationAccessAuthorizer, ApplicationAccessAuthorizer>();

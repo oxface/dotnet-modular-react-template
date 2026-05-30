@@ -3,6 +3,7 @@ using System.Text.Json;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.SharedKernel.Messaging;
 using Rebus.Bus;
+using Rebus.Messages;
 using Rebus.ServiceProvider;
 
 namespace ModularTemplate.Infrastructure.Transport;
@@ -44,6 +45,8 @@ public sealed class RebusOutboxTransport(
     {
         var headers = new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            [Headers.MessageId] = message.MessageId.ToString("D"),
+            [Headers.CorrelationId] = message.CorrelationId.ToString("D"),
             [RebusMessageHeaders.MessageId] = message.MessageId.ToString("D"),
             [RebusMessageHeaders.MessageType] = message.MessageType,
             [RebusMessageHeaders.SourceModule] = message.SourceModule,

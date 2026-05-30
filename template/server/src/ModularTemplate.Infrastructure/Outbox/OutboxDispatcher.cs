@@ -10,6 +10,7 @@ namespace ModularTemplate.Infrastructure.Outbox;
 public sealed class OutboxDispatcher(
     IEnumerable<IModuleDbContext> moduleContexts,
     IOutboxTransport outboxTransport,
+    IOutboxDispatchLock outboxDispatchLock,
     IOptions<DurableMessagingOptions> options,
     IRetryDelayPolicy retryDelayPolicy,
     ILogger<OutboxDispatcher> logger)
@@ -35,6 +36,19 @@ public sealed class OutboxDispatcher(
     }
 
     private async Task<int> DispatchForContextAsync(
+        IModuleDbContext ctx,
+        CancellationToken cancellationToken)
+    {
+        await using IAsyncDisposable? dispatchLock = await outboxDispatchLock.TryAcquireAsync(ctx, cancellationToken);
+        if (dispatchLock is null)
+        {
+            return 0;
+        }
+
+        return await DispatchLockedForContextAsync(ctx, cancellationToken);
+    }
+
+    private async Task<int> DispatchLockedForContextAsync(
         IModuleDbContext ctx,
         CancellationToken cancellationToken)
     {
@@ -100,9 +114,15 @@ public sealed class OutboxDispatcher(
         {
             try
             {
+                message.RefreshLock();
+                await ctx.SaveChangesAsync(cancellationToken);
                 await outboxTransport.DispatchAsync(message, cancellationToken);
                 message.MarkProcessed();
                 dispatchedCount++;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -113,9 +133,10 @@ public sealed class OutboxDispatcher(
                     message.MessageType);
                 message.MarkFailed(ex.Message, retryDelayPolicy.GetDelay);
             }
+
+            await ctx.SaveChangesAsync(cancellationToken);
         }
 
-        await ctx.SaveChangesAsync(cancellationToken);
         return dispatchedCount;
     }
 

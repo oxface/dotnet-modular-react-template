@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Options;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
+using ModularTemplate.Infrastructure.Transport;
 using ModularTemplate.Operations.Contracts.Operations;
 using ModularTemplate.SharedKernel.Messaging;
 using Shouldly;
@@ -19,7 +20,12 @@ public sealed class DurableCommandSenderTests
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
-        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
+        var sender = new DurableCommandSender(
+            [outboxWriter],
+            HandlerRegistrations(),
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
         Guid operationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         Guid causationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         var command = new RebuildOperationProjectionCommand(operationId);
@@ -64,6 +70,7 @@ public sealed class DurableCommandSenderTests
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             [new CapturingOutboxWriter("identity")],
+            HandlerRegistrations("identity"),
             registry,
             unitOfWorkContext,
             MessagingOptions());
@@ -88,6 +95,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var sender = new DurableCommandSender(
             [new CapturingOutboxWriter("identity")],
+            HandlerRegistrations(),
             registry,
             new ModuleUnitOfWorkContext(),
             MessagingOptions());
@@ -104,6 +112,37 @@ public sealed class DurableCommandSenderTests
 
     [Fact]
     [Trait("Category", "Unit")]
+    public void Send_WhenDurableMessagingIsDisabled_Throws()
+    {
+        var registry = new MessageTypeRegistry();
+        registry.Register<RebuildOperationProjectionCommand>(
+            "ModularTemplate.operations.rebuild-operation-projection.v1");
+        var unitOfWorkContext = new ModuleUnitOfWorkContext();
+        var sender = new DurableCommandSender(
+            [new CapturingOutboxWriter("identity")],
+            HandlerRegistrations(),
+            registry,
+            unitOfWorkContext,
+            Options.Create(new DurableMessagingOptions
+            {
+                Enabled = false,
+                Modules = ["identity", "operations"]
+            }));
+
+        using IDisposable moduleScope = unitOfWorkContext.StartModuleScope("identity");
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(
+            () => sender.Send(
+                new RebuildOperationProjectionCommand(Guid.NewGuid()),
+                new DurableCommandSubmissionOptions(
+                    SourceModule: "identity",
+                    TargetModule: "operations")));
+
+        exception.Message.ShouldContain("disabled");
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
     public void Send_WhenSourceModuleDoesNotMatchActiveUnitOfWork_Throws()
     {
         var registry = new MessageTypeRegistry();
@@ -112,6 +151,7 @@ public sealed class DurableCommandSenderTests
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             [new CapturingOutboxWriter("identity")],
+            HandlerRegistrations(),
             registry,
             unitOfWorkContext,
             MessagingOptions());
@@ -137,7 +177,12 @@ public sealed class DurableCommandSenderTests
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
-        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
+        var sender = new DurableCommandSender(
+            [outboxWriter],
+            HandlerRegistrations(),
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
 
         using (unitOfWorkContext.StartModuleScope("identity"))
         {
@@ -150,6 +195,75 @@ public sealed class DurableCommandSenderTests
         }
 
         outboxWriter.Messages.Single().MaxAttempts.ShouldBe(2);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Send_WhenTargetModuleHasNoCommandHandler_Throws()
+    {
+        var outboxWriter = new CapturingOutboxWriter("identity");
+        var registry = new MessageTypeRegistry();
+        registry.Register<RebuildOperationProjectionCommand>(
+            "ModularTemplate.operations.rebuild-operation-projection.v1");
+        var unitOfWorkContext = new ModuleUnitOfWorkContext();
+        var sender = new DurableCommandSender(
+            [outboxWriter],
+            [],
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
+
+        using IDisposable moduleScope = unitOfWorkContext.StartModuleScope("identity");
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(
+            () => sender.Send(
+                new RebuildOperationProjectionCommand(Guid.NewGuid()),
+                new DurableCommandSubmissionOptions(
+                    SourceModule: "identity",
+                    TargetModule: "operations")));
+        exception.Message.ShouldContain("operations");
+        exception.Message.ShouldContain(typeof(RebuildOperationProjectionCommand).FullName!);
+        outboxWriter.Messages.ShouldBeEmpty();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Send_WhenTargetModuleHasMultipleCommandHandlers_Throws()
+    {
+        var outboxWriter = new CapturingOutboxWriter("identity");
+        var registry = new MessageTypeRegistry();
+        registry.Register<RebuildOperationProjectionCommand>(
+            "ModularTemplate.operations.rebuild-operation-projection.v1");
+        var unitOfWorkContext = new ModuleUnitOfWorkContext();
+        var sender = new DurableCommandSender(
+            [outboxWriter],
+            [
+                new ModuleMessageHandlerRegistration(
+                    "operations",
+                    typeof(RebuildOperationProjectionCommand),
+                    typeof(FirstRebuildOperationProjectionCommandHandler),
+                    "operations.rebuild-operation-projection.v1"),
+                new ModuleMessageHandlerRegistration(
+                    "operations",
+                    typeof(RebuildOperationProjectionCommand),
+                    typeof(SecondRebuildOperationProjectionCommandHandler),
+                    "operations.rebuild-operation-projection.v1")
+            ],
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
+
+        using IDisposable moduleScope = unitOfWorkContext.StartModuleScope("identity");
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(
+            () => sender.Send(
+                new RebuildOperationProjectionCommand(Guid.NewGuid()),
+                new DurableCommandSubmissionOptions(
+                    SourceModule: "identity",
+                    TargetModule: "operations")));
+        exception.Message.ShouldContain("Multiple");
+        exception.Message.ShouldContain("operations");
+        outboxWriter.Messages.ShouldBeEmpty();
     }
 
     [Fact]
@@ -174,7 +288,12 @@ public sealed class DurableCommandSenderTests
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
-        var sender = new DurableCommandSender([outboxWriter], registry, unitOfWorkContext, MessagingOptions());
+        var sender = new DurableCommandSender(
+            [outboxWriter],
+            HandlerRegistrations(),
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
         var orchestration = new ExampleModuleOwnedOrchestration(operationsQueries, sender);
 
         CommandSubmission submission;
@@ -193,6 +312,10 @@ public sealed class DurableCommandSenderTests
 
     private sealed record RebuildOperationProjectionCommand(Guid OperationId) : IDurableCommand;
 
+    private sealed class FirstRebuildOperationProjectionCommandHandler;
+
+    private sealed class SecondRebuildOperationProjectionCommandHandler;
+
     private static IOptions<DurableMessagingOptions> MessagingOptions()
     {
         return Options.Create(new DurableMessagingOptions
@@ -200,6 +323,18 @@ public sealed class DurableCommandSenderTests
             Modules = ["identity", "operations"],
             MaxAttempts = 7
         });
+    }
+
+    private static ModuleMessageHandlerRegistration[] HandlerRegistrations(string moduleName = "operations")
+    {
+        return
+        [
+            new ModuleMessageHandlerRegistration(
+                moduleName,
+                typeof(RebuildOperationProjectionCommand),
+                typeof(object),
+                "operations.rebuild-operation-projection.v1")
+        ];
     }
 
     private sealed class ExampleModuleOwnedOrchestration(

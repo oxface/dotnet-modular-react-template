@@ -1,20 +1,21 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using ModularTemplate.Infrastructure.Inbox;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
 using ModularTemplate.SharedKernel.Extensions;
 using ModularTemplate.SharedKernel.Messaging;
 using Rebus.PostgreSql;
 using Rebus.Config;
-using Rebus.Transport.InMem;
+using Rebus.Pipeline;
+using Rebus.Pipeline.Receive;
 
 namespace ModularTemplate.Infrastructure.Transport;
 
 public static class TransportConfiguration
 {
-    private static readonly InMemNetwork InMemNetwork = new();
-
     public static TBuilder AddTransport<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
@@ -23,42 +24,41 @@ public static class TransportConfiguration
             .Get<DurableMessagingOptions>()
             ?? new DurableMessagingOptions();
 
-        string[] modules = messagingOptions.Modules.TrimDistinctRequired(nameof(messagingOptions.Modules));
-
         builder.Services.AddSingleton<IMessageTypeRegistry>(sp =>
             MessageTypeRegistryFactory.Create(sp.GetServices<MessagingRegistrationSource>()));
         builder.Services.AddScoped<IModuleUnitOfWorkContext, ModuleUnitOfWorkContext>();
         builder.Services.AddScoped<IModuleUnitOfWorkResolver, ModuleUnitOfWorkResolver>();
         builder.Services.AddScoped<IDurableCommandSender, DurableCommandSender>();
+        builder.Services.AddScoped<IInboxMessageProcessor, InboxMessageProcessor>();
         builder.Services.AddScoped<IRetryDelayPolicy, ConfiguredRetryDelayPolicy>();
         builder.Services.AddScoped<IOutboxRouteResolver, OutboxRouteResolver>();
-        builder.Services.AddScoped<IOutboxTransport, RebusOutboxTransport>();
-        builder.Services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
-        builder.Services.AddHostedService<RebusSubscriptionHostedService>();
-        builder.Services.AddHostedService<OutboxDispatcherBackgroundService>();
+        builder.Services.AddSingleton<IValidateOptions<DurableMessagingOptions>, DurableMessagingOptionsValidator>();
+        if (messagingOptions.Enabled)
+        {
+            builder.Services.AddScoped<IOutboxTransport, RebusOutboxTransport>();
+            builder.Services.AddScoped<IOutboxDispatchLock, PostgresAdvisoryOutboxDispatchLock>();
+            builder.Services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
+            builder.Services.AddHostedService<RebusSubscriptionHostedService>();
+            builder.Services.AddHostedService<OutboxDispatcherBackgroundService>();
+        }
         builder.Services.AddOptions<DurableMessagingOptions>()
             .Bind(builder.Configuration.GetSection("Messaging"))
-            .Validate(options => options.Modules.Any(module => !string.IsNullOrWhiteSpace(module)),
-                "Messaging:Modules must contain at least one module name.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.QueuePrefix),
-                "Messaging:QueuePrefix is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionStringName),
-                "Messaging:ConnectionStringName is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.TransportSchema),
-                "Messaging:TransportSchema is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.TransportTable),
-                "Messaging:TransportTable is required.")
-            .Validate(options => !string.IsNullOrWhiteSpace(options.SubscriptionTable),
-                "Messaging:SubscriptionTable is required.")
-            .Validate(options => options.PollingInterval > TimeSpan.Zero,
-                "Messaging:PollingInterval must be greater than zero.")
-            .Validate(options => options.BatchSize > 0,
-                "Messaging:BatchSize must be greater than zero.")
-            .Validate(options => options.MaxAttempts > 0,
-                "Messaging:MaxAttempts must be greater than zero.")
-            .Validate(options => options.LockTimeout > TimeSpan.Zero,
-                "Messaging:LockTimeout must be greater than zero.")
             .ValidateOnStart();
+
+        if (!messagingOptions.Enabled)
+        {
+            return builder;
+        }
+
+        string[] modules;
+        try
+        {
+            modules = messagingOptions.Modules.TrimDistinctRequired(nameof(messagingOptions.Modules));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        {
+            return builder;
+        }
 
         for (int index = 0; index < modules.Length; index++)
         {
@@ -72,7 +72,7 @@ public static class TransportConfiguration
                     messagingOptions,
                     moduleName),
                 isDefaultBus: isDefaultBus,
-                key: MessagingBusKeys.Internal(moduleName));
+                key: MessagingBusKeys.ModuleQueue(moduleName));
         }
 
         return builder;
@@ -85,11 +85,15 @@ public static class TransportConfiguration
         string moduleName)
     {
         string queueName = $"{options.QueuePrefix}.{moduleName}";
-        if (options.Transport == DurableMessagingTransport.InMemory)
+        configure.Options(o => o.Decorate<IPipeline>(context =>
         {
-            configure.Transport(t => t.UseInMemoryTransport(InMemNetwork, queueName));
-            return configure;
-        }
+            var injector = new PipelineStepInjector(context.Get<IPipeline>());
+            injector.OnReceive(
+                new ReceivingModuleHeaderStep(moduleName),
+                PipelineRelativePosition.Before,
+                typeof(ActivateHandlersStep));
+            return injector;
+        }));
 
         if (options.Transport == DurableMessagingTransport.Postgres)
         {

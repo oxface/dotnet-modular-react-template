@@ -81,50 +81,80 @@ Durable cross-module messages move through these stages:
 2. the Mediator command pipeline resolves the source module unit of work from
    module persistence registration and persists aggregate state, stored domain
    events, and outbox rows in one transaction
-3. `OutboxDispatcher` claims pending source-module outbox rows with
-   `FOR UPDATE SKIP LOCKED`
+3. `OutboxDispatcher` takes a per-module PostgreSQL advisory lock and claims
+   pending source-module outbox rows with `FOR UPDATE SKIP LOCKED`
 4. `RebusOutboxTransport` deserializes the stable message identity and sends or
    publishes the message through Rebus
 5. Rebus delivers the message to the target module queue or event subscribers
-6. Rebus handlers adapt the transport message to target-module Mediator
-   commands
-7. the Mediator command pipeline resolves the target module unit of work and
-   commits target state after successful command handling
+6. the module-scoped Rebus adapter opens the receiving module unit of work
+7. the adapter records a target-module inbox row per message id and stable
+   message identity, then delegates to the target handler
+8. target handlers may call Mediator for module behavior inside that receiving
+   transaction
+9. the adapter commits target state and the inbox row after successful message
+   handling
 
 Duplicate transport deliveries are expected. Handlers that perform
-non-idempotent work should use product-owned idempotency keys or state checks.
-The template no longer ships a custom inbox table; add one only when a product
-needs durable receive-side audit or deduplication beyond Rebus delivery and
-handler-level idempotency.
+non-idempotent work should still use product-owned idempotency keys or state
+checks for business-level safety. The template ships a minimal inbox table for
+receive-side duplicate suppression; it is not a full audit log or diagnostics
+store.
 
 Outbox rows store dispatch state and a bounded error summary. Full exception
 details belong in structured logs and traces so the outbox table stays an
 operational queue, not a diagnostics archive.
 
+The outbox dispatcher takes a per-module PostgreSQL advisory lock before
+claiming rows. This keeps one module's outbox dispatch ordered by creation time
+across multiple Host instances while still allowing different modules to
+dispatch independently. Products that need stricter ordering than module-level
+creation order should model that explicitly with aggregate state, sequence
+numbers, or product-owned process managers.
+
+Inbox and processed/dead-lettered outbox rows are retained until product
+operations define a cleanup policy. Do not delete inbox rows inside the maximum
+transport redelivery or manual replay window. Dead-letter replay, archival, and
+cleanup are product operational decisions because retention needs depend on the
+deployment, incident response workflow, and compliance expectations.
+
 ## Rebus Boundary
 
 Rebus owns transport, routing, pub/sub delivery, and receive-side handler
 dispatch. Rebus handlers should stay thin and delegate meaningful state changes
-to target-module Mediator commands. Persistence is committed by the module
-command pipeline, not by a Rebus pipeline step. The template owns only the
-source-side outbox so outgoing messages commit atomically with module state.
+to target-module application behavior. The module-scoped Rebus adapter owns the
+receiving module transaction because transport delivery starts outside the
+Mediator pipeline; target Mediator calls participate inside that transaction
+when they are used. The template owns both the source-side outbox and the
+receive-side inbox so outgoing messages commit atomically with source module
+state and duplicate deliveries are suppressed per receiving module and message
+identity.
 
-The default generated transport is Rebus over PostgreSQL, which fits the local
-modular-monolith topology and reuses the product database dependency. In-memory
-transport is reserved for tests that intentionally avoid PostgreSQL-backed
-transport dependencies. External broker transports are product decisions and
-should bring their own deployment resources and verification.
+The generated transport is Rebus over PostgreSQL, which fits the local
+modular-monolith topology and reuses the product database dependency. External
+broker transports are product decisions and should bring their own deployment
+resources and verification.
 
 Messages MUST use stable message identities, not CLR type names, for persisted
 outbox rows. Use `MessageIdentityAttribute` and register message assemblies
-through `AddMessagingAssembly<TMarker>()`; explicit `IMessageTypeRegistry`
-registration is still available for tests or unusual composition.
+through `AddModuleMessaging("{module}", ...)`; explicit
+`IMessageTypeRegistry` registration is still available for tests or unusual
+composition.
+Event identities should name the fact, not the CLR type. Prefer
+`{aggregate}.{event}.{version}` for integration events derived from aggregate
+facts, such as `local-user.created.v1`. Durable command identities should name
+caller intent, such as `{target-module}.{command}.{version}`.
 
-Module infrastructure registrations should call `AddMessagingAssembly<TMarker>()`
-for every assembly that may contain durable messages or Rebus handlers: usually
-the module assembly, its `.Contracts` assembly, and its `.Infrastructure`
-assembly. This scans stable message identities and registers Rebus
-`IHandleMessages<T>` handlers. Event subscribers should also call
+Module infrastructure registrations should call
+`AddModuleMessaging("{module}", typeof(...))` for every assembly that may
+contain durable messages or module message handlers: usually the module
+assembly, its `.Contracts` assembly, and its `.Infrastructure` assembly. This
+scans stable message identities and registers module-scoped
+`IModuleMessageHandler<T>` handlers behind a Rebus adapter. Each receiving
+module should register one module message handler per message identity. If a
+module needs several internal reactions to the same event, keep the Rebus handler
+as the single transport adapter and fan out to module-local services inside that
+handler. The inbox key uses the stable transport message id plus the stable
+message identity. Event subscribers should also call
 `AddModuleEventSubscriptions("module", typeof(SomeIntegrationEvent))` so Rebus
 subscriptions are deterministic at startup.
 
@@ -166,28 +196,30 @@ When adding a module:
    `{Module}.Infrastructure`
 5. create `{Module}DbContext` implementing `IModuleDbContext`
 6. configure the module schema, migrations history table, and
-   `ApplyOutboxConfiguration("{module}")`
+   `ApplyOutboxConfiguration("{module}")` for domain events, inbox, and outbox
 7. register the context as `IModuleDbContext`
 8. register `IOutboxWriter` as `OutboxWriter<{Module}DbContext>`
 9. call `AddModulePersistence<{Module}DbContext>("{module}", ...)` from module
    infrastructure with marker types from assemblies that contain persistent
    Mediator command handlers for that module
-10. call `AddMessagingAssembly<TMarker>()` from module infrastructure for the
-    module, contracts, and infrastructure assemblies
-11. add the module name to `Messaging:Modules`
-12. add the module context to the Migrator
-13. add module docs and focused tests
+10. call `AddModuleMessaging("{module}", ...)` from module infrastructure for
+    the module, contracts, and infrastructure assemblies
+11. add module Mediator handler assembly markers to the Host and Migrator
+    compile-time Mediator configuration when the module has Mediator handlers
+12. add the module name to `Messaging:Modules`
+13. add the module context to the Migrator
+14. add module docs and focused tests
 
 ## Adding A Durable Command
 
 1. Define a command that implements `IDurableCommand`.
 2. Put it in a contracts project unless it is truly platform-wide.
 3. Add `MessageIdentityAttribute` and ensure its assembly is registered with
-   `AddMessagingAssembly<TMarker>()`.
+   `AddModuleMessaging("{module}", ...)`.
 4. Send it with `IDurableCommandSender` from inside the source module's
    Mediator command handler, including source and target module names.
-5. Implement a Rebus `IHandleMessages<TCommand>` handler in the target module.
-6. Keep the Rebus handler thin: validate transport assumptions and call a
+5. Implement an `IModuleMessageHandler<TCommand>` handler in the target module.
+6. Keep the transport handler thin: validate transport assumptions and call a
    target-module Mediator command for state changes.
 7. Ensure the target Mediator command handler's assembly is included in the
    target module's `AddModulePersistence` call so the Mediator pipeline commits
@@ -200,12 +232,12 @@ When adding a module:
 1. Keep the source domain event internal to the source module.
 2. Add an `IIntegrationEvent` contract only when there is a real consumer.
 3. Add `MessageIdentityAttribute` and ensure its assembly is registered with
-   `AddMessagingAssembly<TMarker>()`.
+   `AddModuleMessaging("{module}", ...)`.
 4. Add an `IIntegrationEventMapper<TDomainEvent>` in the source module.
    The mapper source module must match the changed module context; integration
    events are written to that source module's outbox.
-5. Implement Rebus `IHandleMessages<TEvent>` handlers in subscriber modules.
-6. Subscribe module endpoints with `AddModuleEventSubscriptions`.
+5. Implement `IModuleMessageHandler<TEvent>` handlers in subscriber modules.
+6. Subscribe module queues with `AddModuleEventSubscriptions`.
 
 Generated products should add tests for real communication workflows as those
 workflows appear.

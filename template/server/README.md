@@ -6,10 +6,9 @@ Backend project layout:
 
 - `src/ModularTemplate.Host`
 - `src/ModularTemplate.Migrator`
-- `src/ModularTemplate.Infrastructure.Outbox`
+- `src/ModularTemplate.Infrastructure`
 - `src/ModularTemplate.ServiceDefaults`
 - `src/ModularTemplate.SharedKernel`
-- `src/ModularTemplate.Infrastructure.Transport`
 - `src/modules/ModularTemplate.Identity.Contracts`
 - `src/modules/ModularTemplate.Identity`
 - `src/modules/ModularTemplate.Identity.Infrastructure`

@@ -1,11 +1,9 @@
 using Mediator;
 using ModularTemplate.Host.Authorization;
 using ModularTemplate.Host.Features.CurrentUser;
-using ModularTemplate.Identity;
 using ModularTemplate.Identity.CurrentUser;
 using ModularTemplate.Identity.Infrastructure;
 using ModularTemplate.Identity.Infrastructure.Persistence;
-using ModularTemplate.Operations;
 using ModularTemplate.Operations.Infrastructure;
 using ModularTemplate.Infrastructure.Persistence.Transactions;
 
@@ -20,8 +18,8 @@ public static class ModuleConfiguration
             options.ServiceLifetime = ServiceLifetime.Scoped;
             options.Assemblies =
             [
-                typeof(SynchronizeCurrentUserCommand).Assembly,
-                typeof(ApplicationAccessRepository).Assembly
+                typeof(SynchronizeCurrentUserCommand),
+                typeof(ApplicationAccessRepository)
             ];
             options.PipelineBehaviors =
             [
@@ -36,9 +34,7 @@ public static class ModuleConfiguration
     public static IServiceCollection AddModularTemplateModules(this IServiceCollection services)
     {
         services.AddIdentityModule();
-        services.AddIdentityInfrastructure();
         services.AddOperationsModule();
-        services.AddOperationsInfrastructure();
         services.AddApplicationAccessAuthorization();
 
         return services;
@@ -47,7 +43,7 @@ public static class ModuleConfiguration
     public static IEndpointRouteBuilder MapModularTemplateModuleEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapCurrentUserEndpoint();
-        endpoints.MapOperationsEndpoints();
+        endpoints.MapOperationsModule();
 
         return endpoints;
     }

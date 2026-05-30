@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ModularTemplate.Infrastructure.Inbox;
@@ -27,7 +28,8 @@ public static class TransportConfiguration
 
         builder.Services.AddSingleton<IMessageTypeRegistry>(sp =>
             MessageTypeRegistryFactory.Create(sp.GetServices<MessagingRegistrationSource>()));
-        builder.Services.AddScoped<IModuleUnitOfWorkContext, ModuleUnitOfWorkContext>();
+        builder.Services.TryAddScoped<IModuleUnitOfWorkContext, ModuleUnitOfWorkContext>();
+        builder.Services.TryAddScoped<IModulePersistenceResolver, ModulePersistenceResolver>();
         builder.Services.AddScoped<IModuleUnitOfWorkResolver, ModuleUnitOfWorkResolver>();
         builder.Services.AddScoped<IDurableCommandSender, DurableCommandSender>();
         builder.Services.AddScoped<IInboxMessageProcessor, InboxMessageProcessor>();
@@ -39,6 +41,7 @@ public static class TransportConfiguration
             builder.Services.AddScoped<IOutboxTransport, RebusOutboxTransport>();
             builder.Services.AddScoped<IOutboxDispatchLock, PostgresAdvisoryOutboxDispatchLock>();
             builder.Services.AddScoped<IOutboxDispatcher, OutboxDispatcher>();
+            builder.Services.AddHostedService<TransportSchemaInitializerHostedService>();
             builder.Services.AddHostedService<RebusSubscriptionHostedService>();
             builder.Services.AddHostedService<OutboxDispatcherBackgroundService>();
         }

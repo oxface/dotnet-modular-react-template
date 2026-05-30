@@ -1,9 +1,12 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using ModularTemplate.Identity.Infrastructure.Persistence;
+using ModularTemplate.Infrastructure.Inbox;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
+using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 using ModularTemplate.Infrastructure.Transport;
 using ModularTemplate.SharedKernel.Messaging;
 using Rebus.ServiceProvider;
@@ -84,6 +87,7 @@ public sealed class TransportConfigurationTests
         builder.Configuration["Messaging:Modules:0"] = "";
         builder.Configuration["Messaging:QueuePrefix"] = "";
         builder.Configuration["Messaging:PollingInterval"] = "00:00:00";
+        builder.Configuration["Messaging:RetryDelays:0"] = "-00:00:01";
 
         builder.AddTransport();
         using IHost host = builder.Build();
@@ -92,6 +96,29 @@ public sealed class TransportConfigurationTests
             () => host.Services.GetRequiredService<IOptions<DurableMessagingOptions>>().Value);
         exception.Message.ShouldContain("Messaging:QueuePrefix");
         exception.Message.ShouldContain("Messaging:PollingInterval");
+        exception.Message.ShouldContain("Messaging:RetryDelays");
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddTransport_WhenMessagingSqlIdentifiersAreInvalid_FailsOptionsValidation()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Messaging:Enabled"] = "true";
+        builder.Configuration["Messaging:Modules:0"] = "identity-module";
+        builder.Configuration["Messaging:TransportSchema"] = "transport-schema";
+        builder.Configuration["Messaging:TransportTable"] = "rebus messages";
+        builder.Configuration["Messaging:SubscriptionTable"] = "rebus-subscriptions";
+
+        builder.AddTransport();
+        using IHost host = builder.Build();
+
+        OptionsValidationException exception = Should.Throw<OptionsValidationException>(
+            () => host.Services.GetRequiredService<IOptions<DurableMessagingOptions>>().Value);
+        exception.Message.ShouldContain("Messaging:Modules");
+        exception.Message.ShouldContain("Messaging:TransportSchema");
+        exception.Message.ShouldContain("Messaging:TransportTable");
+        exception.Message.ShouldContain("Messaging:SubscriptionTable");
     }
 
     [Fact]
@@ -146,6 +173,43 @@ public sealed class TransportConfigurationTests
         exception.Message.ShouldContain("matching module message handler");
     }
 
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddTransport_WhenMessageHandlerHasNoModulePersistence_FailsOptionsValidation()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Messaging:Modules:0"] = "identity";
+
+        builder.AddTransport();
+        builder.Services.AddModuleMessaging("identity", typeof(TestModuleMessageHandler));
+        using IHost host = builder.Build();
+
+        OptionsValidationException exception = Should.Throw<OptionsValidationException>(
+            () => host.Services.GetRequiredService<IOptions<DurableMessagingOptions>>().Value);
+        exception.Message.ShouldContain("identity");
+        exception.Message.ShouldContain("module persistence");
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddTransport_WhenModulePersistenceHasMultipleDbContexts_FailsOptionsValidation()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Messaging:Modules:0"] = "identity";
+
+        builder.AddTransport();
+        builder.Services.AddModulePersistence<IdentityDbContext>("identity");
+        builder.Services.AddModulePersistence<AlternateIdentityDbContext>("identity");
+        using IHost host = builder.Build();
+
+        OptionsValidationException exception = Should.Throw<OptionsValidationException>(
+            () => host.Services.GetRequiredService<IOptions<DurableMessagingOptions>>().Value);
+        exception.Message.ShouldContain("identity");
+        exception.Message.ShouldContain("multiple module persistence DbContexts");
+        exception.Message.ShouldContain(nameof(IdentityDbContext));
+        exception.Message.ShouldContain(nameof(AlternateIdentityDbContext));
+    }
+
     [MessageIdentity("test.transport-configuration-event.v1")]
     private sealed record TestIntegrationEvent : IIntegrationEvent;
 
@@ -155,5 +219,17 @@ public sealed class TransportConfigurationTests
         {
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class AlternateIdentityDbContext(DbContextOptions<AlternateIdentityDbContext> options)
+        : DbContext(options), IModuleDbContext
+    {
+        public string ModuleName => "identity";
+
+        public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+        public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+
+        public DbSet<StoredDomainEvent> DomainEvents => Set<StoredDomainEvent>();
     }
 }

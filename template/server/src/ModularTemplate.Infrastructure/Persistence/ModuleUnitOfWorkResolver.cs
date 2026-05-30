@@ -2,7 +2,7 @@ namespace ModularTemplate.Infrastructure.Persistence;
 
 public sealed class ModuleUnitOfWorkResolver(
     IEnumerable<ModulePersistenceRegistration> registrations,
-    IEnumerable<IModuleUnitOfWork> unitOfWorks)
+    IModulePersistenceResolver persistenceResolver)
     : IModuleUnitOfWorkResolver
 {
     public IModuleUnitOfWork? Resolve(Type commandType)
@@ -31,17 +31,6 @@ public sealed class ModuleUnitOfWorkResolver(
         }
 
         string moduleName = matchingModuleNames[0];
-        IModuleUnitOfWork[] matchingUnitOfWorks = unitOfWorks
-            .Where(unitOfWork => string.Equals(unitOfWork.ModuleName, moduleName, StringComparison.Ordinal))
-            .ToArray();
-
-        return matchingUnitOfWorks.Length switch
-        {
-            1 => matchingUnitOfWorks[0],
-            0 => throw new InvalidOperationException(
-                $"No module unit of work is registered for module '{moduleName}'."),
-            _ => throw new InvalidOperationException(
-                $"Multiple module unit of work instances are registered for module '{moduleName}'."),
-        };
+        return persistenceResolver.ResolveUnitOfWork(moduleName);
     }
 }

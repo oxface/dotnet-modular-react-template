@@ -89,8 +89,8 @@ Durable cross-module messages move through these stages:
 6. the module-scoped Rebus adapter opens the receiving module unit of work
 7. the adapter records a target-module inbox row per message id and stable
    message identity, then delegates to the target handler
-8. target handlers may call Mediator for module behavior inside that receiving
-   transaction
+8. target handlers may call Mediator for behavior owned by the receiving module
+   inside that receiving transaction
 9. the adapter commits target state and the inbox row after successful message
    handling
 
@@ -113,11 +113,21 @@ may still be dispatched. Products that need causal ordering should model that
 explicitly with aggregate state, sequence numbers, or product-owned process
 managers.
 
+If the Host stops while a message is claimed as `Processing`, the row is not
+deleted or considered delivered. It becomes eligible again after
+`Messaging:LockTimeout` when another dispatcher treats the claim as stale.
+Choose a timeout that is comfortably longer than normal dispatch latency but
+short enough for the product's restart recovery expectations.
+
 Inbox and processed/dead-lettered outbox rows are retained until product
 operations define a cleanup policy. Do not delete inbox rows inside the maximum
 transport redelivery or manual replay window. Dead-letter replay, archival, and
 cleanup are product operational decisions because retention needs depend on the
-deployment, incident response workflow, and compliance expectations.
+deployment, incident response workflow, and compliance expectations. Products
+that add those operations should keep them explicit: replay dead-lettered rows
+through a product-owned maintenance command, archive processed outbox rows only
+after observability and incident windows have elapsed, and clean inbox rows only
+after the duplicate-delivery window is no longer needed.
 
 ## Rebus Boundary
 
@@ -125,8 +135,11 @@ Rebus owns transport, routing, pub/sub delivery, and receive-side handler
 dispatch. Rebus handlers should stay thin and delegate meaningful state changes
 to target-module application behavior. The module-scoped Rebus adapter owns the
 receiving module transaction because transport delivery starts outside the
-Mediator pipeline; target Mediator calls participate inside that transaction
-when they are used. The template owns both the source-side outbox and the
+Mediator pipeline; receiving module Mediator calls participate inside that
+transaction when they are used. Do not call another module's write command from
+inside a receiving module transaction; use another durable command or
+integration event for cross-module follow-up work. The template owns both the
+source-side outbox and the
 receive-side inbox so outgoing messages commit atomically with source module
 state and duplicate deliveries are suppressed per receiving module and message
 identity.
@@ -155,8 +168,12 @@ scans stable message identities and registers module-scoped
 module should register one module message handler per message identity. If a
 module needs several internal reactions to the same event, keep the Rebus handler
 as the single transport adapter and fan out to module-local services inside that
-handler. The inbox key uses the stable transport message id plus the stable
-message identity. Event subscribers should also call
+handler. This is an intentional template simplification: internal reactions
+share the receiving module transaction, retry, and failure outcome. Products
+that need independent retry loops or transactions for multiple reactions should
+introduce separate product handlers or a richer message-runtime decision before
+adding that behavior. The inbox key uses the stable transport message id plus
+the stable message identity. Event subscribers should also call
 `AddModuleEventSubscriptions("module", typeof(SomeIntegrationEvent))` so Rebus
 subscriptions are deterministic at startup.
 
@@ -164,11 +181,13 @@ Module infrastructure registrations should call
 `AddModulePersistence<{Module}DbContext>("{module}", typeof(SomeCommandHandler))`
 with marker types from assemblies that contain persistent Mediator command
 handlers for that module. The registration scans `ICommandHandler` types and
-maps their command message types to the module DbContext. A module with no
-persistent Mediator commands can call `AddModulePersistence` with no handler
-markers. A command type that is not mapped to any module persistence
-registration runs without an automatic module save; reserve that for platform
-commands or explicitly non-persistent work.
+maps their command message types to the module DbContext. It also registers the
+module persistence resolver, module unit of work, DbContext adapter, and outbox
+writer plumbing used by durable messaging. A module with no persistent Mediator
+commands can call `AddModulePersistence` with no handler markers. A command type
+that is not mapped to any module persistence registration runs without an
+automatic module save; reserve that for platform commands or explicitly
+non-persistent work.
 
 ## Naming The Application API
 
@@ -199,18 +218,16 @@ When adding a module:
 5. create `{Module}DbContext` implementing `IModuleDbContext`
 6. configure the module schema, migrations history table, and
    `ApplyOutboxConfiguration("{module}")` for domain events, inbox, and outbox
-7. register the context as `IModuleDbContext`
-8. register `IOutboxWriter` as `OutboxWriter<{Module}DbContext>`
-9. call `AddModulePersistence<{Module}DbContext>("{module}", ...)` from module
+7. call `AddModulePersistence<{Module}DbContext>("{module}", ...)` from module
    infrastructure with marker types from assemblies that contain persistent
    Mediator command handlers for that module
-10. call `AddModuleMessaging("{module}", ...)` from module infrastructure for
-    the module, contracts, and infrastructure assemblies
-11. add module Mediator handler assembly markers to the Host and Migrator
-    compile-time Mediator configuration when the module has Mediator handlers
-12. add the module name to `Messaging:Modules`
-13. add the module context to the Migrator
-14. add module docs and focused tests
+8. call `AddModuleMessaging("{module}", ...)` from module infrastructure for
+   the module, contracts, and infrastructure assemblies
+9. add module Mediator handler assembly markers to the Host and Migrator
+   compile-time Mediator configuration when the module has Mediator handlers
+10. add the module name to `Messaging:Modules`
+11. add the module context to the Migrator
+12. add module docs and focused tests
 
 ## Adding A Durable Command
 
@@ -222,10 +239,10 @@ When adding a module:
    Mediator command handler, including source and target module names.
 5. Implement an `IModuleMessageHandler<TCommand>` handler in the target module.
 6. Keep the transport handler thin: validate transport assumptions and call a
-   target-module Mediator command for state changes.
-7. Ensure the target Mediator command handler's assembly is included in the
-   target module's `AddModulePersistence` call so the Mediator pipeline commits
-   the target module DbContext after successful command handling.
+   receiving-module Mediator command for state changes.
+7. Ensure the receiving-module Mediator command handler's assembly is included
+   in that module's `AddModulePersistence` call so the Mediator pipeline commits
+   the receiving module DbContext after successful command handling.
 8. If callers need progress or results, model that as operation/read-model state
    and expose it through a query contract or endpoint.
 

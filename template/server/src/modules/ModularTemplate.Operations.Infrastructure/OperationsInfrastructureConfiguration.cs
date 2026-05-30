@@ -6,7 +6,6 @@ using ModularTemplate.Operations;
 using ModularTemplate.Operations.Contracts.Operations;
 using ModularTemplate.Operations.Operations;
 using ModularTemplate.Operations.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
 using ModularTemplate.Infrastructure.Transport;
 
@@ -45,8 +44,6 @@ public static class OperationsInfrastructureConfiguration
 
         services.AddScoped<IOperationRepository, OperationRepository>();
         services.AddScoped<IOperationsQueries, OperationsQueries>();
-        services.AddScoped<IModuleDbContext>(sp => sp.GetRequiredService<OperationsDbContext>());
-        services.AddScoped<IOutboxWriter, OutboxWriter<OperationsDbContext>>();
         services.AddModulePersistence<OperationsDbContext>("operations");
         services.AddModuleMessaging(
             "operations",

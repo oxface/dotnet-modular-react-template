@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ModularTemplate.Infrastructure.Inbox;
+using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
 using ModularTemplate.Infrastructure.Transport;
 using ModularTemplate.SharedKernel.Messaging;
@@ -32,8 +33,7 @@ public sealed class ModuleScopedRebusHandlerTests
                     typeof(UnusedHandler),
                     "test.unhandled-event.v1")
             ],
-            [],
-            []);
+            new ThrowingModulePersistenceResolver());
 
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
             async () => await handler.Handle(message));
@@ -66,8 +66,7 @@ public sealed class ModuleScopedRebusHandlerTests
                     typeof(SecondCommandHandler),
                     "test.durable-command.v1")
             ],
-            [],
-            []);
+            new ThrowingModulePersistenceResolver());
 
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
             async () => await handler.Handle(message));
@@ -122,6 +121,24 @@ public sealed class ModuleScopedRebusHandlerTests
             string moduleName,
             string handlerName,
             CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class ThrowingModulePersistenceResolver : IModulePersistenceResolver
+    {
+        public IModuleDbContext ResolveDbContext(string moduleName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IModuleUnitOfWork ResolveUnitOfWork(string moduleName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IOutboxWriter ResolveOutboxWriter(string moduleName)
         {
             throw new NotSupportedException();
         }

@@ -97,8 +97,9 @@ after successful command handling. Module Infrastructure registers assemblies
 that contain its persistent Mediator command handlers with
 `AddModulePersistence<{Module}DbContext>()`; the registration scans those
 handlers and the pipeline uses the discovered command types to select one
-module DbContext for the command. Query handlers read provider-neutral state
-and do not save changes.
+module DbContext for the command. It also registers the shared module
+DbContext/outbox plumbing used by durable messaging. Query handlers read
+provider-neutral state and do not save changes.
 
 Command handlers should get decision-making data through repositories or
 command-side read ports, not by calling query handlers. Query handlers are
@@ -116,8 +117,10 @@ is committed consistently with module state.
 Receive-side Rebus handlers should be transport adapters that delegate state
 changes to target-module application behavior. Because transport delivery starts
 outside the Mediator pipeline, the module-scoped Rebus adapter owns the
-receiving module transaction; target Mediator calls participate inside that
-transaction when they are used.
+receiving module transaction; receiving module Mediator calls participate inside
+that transaction when they are used. Cross-module write follow-up from a receive
+handler must use another durable command or integration event, not a synchronous
+Mediator command for another module.
 See [Intermodule Communication](intermodule-communication.md) for the detailed
 pattern guide, message lifecycle, ordering, retention, and module scaffolding
 checklist.

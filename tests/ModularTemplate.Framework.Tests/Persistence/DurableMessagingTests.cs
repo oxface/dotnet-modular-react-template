@@ -149,7 +149,11 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         });
 
         return new OutboxDispatcher(
-            dbContexts,
+            dbContexts.Select(dbContext => new ModulePersistenceRegistration(
+                dbContext.ModuleName,
+                dbContext.GetType(),
+                [])),
+            new TestModulePersistenceResolver(dbContexts),
             transport,
             outboxDispatchLock,
             options,
@@ -227,6 +231,26 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             {
                 return ValueTask.CompletedTask;
             }
+        }
+    }
+
+    private sealed class TestModulePersistenceResolver(IEnumerable<IModuleDbContext> dbContexts)
+        : IModulePersistenceResolver
+    {
+        public IModuleDbContext ResolveDbContext(string moduleName)
+        {
+            return dbContexts.Single(dbContext =>
+                string.Equals(dbContext.ModuleName, moduleName, StringComparison.Ordinal));
+        }
+
+        public IModuleUnitOfWork ResolveUnitOfWork(string moduleName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IOutboxWriter ResolveOutboxWriter(string moduleName)
+        {
+            throw new NotSupportedException();
         }
     }
 

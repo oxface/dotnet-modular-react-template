@@ -253,7 +253,7 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
 
                     b.HasIndex("MessageType");
 
-                    b.HasIndex("Status", "NextAttemptAtUtc");
+                    b.HasIndex("Status", "NextAttemptAtUtc", "CreatedAtUtc");
 
                     b.ToTable("outbox_messages", "identity");
                 });

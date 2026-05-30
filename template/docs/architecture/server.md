@@ -121,11 +121,15 @@ transaction when they are used.
 See [Intermodule Communication](intermodule-communication.md) for the detailed
 pattern guide, message lifecycle, ordering, retention, and module scaffolding
 checklist.
-Host-level orchestration is reserved for API/user workflows that do not belong
-to one module; module-owned orchestration should stay inside the owning module.
+Host-level orchestration is reserved for API/user workflows that compose module
+contracts without owning durable state changes. Durable commands still need a
+source module unit of work; Host workflows that need durable handoff should
+delegate to a module-owned application command or an explicitly introduced
+orchestration module with its own persistence. Module-owned orchestration should
+stay inside the owning module.
 Generated products should cover real communication workflows with product tests.
-Template-framework communication examples are maintained in the factory root
-test project, outside the generated-product payload.
+Template-framework infrastructure behavior is covered by the factory root test
+project, outside the generated-product payload.
 
 Aggregates own domain transitions and raise domain events for relevant actions.
 Child entities owned by an aggregate root should keep constructors, factories,

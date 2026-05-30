@@ -105,11 +105,13 @@ details belong in structured logs and traces so the outbox table stays an
 operational queue, not a diagnostics archive.
 
 The outbox dispatcher takes a per-module PostgreSQL advisory lock before
-claiming rows. This keeps one module's outbox dispatch ordered by creation time
-across multiple Host instances while still allowing different modules to
-dispatch independently. Products that need stricter ordering than module-level
-creation order should model that explicitly with aggregate state, sequence
-numbers, or product-owned process managers.
+claiming rows. This keeps one Host instance at a time polling a module's outbox
+and claims eligible rows oldest-first while still allowing different modules to
+dispatch independently. It is not a strict FIFO guarantee: if an older message
+fails and is scheduled for retry, later eligible messages from the same module
+may still be dispatched. Products that need causal ordering should model that
+explicitly with aggregate state, sequence numbers, or product-owned process
+managers.
 
 Inbox and processed/dead-lettered outbox rows are retained until product
 operations define a cleanup policy. Do not delete inbox rows inside the maximum
@@ -135,10 +137,10 @@ broker transports are product decisions and should bring their own deployment
 resources and verification.
 
 Messages MUST use stable message identities, not CLR type names, for persisted
-outbox rows. Use `MessageIdentityAttribute` and register message assemblies
-through `AddModuleMessaging("{module}", ...)`; explicit
-`IMessageTypeRegistry` registration is still available for tests or unusual
-composition.
+outbox rows and Rebus message type headers. Use `MessageIdentityAttribute` and
+register message assemblies through `AddModuleMessaging("{module}", ...)`;
+explicit `IMessageTypeRegistry` registration is still available for tests or
+unusual composition.
 Event identities should name the fact, not the CLR type. Prefer
 `{aggregate}.{event}.{version}` for integration events derived from aggregate
 facts, such as `local-user.created.v1`. Durable command identities should name

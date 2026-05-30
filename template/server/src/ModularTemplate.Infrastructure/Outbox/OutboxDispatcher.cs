@@ -29,7 +29,21 @@ public sealed class OutboxDispatcher(
 
         foreach (IModuleDbContext ctx in moduleContexts)
         {
-            totalDispatched += await DispatchForContextAsync(ctx, cancellationToken);
+            try
+            {
+                totalDispatched += await DispatchForContextAsync(ctx, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(
+                    ex,
+                    "Outbox dispatch failed for module {ModuleName}",
+                    ctx.ModuleName);
+            }
         }
 
         return totalDispatched;

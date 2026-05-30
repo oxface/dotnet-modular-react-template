@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
+using ModularTemplate.Infrastructure.Inbox;
 using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
+using ModularTemplate.Infrastructure.Persistence.DomainEvents;
 using ModularTemplate.SharedKernel.Messaging;
 using Shouldly;
 
@@ -88,6 +92,30 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         outbox.Error.ShouldContain("transport failed");
     }
 
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task DispatchPendingAsync_WhenOneModuleFails_ContinuesWithNextModule()
+    {
+        await using var dbContext = CreateDbContext();
+        await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
+        await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
+        Guid messageId = Guid.NewGuid();
+        dbContext.OutboxMessages.Add(CreateCommand(messageId));
+        await dbContext.SaveChangesAsync(CancellationToken.None);
+        var transport = new TestOutboxTransport();
+        var dispatcher = CreateDispatcher(
+            [new UnavailableModuleDbContext("broken"), (IModuleDbContext)dbContext],
+            transport,
+            new FailingModuleOutboxDispatchLock("broken"));
+
+        int dispatchedCount = await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+        dispatchedCount.ShouldBe(1);
+        transport.DispatchedMessageIds.ShouldBe([messageId]);
+        OutboxMessage outbox = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
+        outbox.Status.ShouldBe(PersistedMessageStatus.Processed);
+    }
+
     private IdentityDbContext CreateDbContext()
     {
         DbContextOptions<IdentityDbContext> options =
@@ -102,6 +130,17 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         IdentityDbContext dbContext,
         IOutboxTransport transport)
     {
+        return CreateDispatcher(
+            [(IModuleDbContext)dbContext],
+            transport,
+            new AlwaysAcquiredOutboxDispatchLock());
+    }
+
+    private static OutboxDispatcher CreateDispatcher(
+        IEnumerable<IModuleDbContext> dbContexts,
+        IOutboxTransport transport,
+        IOutboxDispatchLock outboxDispatchLock)
+    {
         var options = Options.Create(new DurableMessagingOptions
         {
             BatchSize = 20,
@@ -110,9 +149,9 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         });
 
         return new OutboxDispatcher(
-            [(IModuleDbContext)dbContext],
+            dbContexts,
             transport,
-            new AlwaysAcquiredOutboxDispatchLock(),
+            outboxDispatchLock,
             options,
             new ConfiguredRetryDelayPolicy(options),
             NullLogger<OutboxDispatcher>.Instance);
@@ -165,6 +204,49 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             {
                 return ValueTask.CompletedTask;
             }
+        }
+    }
+
+    private sealed class FailingModuleOutboxDispatchLock(string failingModuleName) : IOutboxDispatchLock
+    {
+        public Task<IAsyncDisposable?> TryAcquireAsync(
+            IModuleDbContext dbContext,
+            CancellationToken cancellationToken)
+        {
+            if (string.Equals(dbContext.ModuleName, failingModuleName, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("module dispatch unavailable");
+            }
+
+            return Task.FromResult<IAsyncDisposable?>(new Lease());
+        }
+
+        private sealed class Lease : IAsyncDisposable
+        {
+            public ValueTask DisposeAsync()
+            {
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
+    private sealed class UnavailableModuleDbContext(string moduleName) : IModuleDbContext
+    {
+        public string ModuleName { get; } = moduleName;
+
+        public DbSet<OutboxMessage> OutboxMessages => throw new NotSupportedException();
+
+        public DbSet<InboxMessage> InboxMessages => throw new NotSupportedException();
+
+        public DbSet<StoredDomainEvent> DomainEvents => throw new NotSupportedException();
+
+        public DatabaseFacade Database => throw new NotSupportedException();
+
+        public ChangeTracker ChangeTracker => throw new NotSupportedException();
+
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 }

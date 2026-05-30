@@ -11,6 +11,7 @@ using Rebus.PostgreSql;
 using Rebus.Config;
 using Rebus.Pipeline;
 using Rebus.Pipeline.Receive;
+using Rebus.Serialization.Custom;
 
 namespace ModularTemplate.Infrastructure.Transport;
 
@@ -66,8 +67,9 @@ public static class TransportConfiguration
             bool isDefaultBus = index == 0;
 
             builder.Services.AddRebus(
-                configure => ConfigureInternalTransport(
+                (configure, serviceProvider) => ConfigureInternalTransport(
                     configure,
+                    serviceProvider,
                     builder.Configuration,
                     messagingOptions,
                     moduleName),
@@ -80,11 +82,27 @@ public static class TransportConfiguration
 
     private static RebusConfigurer ConfigureInternalTransport(
         RebusConfigurer configure,
+        IServiceProvider serviceProvider,
         IConfiguration configuration,
         DurableMessagingOptions options,
         string moduleName)
     {
         string queueName = $"{options.QueuePrefix}.{moduleName}";
+        IMessageTypeRegistry messageTypeRegistry = serviceProvider.GetRequiredService<IMessageTypeRegistry>();
+
+        configure.Serialization(serializer =>
+        {
+            var typeNames = serializer.UseCustomMessageTypeNames();
+
+            foreach (MessageTypeRegistration registration in messageTypeRegistry.Registrations
+                .OrderBy(registration => registration.MessageTypeName, StringComparer.Ordinal))
+            {
+                typeNames.AddWithCustomName(
+                    registration.ClrType,
+                    registration.MessageTypeName);
+            }
+        });
+
         configure.Options(o => o.Decorate<IPipeline>(context =>
         {
             var injector = new PipelineStepInjector(context.Get<IPipeline>());

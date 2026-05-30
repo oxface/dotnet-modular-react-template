@@ -67,11 +67,9 @@ referenced as `ConnectionStrings:modular-template-host`.
 
 Durable messaging transport is selected by `Messaging:Transport`.
 Default is `Postgres`, which uses `ConnectionStrings:modular-template-host` for
-Rebus queues and subscriptions under the configured transport schema. Use
-`InMemory` only for test scenarios that intentionally avoid PostgreSQL-backed
-transport dependencies. External broker transports are product decisions and
-should add their own connection strings, deployment resources, and verification
-coverage when needed.
+Rebus queues and subscriptions under the configured transport schema. External
+broker transports are product decisions and should add their own connection
+strings, deployment resources, and verification coverage when needed.
 
 The checked-in Keycloak realm import includes local users for browser smoke
 testing:

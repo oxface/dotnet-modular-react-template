@@ -26,7 +26,7 @@ public sealed class ModuleUnitOfWork<TDbContext>(
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        if (context.ChangeTracker.HasChanges())
+        if (context.ChangeTracker.HasChanges() || HasDomainEvents())
         {
             await SaveAsync(cancellationToken);
         }
@@ -84,6 +84,13 @@ public sealed class ModuleUnitOfWork<TDbContext>(
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    private bool HasDomainEvents()
+    {
+        return context.ChangeTracker
+            .Entries<IAggregateRoot>()
+            .Any(x => x.Entity.DomainEvents.Count > 0);
+    }
+
     private void CaptureDomainEvents(Guid correlationId)
     {
         var entries = context.ChangeTracker
@@ -92,7 +99,7 @@ public sealed class ModuleUnitOfWork<TDbContext>(
             .Select(x => new
             {
                 Aggregate = x.Entity,
-                Events = x.Entity.DequeueDomainEvents(),
+                Events = x.Entity.DomainEvents.ToArray(),
             })
             .ToArray();
 
@@ -107,6 +114,11 @@ public sealed class ModuleUnitOfWork<TDbContext>(
 
                 PublishIntegrationEvents(domainEvent, correlationId);
             }
+        }
+
+        foreach (var entry in entries)
+        {
+            entry.Aggregate.DequeueDomainEvents();
         }
     }
 

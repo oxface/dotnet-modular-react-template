@@ -30,7 +30,7 @@ public sealed class ModuleUnitOfWorkTests
                     typeof(IdentityDbContext),
                     [typeof(TestCommand)])
             ],
-            [identityUnitOfWork, operationsUnitOfWork]);
+            new TestModulePersistenceResolver(identityUnitOfWork, operationsUnitOfWork));
 
         IModuleUnitOfWork? unitOfWork = resolver.Resolve(typeof(TestCommand));
 
@@ -49,7 +49,7 @@ public sealed class ModuleUnitOfWorkTests
                     typeof(IdentityDbContext),
                     [typeof(OtherCommand)])
             ],
-            [identityUnitOfWork]);
+            new TestModulePersistenceResolver(identityUnitOfWork));
 
         IModuleUnitOfWork? unitOfWork = resolver.Resolve(typeof(TestCommand));
 
@@ -71,7 +71,9 @@ public sealed class ModuleUnitOfWorkTests
                     typeof(IdentityDbContext),
                     [typeof(TestCommand)])
             ],
-            [new TestModuleUnitOfWork("identity"), new TestModuleUnitOfWork("operations")]);
+            new TestModulePersistenceResolver(
+                new TestModuleUnitOfWork("identity"),
+                new TestModuleUnitOfWork("operations")));
 
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => resolver.Resolve(typeof(TestCommand)));
@@ -97,11 +99,50 @@ public sealed class ModuleUnitOfWorkTests
                     typeof(IdentityDbContext),
                     [typeof(TestCommand)])
             ],
-            [identityUnitOfWork]);
+            new TestModulePersistenceResolver(identityUnitOfWork));
 
         IModuleUnitOfWork? unitOfWork = resolver.Resolve(typeof(TestCommand));
 
         unitOfWork.ShouldBeSameAs(identityUnitOfWork);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void StartModuleScope_WhenSameModuleIsNested_PreservesCurrentModule()
+    {
+        var context = new ModuleUnitOfWorkContext();
+
+        using (context.StartModuleScope("identity"))
+        {
+            using (context.StartModuleScope("identity"))
+            {
+                context.CurrentModuleName.ShouldBe("identity");
+            }
+
+            context.CurrentModuleName.ShouldBe("identity");
+        }
+
+        context.CurrentModuleName.ShouldBeNull();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void StartModuleScope_WhenDifferentModuleIsNested_ThrowsBeforeChangingCurrentModule()
+    {
+        var context = new ModuleUnitOfWorkContext();
+
+        using (context.StartModuleScope("identity"))
+        {
+            InvalidOperationException exception = Should.Throw<InvalidOperationException>(
+                () => context.StartModuleScope("operations"));
+
+            exception.Message.ShouldContain("identity");
+            exception.Message.ShouldContain("operations");
+            exception.Message.ShouldContain("durable messaging");
+            context.CurrentModuleName.ShouldBe("identity");
+        }
+
+        context.CurrentModuleName.ShouldBeNull();
     }
 
     [Fact]
@@ -117,6 +158,10 @@ public sealed class ModuleUnitOfWorkTests
             && service.ImplementationInstance is ModulePersistenceRegistration registration
             && registration.ModuleName == "identity"
             && registration.CommandTypes.Count == 0).ShouldBeTrue();
+        services.Any(service => service.ServiceType.Name.StartsWith("ModuleDbContextAdapter", StringComparison.Ordinal))
+            .ShouldBeTrue();
+        services.Any(service => service.ServiceType == typeof(OutboxWriter<IdentityDbContext>))
+            .ShouldBeTrue();
     }
 
     [Fact]
@@ -132,6 +177,79 @@ public sealed class ModuleUnitOfWorkTests
             .OfType<ModulePersistenceRegistration>()
             .Single();
         registration.CommandTypes.ShouldBe([typeof(TestCommand)], ignoreOrder: true);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModulePersistence_WhenCalledTwice_DoesNotDuplicateRuntimeAdapters()
+    {
+        var services = new ServiceCollection();
+
+        services.AddModulePersistence<IdentityDbContext>("identity");
+        services.AddModulePersistence<IdentityDbContext>("identity");
+
+        services.Count(service => service.ServiceType.Name.StartsWith("ModuleDbContextAdapter", StringComparison.Ordinal))
+            .ShouldBe(1);
+        services.Count(service => service.ServiceType == typeof(OutboxWriter<IdentityDbContext>))
+            .ShouldBe(1);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModulePersistence_WhenRuntimeAdaptersResolve_UsesSameScopedDbContext()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+        services.AddSingleton<IMessageTypeRegistry>(new MessageTypeRegistry());
+        services.AddDbContext<IdentityDbContext>(options =>
+            options.UseNpgsql("Host=localhost;Database=not_used"));
+        services.AddModulePersistence<IdentityDbContext>("identity");
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        using IServiceScope scope = serviceProvider.CreateScope();
+        IdentityDbContext concreteContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        IModulePersistenceResolver persistenceResolver = scope.ServiceProvider.GetRequiredService<IModulePersistenceResolver>();
+        IModuleDbContext moduleContext = persistenceResolver.ResolveDbContext("identity");
+        IOutboxWriter outboxWriter = persistenceResolver.ResolveOutboxWriter("identity");
+        persistenceResolver.ResolveUnitOfWork("identity")
+            .ModuleName
+            .ShouldBe("identity");
+        OutboxMessage message = OutboxMessage.Create(
+            messageId: Guid.NewGuid(),
+            messageKind: MessageKind.Command,
+            messageType: "test.command.v1",
+            sourceModule: "identity",
+            targetModule: "operations",
+            correlationId: Guid.NewGuid(),
+            causationId: null,
+            operationId: null,
+            payload: "{}");
+
+        outboxWriter.Write(message);
+
+        concreteContext.OutboxMessages.Local.Single().ShouldBeSameAs(message);
+        moduleContext.OutboxMessages.Local.Single().ShouldBeSameAs(message);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModulePersistence_WhenRegisteredModuleDoesNotMatchDbContextModule_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+        services.AddSingleton<IMessageTypeRegistry>(new MessageTypeRegistry());
+        services.AddDbContext<IdentityDbContext>(options =>
+            options.UseNpgsql("Host=localhost;Database=not_used"));
+        services.AddModulePersistence<IdentityDbContext>("billing");
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        using IServiceScope scope = serviceProvider.CreateScope();
+        IModulePersistenceResolver persistenceResolver = scope.ServiceProvider.GetRequiredService<IModulePersistenceResolver>();
+
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(
+            () => persistenceResolver.ResolveDbContext("billing"));
+        exception.Message.ShouldContain("billing");
+        exception.Message.ShouldContain("identity");
     }
 
     [Fact]
@@ -294,6 +412,26 @@ public sealed class ModuleUnitOfWorkTests
         {
             TransactionalExecutionCount++;
             return await operation(cancellationToken);
+        }
+    }
+
+    private sealed class TestModulePersistenceResolver(params IModuleUnitOfWork[] unitOfWorks)
+        : IModulePersistenceResolver
+    {
+        public IModuleDbContext ResolveDbContext(string moduleName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IModuleUnitOfWork ResolveUnitOfWork(string moduleName)
+        {
+            return unitOfWorks.Single(unitOfWork =>
+                string.Equals(unitOfWork.ModuleName, moduleName, StringComparison.Ordinal));
+        }
+
+        public IOutboxWriter ResolveOutboxWriter(string moduleName)
+        {
+            throw new NotSupportedException();
         }
     }
 

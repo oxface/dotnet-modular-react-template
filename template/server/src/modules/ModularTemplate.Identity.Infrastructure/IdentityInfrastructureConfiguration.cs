@@ -7,7 +7,6 @@ using ModularTemplate.Identity;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Users;
 using ModularTemplate.Identity.Access;
-using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.Infrastructure.Persistence;
 using ModularTemplate.Infrastructure.Transport;
 
@@ -39,8 +38,6 @@ public static class IdentityInfrastructureConfiguration
 
         services.AddScoped<ILocalUserRepository, LocalUserRepository>();
         services.AddScoped<IApplicationAccessRepository, ApplicationAccessRepository>();
-        services.AddScoped<IModuleDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
-        services.AddScoped<IOutboxWriter, OutboxWriter<IdentityDbContext>>();
         services.AddModulePersistence<IdentityDbContext>(
             "identity",
             typeof(GrantInitialAdminAccessCommandHandler));

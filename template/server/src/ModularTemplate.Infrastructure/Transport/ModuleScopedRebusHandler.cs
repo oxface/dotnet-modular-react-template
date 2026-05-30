@@ -13,8 +13,7 @@ public sealed class ModuleScopedRebusHandler<TMessage>(
     IServiceProvider serviceProvider,
     IInboxMessageProcessor inboxMessageProcessor,
     IEnumerable<ModuleMessageHandlerRegistration> registrations,
-    IEnumerable<IModuleUnitOfWork> unitOfWorks,
-    IEnumerable<IModuleDbContext> moduleContexts)
+    IModulePersistenceResolver persistenceResolver)
     : IHandleMessages<TMessage>
 {
     public async Task Handle(TMessage message)
@@ -41,8 +40,8 @@ public sealed class ModuleScopedRebusHandler<TMessage>(
         }
 
         CancellationToken cancellationToken = GetCurrentCancellationToken();
-        IModuleUnitOfWork unitOfWork = ResolveModuleUnitOfWork(moduleName);
-        IModuleDbContext dbContext = ResolveModuleDbContext(moduleName);
+        IModuleUnitOfWork unitOfWork = persistenceResolver.ResolveUnitOfWork(moduleName);
+        IModuleDbContext dbContext = persistenceResolver.ResolveDbContext(moduleName);
         ModuleMessageHandlerRegistration handler = handlers[0];
 
         await unitOfWork.ExecuteTransactionalAsync(
@@ -77,38 +76,6 @@ public sealed class ModuleScopedRebusHandler<TMessage>(
         var handler = (IModuleMessageHandler<TMessage>)serviceProvider.GetRequiredService(registration.HandlerType);
         await handler.HandleAsync(message, cancellationToken);
         inboxMessage.MarkProcessed();
-    }
-
-    private IModuleUnitOfWork ResolveModuleUnitOfWork(string moduleName)
-    {
-        IModuleUnitOfWork[] matchingUnitOfWorks = unitOfWorks
-            .Where(unitOfWork => string.Equals(unitOfWork.ModuleName, moduleName, StringComparison.Ordinal))
-            .ToArray();
-
-        return matchingUnitOfWorks.Length switch
-        {
-            1 => matchingUnitOfWorks[0],
-            0 => throw new InvalidOperationException(
-                $"No module unit of work is registered for receiving module '{moduleName}'."),
-            _ => throw new InvalidOperationException(
-                $"Multiple module unit of work instances are registered for receiving module '{moduleName}'."),
-        };
-    }
-
-    private IModuleDbContext ResolveModuleDbContext(string moduleName)
-    {
-        IModuleDbContext[] matchingContexts = moduleContexts
-            .Where(dbContext => string.Equals(dbContext.ModuleName, moduleName, StringComparison.Ordinal))
-            .ToArray();
-
-        return matchingContexts.Length switch
-        {
-            1 => matchingContexts[0],
-            0 => throw new InvalidOperationException(
-                $"No module DbContext is registered for receiving module '{moduleName}'."),
-            _ => throw new InvalidOperationException(
-                $"Multiple module DbContexts are registered for receiving module '{moduleName}'."),
-        };
     }
 
     private static string GetCurrentMessageId()

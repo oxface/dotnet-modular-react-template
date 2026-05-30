@@ -6,5 +6,4 @@ public sealed record DurableCommandSubmissionOptions(
     Guid? OperationId = null,
     Guid? CorrelationId = null,
     Guid? CausationId = null,
-    string? Metadata = null,
     int? MaxAttempts = null);

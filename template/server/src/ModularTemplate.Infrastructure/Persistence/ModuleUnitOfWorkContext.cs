@@ -14,6 +14,14 @@ public sealed class ModuleUnitOfWorkContext : IModuleUnitOfWorkContext
     {
         string normalizedModuleName = moduleName.TrimRequired(nameof(moduleName));
         Stack<string> stack = _moduleStack.Value ??= new Stack<string>();
+        if (stack.TryPeek(out string? currentModuleName)
+            && !string.Equals(currentModuleName, normalizedModuleName, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Cannot enter module unit of work '{normalizedModuleName}' while module unit of work '{currentModuleName}' is active. " +
+                "Use durable messaging for cross-module write work.");
+        }
+
         stack.Push(normalizedModuleName);
         return new ModuleScope(this, normalizedModuleName);
     }

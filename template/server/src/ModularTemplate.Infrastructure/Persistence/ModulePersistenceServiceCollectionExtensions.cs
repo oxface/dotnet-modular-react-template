@@ -3,6 +3,7 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ModularTemplate.Infrastructure.Outbox;
 using ModularTemplate.SharedKernel.Extensions;
 
 namespace ModularTemplate.Infrastructure.Persistence;
@@ -27,15 +28,21 @@ public static class ModulePersistenceServiceCollectionExtensions
         }
 
         Type[] commandTypes = FindHandledCommandTypes(commandHandlerAssemblyMarkers);
+        services.TryAddScoped<ModuleDbContextAdapter<TDbContext>>();
+        services.TryAddScoped<OutboxWriter<TDbContext>>();
         services.TryAddScoped<IModuleUnitOfWorkContext, ModuleUnitOfWorkContext>();
-        services.TryAddEnumerable(ServiceDescriptor.Scoped<IModuleUnitOfWork, ModuleUnitOfWork<TDbContext>>());
+        services.TryAddScoped<IModulePersistenceResolver, ModulePersistenceResolver>();
+        services.TryAddScoped<ModuleUnitOfWork<TDbContext>>();
         AddModulePersistenceRegistration(
             services,
             normalizedModuleName,
             typeof(TDbContext),
             commandTypes
                 .Distinct()
-                .ToArray());
+                .ToArray(),
+            serviceProvider => serviceProvider.GetRequiredService<ModuleDbContextAdapter<TDbContext>>(),
+            serviceProvider => serviceProvider.GetRequiredService<ModuleUnitOfWork<TDbContext>>(),
+            serviceProvider => serviceProvider.GetRequiredService<OutboxWriter<TDbContext>>());
 
         return services;
     }
@@ -44,12 +51,18 @@ public static class ModulePersistenceServiceCollectionExtensions
         IServiceCollection services,
         string moduleName,
         Type dbContextType,
-        Type[] commandTypes)
+        Type[] commandTypes,
+        Func<IServiceProvider, IModuleDbContext> dbContextFactory,
+        Func<IServiceProvider, IModuleUnitOfWork> unitOfWorkFactory,
+        Func<IServiceProvider, IOutboxWriter> outboxWriterFactory)
     {
         services.AddSingleton(new ModulePersistenceRegistration(
             moduleName,
             dbContextType,
-            commandTypes));
+            commandTypes,
+            dbContextFactory,
+            unitOfWorkFactory,
+            outboxWriterFactory));
     }
 
     private static Type[] FindHandledCommandTypes(IEnumerable<Type> commandHandlerAssemblyMarkers)

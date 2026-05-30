@@ -21,7 +21,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
-            [outboxWriter],
+            PersistenceResolver(outboxWriter),
             HandlerRegistrations(),
             registry,
             unitOfWorkContext,
@@ -39,8 +39,7 @@ public sealed class DurableCommandSenderTests
                     SourceModule: "identity",
                     TargetModule: "operations",
                     OperationId: operationId,
-                    CausationId: causationId,
-                    Metadata: "{\"source\":\"test\"}"));
+                    CausationId: causationId));
         }
 
         submission.Status.ShouldBe(CommandSubmissionStatus.Accepted);
@@ -55,7 +54,7 @@ public sealed class DurableCommandSenderTests
         message.CausationId.ShouldBe(causationId);
         message.OperationId.ShouldBe(operationId);
         message.MaxAttempts.ShouldBe(7);
-        message.Metadata.ShouldBe("{\"source\":\"test\"}");
+        message.Metadata.ShouldBeNull();
         JsonSerializer.Deserialize<RebuildOperationProjectionCommand>(message.Payload)
             .ShouldBe(command);
     }
@@ -69,7 +68,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
-            [new CapturingOutboxWriter("identity")],
+            PersistenceResolver(new CapturingOutboxWriter("identity")),
             HandlerRegistrations("identity"),
             registry,
             unitOfWorkContext,
@@ -94,7 +93,7 @@ public sealed class DurableCommandSenderTests
         registry.Register<RebuildOperationProjectionCommand>(
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var sender = new DurableCommandSender(
-            [new CapturingOutboxWriter("identity")],
+            PersistenceResolver(new CapturingOutboxWriter("identity")),
             HandlerRegistrations(),
             registry,
             new ModuleUnitOfWorkContext(),
@@ -119,7 +118,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
-            [new CapturingOutboxWriter("identity")],
+            PersistenceResolver(new CapturingOutboxWriter("identity")),
             HandlerRegistrations(),
             registry,
             unitOfWorkContext,
@@ -150,7 +149,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
-            [new CapturingOutboxWriter("identity")],
+            PersistenceResolver(new CapturingOutboxWriter("identity")),
             HandlerRegistrations(),
             registry,
             unitOfWorkContext,
@@ -178,7 +177,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
-            [outboxWriter],
+            PersistenceResolver(outboxWriter),
             HandlerRegistrations(),
             registry,
             unitOfWorkContext,
@@ -207,7 +206,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
-            [outboxWriter],
+            PersistenceResolver(outboxWriter),
             [],
             registry,
             unitOfWorkContext,
@@ -236,7 +235,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
-            [outboxWriter],
+            PersistenceResolver(outboxWriter),
             [
                 new ModuleMessageHandlerRegistration(
                     "operations",
@@ -289,7 +288,7 @@ public sealed class DurableCommandSenderTests
             "ModularTemplate.operations.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
-            [outboxWriter],
+            PersistenceResolver(outboxWriter),
             HandlerRegistrations(),
             registry,
             unitOfWorkContext,
@@ -337,6 +336,11 @@ public sealed class DurableCommandSenderTests
         ];
     }
 
+    private static IModulePersistenceResolver PersistenceResolver(params IOutboxWriter[] outboxWriters)
+    {
+        return new TestModulePersistenceResolver(outboxWriters);
+    }
+
     private sealed class ExampleModuleOwnedOrchestration(
         IOperationsQueries operationsQueries,
         IDurableCommandSender durableCommandSender)
@@ -379,5 +383,35 @@ public sealed class DurableCommandSenderTests
         public List<OutboxMessage> Messages { get; } = [];
 
         public void Write(OutboxMessage outboxMessage) => Messages.Add(outboxMessage);
+    }
+
+    private sealed class TestModulePersistenceResolver(IReadOnlyCollection<IOutboxWriter> outboxWriters)
+        : IModulePersistenceResolver
+    {
+        public IModuleDbContext ResolveDbContext(string moduleName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IModuleUnitOfWork ResolveUnitOfWork(string moduleName)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IOutboxWriter ResolveOutboxWriter(string moduleName)
+        {
+            IOutboxWriter[] matchingWriters = outboxWriters
+                .Where(writer => string.Equals(writer.ModuleName, moduleName, StringComparison.Ordinal))
+                .ToArray();
+
+            return matchingWriters.Length switch
+            {
+                1 => matchingWriters[0],
+                0 => throw new InvalidOperationException(
+                    $"No outbox writer is registered for source module '{moduleName}'."),
+                _ => throw new InvalidOperationException(
+                    $"Multiple outbox writers are registered for source module '{moduleName}'."),
+            };
+        }
     }
 }

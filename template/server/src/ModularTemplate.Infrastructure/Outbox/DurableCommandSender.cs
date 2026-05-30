@@ -8,7 +8,7 @@ using ModularTemplate.SharedKernel.Messaging;
 namespace ModularTemplate.Infrastructure.Outbox;
 
 public sealed class DurableCommandSender(
-    IEnumerable<IOutboxWriter> outboxWriters,
+    IModulePersistenceResolver persistenceResolver,
     IEnumerable<ModuleMessageHandlerRegistration> messageHandlerRegistrations,
     IMessageTypeRegistry messageTypeRegistry,
     IModuleUnitOfWorkContext unitOfWorkContext,
@@ -30,8 +30,6 @@ public sealed class DurableCommandSender(
 
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.SourceModule);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.TargetModule);
 
         string sourceModule = NormalizeModule(options.SourceModule, nameof(options.SourceModule));
         string targetModule = NormalizeModule(options.TargetModule, nameof(options.TargetModule));
@@ -39,7 +37,7 @@ public sealed class DurableCommandSender(
         ValidateConfiguredModule(targetModule, nameof(options.TargetModule));
         ValidateActiveSourceModule(sourceModule);
 
-        IOutboxWriter writer = ResolveWriter(sourceModule);
+        IOutboxWriter writer = persistenceResolver.ResolveOutboxWriter(sourceModule);
         Type commandType = command.GetType();
         ValidateTargetModuleHandler(targetModule, commandType);
         Guid submissionId = Guid.NewGuid();
@@ -58,29 +56,12 @@ public sealed class DurableCommandSender(
             causationId: options.CausationId,
             operationId: options.OperationId,
             payload,
-            options.Metadata,
-            maxAttempts));
+            maxAttempts: maxAttempts));
 
         return new CommandSubmission(
             submissionId,
             options.OperationId,
             CommandSubmissionStatus.Accepted);
-    }
-
-    private IOutboxWriter ResolveWriter(string sourceModule)
-    {
-        IOutboxWriter[] matchingWriters = outboxWriters
-            .Where(writer => string.Equals(writer.ModuleName, sourceModule, StringComparison.Ordinal))
-            .ToArray();
-
-        return matchingWriters.Length switch
-        {
-            1 => matchingWriters[0],
-            0 => throw new InvalidOperationException(
-                $"No outbox writer is registered for source module '{sourceModule}'."),
-            _ => throw new InvalidOperationException(
-                $"Multiple outbox writers are registered for source module '{sourceModule}'."),
-        };
     }
 
     private void ValidateConfiguredModule(string moduleName, string optionName)

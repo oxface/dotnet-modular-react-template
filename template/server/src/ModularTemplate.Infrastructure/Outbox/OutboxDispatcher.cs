@@ -8,7 +8,8 @@ using ModularTemplate.SharedKernel.Messaging;
 namespace ModularTemplate.Infrastructure.Outbox;
 
 public sealed class OutboxDispatcher(
-    IEnumerable<IModuleDbContext> moduleContexts,
+    IEnumerable<ModulePersistenceRegistration> persistenceRegistrations,
+    IModulePersistenceResolver persistenceResolver,
     IOutboxTransport outboxTransport,
     IOutboxDispatchLock outboxDispatchLock,
     IOptions<DurableMessagingOptions> options,
@@ -27,10 +28,11 @@ public sealed class OutboxDispatcher(
 
         int totalDispatched = 0;
 
-        foreach (IModuleDbContext ctx in moduleContexts)
+        foreach (string moduleName in GetRegisteredModuleNames())
         {
             try
             {
+                IModuleDbContext ctx = persistenceResolver.ResolveDbContext(moduleName);
                 totalDispatched += await DispatchForContextAsync(ctx, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -42,11 +44,20 @@ public sealed class OutboxDispatcher(
                 logger.LogError(
                     ex,
                     "Outbox dispatch failed for module {ModuleName}",
-                    ctx.ModuleName);
+                    moduleName);
             }
         }
 
         return totalDispatched;
+    }
+
+    private string[] GetRegisteredModuleNames()
+    {
+        return persistenceRegistrations
+            .Select(registration => registration.ModuleName)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private async Task<int> DispatchForContextAsync(

@@ -43,17 +43,15 @@ public sealed class ModuleScopedRebusHandler<TMessage>(
         CancellationToken cancellationToken = GetCurrentCancellationToken();
         IModuleUnitOfWork unitOfWork = ResolveModuleUnitOfWork(moduleName);
         IModuleDbContext dbContext = ResolveModuleDbContext(moduleName);
+        ModuleMessageHandlerRegistration handler = handlers[0];
 
-        foreach (ModuleMessageHandlerRegistration handler in handlers)
-        {
-            await unitOfWork.ExecuteTransactionalAsync(
-                async cancellationToken =>
-                {
-                    await HandleOnceAsync(dbContext, handler, message, cancellationToken);
-                    return true;
-                },
-                cancellationToken);
-        }
+        await unitOfWork.ExecuteTransactionalAsync(
+            async cancellationToken =>
+            {
+                await HandleOnceAsync(dbContext, handler, message, cancellationToken);
+                return true;
+            },
+            cancellationToken);
     }
 
     private async Task HandleOnceAsync(

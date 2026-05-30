@@ -1,9 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\ModularTemplate.Infrastructure\ModularTemplate.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\modules\ModularTemplate.Identity.Infrastructure\ModularTemplate.Identity.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\src\modules\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
-    <ProjectReference Include="..\..\..\src\modules\ModularTemplate.Operations.Infrastructure\ModularTemplate.Operations.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

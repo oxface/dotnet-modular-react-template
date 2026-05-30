@@ -148,4 +148,19 @@ public sealed class MessageTypeRegistry : IMessageTypeRegistry
             }
         }
     }
+
+    public IReadOnlyCollection<MessageTypeRegistration> Registrations
+    {
+        get
+        {
+            lock (_sync)
+            {
+                return _typeNamesByClrType
+                    .Select(registration => new MessageTypeRegistration(
+                        registration.Key,
+                        registration.Value))
+                    .ToArray();
+            }
+        }
+    }
 }

@@ -24,4 +24,6 @@ public interface IMessageTypeRegistry
     Type ResolveClrType(string messageTypeName);
 
     bool TryResolveClrType(string messageTypeName, out Type? clrType);
+
+    IReadOnlyCollection<MessageTypeRegistration> Registrations { get; }
 }

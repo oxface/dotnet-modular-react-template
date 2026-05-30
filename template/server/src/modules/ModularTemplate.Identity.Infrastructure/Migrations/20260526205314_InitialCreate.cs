@@ -169,10 +169,10 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                 column: "MessageType");
 
             migrationBuilder.CreateIndex(
-                name: "IX_outbox_messages_Status_NextAttemptAtUtc",
+                name: "IX_outbox_messages_Status_NextAttemptAtUtc_CreatedAtUtc",
                 schema: "identity",
                 table: "outbox_messages",
-                columns: new[] { "Status", "NextAttemptAtUtc" });
+                columns: new[] { "Status", "NextAttemptAtUtc", "CreatedAtUtc" });
         }
 
         /// <inheritdoc />

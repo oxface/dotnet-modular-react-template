@@ -23,7 +23,7 @@ public sealed class OutboxMessageConfiguration(string schema)
         builder.Property(x => x.CreatedAtUtc).IsRequired();
         builder.Property(x => x.NextAttemptAtUtc).IsRequired();
         builder.HasIndex(x => x.MessageId).IsUnique();
-        builder.HasIndex(x => new { x.Status, x.NextAttemptAtUtc });
+        builder.HasIndex(x => new { x.Status, x.NextAttemptAtUtc, x.CreatedAtUtc });
         builder.HasIndex(x => x.MessageType);
     }
 }

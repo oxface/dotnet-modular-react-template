@@ -88,6 +88,8 @@ public sealed class MessageTypeRegistryTests
 
         registrations.ShouldContain(registration => registration.ClrType == typeof(AttributedCommand)
             && registration.MessageTypeName == "identity.attributed-command.v1");
+        registry.Registrations.ShouldContain(registration => registration.ClrType == typeof(AttributedCommand)
+            && registration.MessageTypeName == "identity.attributed-command.v1");
         registry.ResolveClrType("identity.attributed-command.v1")
             .ShouldBe(typeof(AttributedCommand));
     }

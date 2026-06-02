@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="..\..\ModularTemplate.Infrastructure\ModularTemplate.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Bondstone\Bondstone.Mediator\Bondstone.Mediator.csproj" />
+    <ProjectReference Include="..\..\Bondstone\Bondstone.EntityFrameworkCore.Postgres\Bondstone.EntityFrameworkCore.Postgres.csproj" />
+    <ProjectReference Include="..\..\Bondstone\Bondstone.Transport.Rebus\Bondstone.Transport.Rebus.csproj" />
     <ProjectReference Include="..\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
     <ProjectReference Include="..\ModularTemplate.Identity.Contracts\ModularTemplate.Identity.Contracts.csproj" />
   </ItemGroup>

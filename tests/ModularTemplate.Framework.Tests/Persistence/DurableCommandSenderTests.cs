@@ -1,10 +1,10 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Transport;
+using Bondstone.EntityFrameworkCore.Outbox;
+using Bondstone.Messaging;
+using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.Transport.Rebus;
 using ModularTemplate.Operations.Contracts.Operations;
-using ModularTemplate.SharedKernel.Messaging;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;
@@ -35,11 +35,9 @@ public sealed class DurableCommandSenderTests
         {
             submission = sender.Send(
                 command,
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "operations",
-                    OperationId: operationId,
-                    CausationId: causationId));
+                targetModule: "operations",
+                operationId: operationId,
+                causationId: causationId);
         }
 
         submission.Status.ShouldBe(CommandSubmissionStatus.Accepted);
@@ -79,9 +77,7 @@ public sealed class DurableCommandSenderTests
             Should.Throw<InvalidOperationException>(
                 () => sender.Send(
                     new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                    new DurableCommandSubmissionOptions(
-                        SourceModule: "operations",
-                        TargetModule: "identity")));
+                    targetModule: "identity"));
         }
     }
 
@@ -102,47 +98,14 @@ public sealed class DurableCommandSenderTests
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "operations")));
+                targetModule: "operations"));
 
         exception.Message.ShouldContain("inside a module unit of work");
     }
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void Send_WhenDurableMessagingIsDisabled_Throws()
-    {
-        var registry = new MessageTypeRegistry();
-        registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
-        var unitOfWorkContext = new ModuleUnitOfWorkContext();
-        var sender = new DurableCommandSender(
-            PersistenceResolver(new CapturingOutboxWriter("identity")),
-            HandlerRegistrations(),
-            registry,
-            unitOfWorkContext,
-            Options.Create(new DurableMessagingOptions
-            {
-                Enabled = false,
-                Modules = ["identity", "operations"]
-            }));
-
-        using IDisposable moduleScope = unitOfWorkContext.StartModuleScope("identity");
-
-        InvalidOperationException exception = Should.Throw<InvalidOperationException>(
-            () => sender.Send(
-                new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "operations")));
-
-        exception.Message.ShouldContain("disabled");
-    }
-
-    [Fact]
-    [Trait("Category", "Unit")]
-    public void Send_WhenSourceModuleDoesNotMatchActiveUnitOfWork_Throws()
+    public void Send_WhenActiveSourceModuleIsNotConfigured_Throws()
     {
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
@@ -155,16 +118,16 @@ public sealed class DurableCommandSenderTests
             unitOfWorkContext,
             MessagingOptions());
 
-        using IDisposable moduleScope = unitOfWorkContext.StartModuleScope("operations");
+        using IDisposable moduleScope = unitOfWorkContext.StartModuleScope("billing");
 
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "operations")));
+                targetModule: "operations"));
 
-        exception.Message.ShouldContain("does not match");
+        exception.Message.ShouldContain("active source module");
+        exception.Message.ShouldContain("billing");
+        exception.Message.ShouldContain("Messaging:Modules");
     }
 
     [Fact]
@@ -187,10 +150,8 @@ public sealed class DurableCommandSenderTests
         {
             sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "operations",
-                    MaxAttempts: 2));
+                targetModule: "operations",
+                maxAttempts: 2);
         }
 
         outboxWriter.Messages.Single().MaxAttempts.ShouldBe(2);
@@ -217,9 +178,7 @@ public sealed class DurableCommandSenderTests
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "operations")));
+                targetModule: "operations"));
         exception.Message.ShouldContain("operations");
         exception.Message.ShouldContain(typeof(RebuildOperationProjectionCommand).FullName!);
         outboxWriter.Messages.ShouldBeEmpty();
@@ -257,9 +216,7 @@ public sealed class DurableCommandSenderTests
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "operations")));
+                targetModule: "operations"));
         exception.Message.ShouldContain("Multiple");
         exception.Message.ShouldContain("operations");
         outboxWriter.Messages.ShouldBeEmpty();
@@ -358,10 +315,8 @@ public sealed class DurableCommandSenderTests
 
             return durableCommandSender.Send(
                 new RebuildOperationProjectionCommand(operation.OperationId),
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "operations",
-                    OperationId: operation.OperationId));
+                targetModule: "operations",
+                operationId: operation.OperationId);
         }
     }
 

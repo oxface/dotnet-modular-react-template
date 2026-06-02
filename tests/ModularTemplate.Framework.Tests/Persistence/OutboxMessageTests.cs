@@ -1,5 +1,5 @@
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.SharedKernel.Messaging;
+using Bondstone.EntityFrameworkCore.Outbox;
+using Bondstone.Messaging;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;

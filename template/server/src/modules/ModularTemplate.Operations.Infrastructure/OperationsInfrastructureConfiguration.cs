@@ -6,8 +6,9 @@ using ModularTemplate.Operations;
 using ModularTemplate.Operations.Contracts.Operations;
 using ModularTemplate.Operations.Operations;
 using ModularTemplate.Operations.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Transport;
+using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Postgres.Persistence;
+using Bondstone.Transport.Rebus;
 
 namespace ModularTemplate.Operations.Infrastructure;
 

@@ -19,10 +19,13 @@ Durable direction:
   contexts. Product-owned schema changes should add product-owned migrations
   after bootstrap.
 - SharedKernel contains dependency-light domain primitives, validation
-  contracts, normalization helpers, and messaging contracts shared across
-  module and platform libraries.
-- Domain events and outbox messages are persisted in each module schema by the
-  shared Infrastructure library.
+  contracts, and normalization helpers shared across module libraries.
+- Bondstone contains module-boundary abstractions, messaging contracts, EF Core
+  persistence plumbing, and the PostgreSQL/Rebus/Mediator adapters used by the
+  template.
+- Domain events and outbox messages are persisted in each module schema by
+  Bondstone.EntityFrameworkCore, with PostgreSQL-specific locking and duplicate
+  detection supplied by Bondstone.EntityFrameworkCore.Postgres.
 - Inbox message records are persisted in each module schema so receive-side
   handlers can skip duplicate deliveries by message id and stable message
   identity.
@@ -93,13 +96,15 @@ Modules should use the `Mediator` library's command/query abstractions instead
 of template-owned dispatcher abstractions. Command handlers mutate aggregates
 through module-owned repositories and rely on a Mediator pipeline behavior to
 run the command inside the selected module unit of work and save changes once
-after successful command handling. Module Infrastructure registers assemblies
-that contain its persistent Mediator command handlers with
-`AddModulePersistence<{Module}DbContext>()`; the registration scans those
-handlers and the pipeline uses the discovered command types to select one
-module DbContext for the command. It also registers the shared module
-DbContext/outbox plumbing used by durable messaging. Query handlers read
-provider-neutral state and do not save changes.
+after successful command handling. Module Infrastructure registers its
+persistent command types with `AddModulePersistence<{Module}DbContext>()`;
+Mediator modules can discover those command types from handler assemblies with
+`MediatorCommandTypes.FromHandlerAssemblyMarkers`. The pipeline uses the
+discovered command types to select one module boundary for the command. Modules
+that do not use Mediator can also register persistence with `AddModulePersistence`
+and run arbitrary module work through `IModuleBoundary`. Both paths register the
+shared module DbContext/outbox plumbing used by durable messaging. Query handlers
+read provider-neutral state and do not save changes.
 
 Command handlers should get decision-making data through repositories or
 command-side read ports, not by calling query handlers. Query handlers are

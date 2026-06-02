@@ -5,11 +5,15 @@ using Microsoft.Extensions.Options;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Users;
 using ModularTemplate.Identity.Users.Events;
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Persistence.Transactions;
-using ModularTemplate.Infrastructure.Transport;
-using ModularTemplate.SharedKernel.Messaging;
+using Bondstone.EntityFrameworkCore.Outbox;
+using Bondstone.Messaging;
+using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
+using Bondstone.EntityFrameworkCore.Postgres.Persistence;
+using Bondstone.Mediator.Persistence;
+using Bondstone.Mediator.Persistence.Transactions;
+using Bondstone.Transport.Rebus;
+using Bondstone;
 using Rebus.Handlers;
 using Shouldly;
 
@@ -158,7 +162,7 @@ public sealed class ModuleUnitOfWorkTests
             && service.ImplementationInstance is ModulePersistenceRegistration registration
             && registration.ModuleName == "identity"
             && registration.CommandTypes.Count == 0).ShouldBeTrue();
-        services.Any(service => service.ServiceType.Name.StartsWith("ModuleDbContextAdapter", StringComparison.Ordinal))
+        services.Any(service => service.ServiceType == typeof(IModulePersistenceResolver))
             .ShouldBeTrue();
         services.Any(service => service.ServiceType == typeof(OutboxWriter<IdentityDbContext>))
             .ShouldBeTrue();
@@ -170,7 +174,9 @@ public sealed class ModuleUnitOfWorkTests
     {
         var services = new ServiceCollection();
 
-        services.AddModulePersistence<IdentityDbContext>("identity", typeof(TestCommandHandler));
+        services.AddModulePersistence<IdentityDbContext>(
+            "identity",
+            MediatorCommandTypes.FromHandlerAssemblyMarkers(typeof(TestCommandHandler)));
 
         ModulePersistenceRegistration registration = services
             .Select(service => service.ImplementationInstance)
@@ -188,7 +194,7 @@ public sealed class ModuleUnitOfWorkTests
         services.AddModulePersistence<IdentityDbContext>("identity");
         services.AddModulePersistence<IdentityDbContext>("identity");
 
-        services.Count(service => service.ServiceType.Name.StartsWith("ModuleDbContextAdapter", StringComparison.Ordinal))
+        services.Count(service => service.ServiceType == typeof(IModulePersistenceResolver))
             .ShouldBe(1);
         services.Count(service => service.ServiceType == typeof(OutboxWriter<IdentityDbContext>))
             .ShouldBe(1);
@@ -229,6 +235,22 @@ public sealed class ModuleUnitOfWorkTests
 
         concreteContext.OutboxMessages.Local.Single().ShouldBeSameAs(message);
         moduleContext.OutboxMessages.Local.Single().ShouldBeSameAs(message);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task ModuleBoundary_WhenModuleIsRegistered_ExecutesInsideResolvedUnitOfWork()
+    {
+        var unitOfWork = new TestModuleUnitOfWork("identity");
+        var boundary = new EntityFrameworkCoreModuleBoundary(new TestModulePersistenceResolver(unitOfWork));
+
+        int result = await boundary.ExecuteAsync(
+            "identity",
+            _ => new ValueTask<int>(42),
+            CancellationToken.None);
+
+        result.ShouldBe(42);
+        unitOfWork.TransactionalExecutionCount.ShouldBe(1);
     }
 
     [Fact]
@@ -300,7 +322,8 @@ public sealed class ModuleUnitOfWorkTests
     {
         var unitOfWork = new TestModuleUnitOfWork("identity");
         var behavior = new ModuleUnitOfWorkBehavior<TestCommand, Unit>(
-            new StaticModuleUnitOfWorkResolver(unitOfWork));
+            new StaticModuleUnitOfWorkResolver(unitOfWork),
+            new EntityFrameworkCoreModuleBoundary(new TestModulePersistenceResolver(unitOfWork)));
 
         await behavior.Handle(
             new TestCommand(),
@@ -315,7 +338,8 @@ public sealed class ModuleUnitOfWorkTests
     public async Task ModuleUnitOfWorkBehavior_WhenCommandIsNotMapped_DoesNotSave()
     {
         var behavior = new ModuleUnitOfWorkBehavior<TestCommand, Unit>(
-            new StaticModuleUnitOfWorkResolver(null));
+            new StaticModuleUnitOfWorkResolver(null),
+            new ThrowingModuleBoundary());
 
         Unit result = await behavior.Handle(
             new TestCommand(),
@@ -340,6 +364,7 @@ public sealed class ModuleUnitOfWorkTests
             identityContext,
             serviceProvider,
             registry,
+            new StoredDomainEventMapper(),
             new ModuleUnitOfWorkContext(),
             Options.Create(new DurableMessagingOptions()));
         identityContext.LocalUsers.Add(
@@ -436,13 +461,32 @@ public sealed class ModuleUnitOfWorkTests
     }
 
     private sealed class StaticModuleUnitOfWorkResolver(IModuleUnitOfWork? unitOfWork)
-        : IModuleUnitOfWorkResolver
+        : IModuleCommandBoundaryResolver
     {
-        public IModuleUnitOfWork? Resolve(Type commandType)
+        public string? ResolveModuleName(Type commandType)
         {
             commandType.ShouldBe(typeof(TestCommand));
 
-            return unitOfWork;
+            return unitOfWork?.ModuleName;
+        }
+    }
+
+    private sealed class ThrowingModuleBoundary : IModuleBoundary
+    {
+        public ValueTask ExecuteAsync(
+            string moduleName,
+            Func<CancellationToken, ValueTask> operation,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public ValueTask<T> ExecuteAsync<T>(
+            string moduleName,
+            Func<CancellationToken, ValueTask<T>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 }

@@ -5,11 +5,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
-using ModularTemplate.Infrastructure.Inbox;
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Persistence.DomainEvents;
-using ModularTemplate.SharedKernel.Messaging;
+using Bondstone.EntityFrameworkCore.Inbox;
+using Bondstone.EntityFrameworkCore.Outbox;
+using Bondstone.Messaging;
+using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;
@@ -181,7 +181,7 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
 
         public bool ThrowOnDispatch { get; init; }
 
-        public Task DispatchAsync(OutboxMessage outboxMessage, CancellationToken cancellationToken)
+        public Task DispatchAsync(IDurableOutboxMessage outboxMessage, CancellationToken cancellationToken)
         {
             if (ThrowOnDispatch)
             {

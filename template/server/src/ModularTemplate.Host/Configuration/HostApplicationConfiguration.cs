@@ -1,7 +1,7 @@
 using System.Reflection;
 using ModularTemplate.Host.Features.Auth;
 using ModularTemplate.ServiceDefaults;
-using ModularTemplate.Infrastructure.Transport;
+using Bondstone.Transport.Rebus;
 
 namespace ModularTemplate.Host.Configuration;
 
@@ -29,7 +29,6 @@ public static class HostApplicationConfiguration
             builder.SetConfigurationValueIfMissing(
                 "ConnectionStrings:modular-template-host",
                 "Host=localhost;Port=5432;Database=modular_template_openapi;Username=postgres;Password=postgres");
-            builder.SetConfigurationValueIfMissing("Messaging:Enabled", "false");
         }
 
         return builder;
@@ -38,7 +37,8 @@ public static class HostApplicationConfiguration
     public static WebApplicationBuilder AddModularTemplateHost(this WebApplicationBuilder builder)
     {
         builder.AddServiceDefaults();
-        builder.AddTransport();
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
         builder.AddHostAuthentication();
         builder.AddProblemDetails();
         builder.Services.AddOpenApi();

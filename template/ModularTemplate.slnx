@@ -3,10 +3,16 @@
     <Project Path="orchestration/ModularTemplate.Orchestration/ModularTemplate.Orchestration.csproj" />
   </Folder>
   <Folder Name="/server/" />
+  <Folder Name="/server/src/Bondstone/">
+    <Project Path="server/src/Bondstone/Bondstone.Mediator/Bondstone.Mediator.csproj" />
+    <Project Path="server/src/Bondstone/Bondstone.EntityFrameworkCore/Bondstone.EntityFrameworkCore.csproj" />
+    <Project Path="server/src/Bondstone/Bondstone.EntityFrameworkCore.Postgres/Bondstone.EntityFrameworkCore.Postgres.csproj" />
+    <Project Path="server/src/Bondstone/Bondstone.Transport.Rebus/Bondstone.Transport.Rebus.csproj" />
+    <Project Path="server/src/Bondstone/Bondstone/Bondstone.csproj" />
+  </Folder>
   <Folder Name="/server/src/">
     <Project Path="server/src/ModularTemplate.Host/ModularTemplate.Host.csproj" />
     <Project Path="server/src/ModularTemplate.Migrator/ModularTemplate.Migrator.csproj" />
-    <Project Path="server/src/ModularTemplate.Infrastructure/ModularTemplate.Infrastructure.csproj" />
     <Project Path="server/src/ModularTemplate.ServiceDefaults/ModularTemplate.ServiceDefaults.csproj" />
     <Project Path="server/src/ModularTemplate.SharedKernel/ModularTemplate.SharedKernel.csproj" />
   </Folder>

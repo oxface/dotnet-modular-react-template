@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using ModularTemplate.Infrastructure.Persistence.Transactions;
+using Bondstone.Mediator.Persistence.Transactions;
 
 namespace ModularTemplate.Host.Tests.Support;
 

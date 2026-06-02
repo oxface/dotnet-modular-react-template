@@ -42,17 +42,15 @@ later. Durable commands are acceptance-only:
 
 Send durable commands through `IDurableCommandSender` from inside the source
 module's command unit of work. The sender writes an outbox row for the source
-module and rejects sends when `SourceModule` does not match the active module
-unit of work. The outbox worker later dispatches the command through Rebus to
-the target module queue.
+module inferred from the active module boundary and rejects sends when no
+module unit of work is active. The outbox worker later dispatches the command
+through Rebus to the target module queue.
 
 ```csharp
 CommandSubmission submission = durableCommandSender.Send(
     new RebuildOperationProjectionCommand(operationId),
-    new DurableCommandSubmissionOptions(
-        SourceModule: "identity",
-        TargetModule: "operations",
-        OperationId: operationId));
+    targetModule: "operations",
+    operationId: operationId);
 ```
 
 Use `OperationId` when a caller or user workflow needs to observe progress
@@ -177,23 +175,25 @@ the stable message identity. Event subscribers should also call
 `AddModuleEventSubscriptions("module", typeof(SomeIntegrationEvent))` so Rebus
 subscriptions are deterministic at startup.
 
-Module infrastructure registrations should call
-`AddModulePersistence<{Module}DbContext>("{module}", typeof(SomeCommandHandler))`
+Module infrastructure registrations that use Mediator should call
+`AddMediatorModulePersistence<{Module}DbContext>("{module}", typeof(SomeCommandHandler))`
 with marker types from assemblies that contain persistent Mediator command
 handlers for that module. The registration scans `ICommandHandler` types and
-maps their command message types to the module DbContext. It also registers the
-module persistence resolver, module unit of work, DbContext adapter, and outbox
-writer plumbing used by durable messaging. A module with no persistent Mediator
-commands can call `AddModulePersistence` with no handler markers. A command type
-that is not mapped to any module persistence registration runs without an
-automatic module save; reserve that for platform commands or explicitly
-non-persistent work.
+maps their command message types to the module DbContext. Modules that do not
+use Mediator can call `AddModulePersistence<{Module}DbContext>("{module}")` and
+run custom handlers through `IModuleBoundary`. Both paths register the module
+persistence resolver, module unit of work, DbContext adapter, and outbox writer
+plumbing used by durable messaging. A command type that is not mapped to any
+module persistence registration runs without an automatic module save; reserve
+that for platform commands or explicitly non-persistent work.
 
 ## Naming The Application API
 
 Use names that describe caller intent.
 
 - Use Mediator directly for in-process same-module commands and queries.
+- Use `IModuleBoundary` when custom/non-Mediator handlers need the module
+  transaction and outbox behavior.
 - Use `IDurableCommandSender` when the caller explicitly wants durable
   asynchronous delivery.
 - If a product wants one abstraction that can choose immediate or durable
@@ -218,9 +218,11 @@ When adding a module:
 5. create `{Module}DbContext` implementing `IModuleDbContext`
 6. configure the module schema, migrations history table, and
    `ApplyOutboxConfiguration("{module}")` for domain events, inbox, and outbox
-7. call `AddModulePersistence<{Module}DbContext>("{module}", ...)` from module
-   infrastructure with marker types from assemblies that contain persistent
-   Mediator command handlers for that module
+7. call `AddMediatorModulePersistence<{Module}DbContext>("{module}", ...)`
+   from module infrastructure with marker types from assemblies that contain
+   persistent Mediator command handlers for that module, or
+   `AddModulePersistence<{Module}DbContext>("{module}")` for custom
+   non-Mediator handlers
 8. call `AddModuleMessaging("{module}", ...)` from module infrastructure for
    the module, contracts, and infrastructure assemblies
 9. add module Mediator handler assembly markers to the Host and Migrator
@@ -236,13 +238,14 @@ When adding a module:
 3. Add `MessageIdentityAttribute` and ensure its assembly is registered with
    `AddModuleMessaging("{module}", ...)`.
 4. Send it with `IDurableCommandSender` from inside the source module's
-   Mediator command handler, including source and target module names.
+   Mediator command handler, including the target module name.
 5. Implement an `IModuleMessageHandler<TCommand>` handler in the target module.
 6. Keep the transport handler thin: validate transport assumptions and call a
    receiving-module Mediator command for state changes.
 7. Ensure the receiving-module Mediator command handler's assembly is included
-   in that module's `AddModulePersistence` call so the Mediator pipeline commits
-   the receiving module DbContext after successful command handling.
+   in that module's `AddMediatorModulePersistence` call so the Mediator pipeline
+   commits the receiving module DbContext after successful command handling, or
+   execute custom handlers through `IModuleBoundary`.
 8. If callers need progress or results, model that as operation/read-model state
    and expose it through a query contract or endpoint.
 

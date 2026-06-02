@@ -5,8 +5,8 @@ using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Infrastructure;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Operations.Infrastructure;
-using ModularTemplate.Infrastructure.Persistence.Transactions;
-using ModularTemplate.Infrastructure.Transport;
+using Bondstone.Mediator.Persistence.Transactions;
+using Bondstone.Transport.Rebus;
 
 namespace ModularTemplate.Migrator;
 
@@ -14,7 +14,8 @@ public static class MigratorComposition
 {
     public static IHostApplicationBuilder AddMigratorComposition(this IHostApplicationBuilder builder)
     {
-        builder.AddTransport();
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
         builder.Services.AddIdentityModule();
         builder.Services.AddOperationsModule();
 

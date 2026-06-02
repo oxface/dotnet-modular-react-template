@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using ModularTemplate.Infrastructure.Inbox;
+using Bondstone.EntityFrameworkCore.Inbox;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.SharedKernel.Messaging;
+using Bondstone.EntityFrameworkCore.Outbox;
+using Bondstone.EntityFrameworkCore.Postgres.Inbox;
+using Bondstone.Messaging;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;
@@ -64,7 +65,7 @@ public sealed class MessagePersistenceTests(PostgreSqlFixture postgreSqlFixture)
         await using var dbContext = CreateDbContext();
         await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
         await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
-        var processor = new InboxMessageProcessor();
+        var processor = CreateInboxMessageProcessor();
 
         InboxMessage? inboxMessage = await processor.ClaimAsync(
             dbContext,
@@ -88,11 +89,11 @@ public sealed class MessagePersistenceTests(PostgreSqlFixture postgreSqlFixture)
         await using var dbContext = CreateDbContext();
         await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
         await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
-        InboxMessage inboxMessage = InboxMessage.Start("message-1", "identity", "TestHandler");
+        InboxMessage inboxMessage = InboxMessage.Create("message-1", "identity", "TestHandler");
         inboxMessage.MarkProcessed();
         dbContext.InboxMessages.Add(inboxMessage);
         await dbContext.SaveChangesAsync(CancellationToken.None);
-        var processor = new InboxMessageProcessor();
+        var processor = CreateInboxMessageProcessor();
 
         InboxMessage? claimedInboxMessage = await processor.ClaimAsync(
             dbContext,
@@ -113,7 +114,7 @@ public sealed class MessagePersistenceTests(PostgreSqlFixture postgreSqlFixture)
         await firstContext.Database.EnsureCreatedAsync(CancellationToken.None);
         await using var secondContext = CreateDbContext();
         await using var transaction = await firstContext.Database.BeginTransactionAsync(CancellationToken.None);
-        var processor = new InboxMessageProcessor();
+        var processor = CreateInboxMessageProcessor();
 
         InboxMessage? firstClaim = await processor.ClaimAsync(
             firstContext,
@@ -153,6 +154,11 @@ public sealed class MessagePersistenceTests(PostgreSqlFixture postgreSqlFixture)
             .Options;
 
         return new IdentityDbContext(options);
+    }
+
+    private static InboxMessageProcessor CreateInboxMessageProcessor()
+    {
+        return new InboxMessageProcessor(new PostgresInboxClaimConflictDetector());
     }
 
     private static OutboxMessage CreateOutboxMessage(Guid messageId)

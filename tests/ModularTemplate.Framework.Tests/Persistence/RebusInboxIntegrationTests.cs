@@ -1,14 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using ModularTemplate.Infrastructure.Inbox;
+using Bondstone.EntityFrameworkCore.Inbox;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Persistence.DomainEvents;
-using ModularTemplate.Infrastructure.Transport;
-using ModularTemplate.SharedKernel.Messaging;
+using Bondstone.EntityFrameworkCore.Outbox;
+using Bondstone.Messaging;
+using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
+using Bondstone.EntityFrameworkCore.Postgres.Persistence;
+using Bondstone.Transport.Rebus;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;
@@ -141,10 +142,11 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration["ConnectionStrings:modular-template-host"] = postgreSqlFixture.ConnectionString;
-        builder.Configuration["Messaging:QueuePrefix"] = $"test-{Guid.NewGuid():N}";
+        builder.Configuration["Messaging:Rebus:QueuePrefix"] = $"test-{Guid.NewGuid():N}";
         builder.Services.AddDbContext<IdentityDbContext>(options =>
             options.UseNpgsql(postgreSqlFixture.ConnectionString));
-        builder.AddTransport();
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
         builder.Services.AddModulePersistence<IdentityDbContext>("identity");
         builder.Services.AddModuleMessaging("identity", typeof(TestRebusInboxCommandHandler));
         builder.Services.AddSingleton<HandledMessageCounter>();
@@ -161,12 +163,13 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration["ConnectionStrings:modular-template-host"] = postgreSqlFixture.ConnectionString;
-        builder.Configuration["Messaging:QueuePrefix"] = $"test-{Guid.NewGuid():N}";
+        builder.Configuration["Messaging:Rebus:QueuePrefix"] = $"test-{Guid.NewGuid():N}";
         builder.Services.AddDbContext<IdentityDbContext>(options =>
             options.UseNpgsql(postgreSqlFixture.ConnectionString));
         builder.Services.AddDbContext<OperationsTestDbContext>(options =>
             options.UseNpgsql(postgreSqlFixture.ConnectionString));
-        builder.AddTransport();
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
         builder.Services.AddModulePersistence<IdentityDbContext>("identity");
         builder.Services.AddModulePersistence<OperationsTestDbContext>("operations");
         builder.Services.AddModuleMessaging("operations", typeof(TestCrossModuleOperationCommandHandler));
@@ -247,9 +250,7 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
         {
             durableCommandSender.Send(
                 new TestFollowUpCommand(message.Value),
-                new DurableCommandSubmissionOptions(
-                    SourceModule: "identity",
-                    TargetModule: "identity"));
+                targetModule: "identity");
             counter.Increment();
             return Task.CompletedTask;
         }

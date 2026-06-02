@@ -1,6 +1,6 @@
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.Infrastructure.Transport;
-using ModularTemplate.SharedKernel.Messaging;
+using Bondstone.EntityFrameworkCore.Outbox;
+using Bondstone.Messaging;
+using Bondstone.Transport.Rebus;
 using NSubstitute;
 using Rebus.Bus;
 using Rebus.Bus.Advanced;
@@ -88,8 +88,9 @@ public sealed class RebusOutboxTransportTests
     [Trait("Category", "Unit")]
     public void Resolve_WhenCommandTargetsModule_UsesSourceBusAndTargetQueue()
     {
-        var resolver = new OutboxRouteResolver(Microsoft.Extensions.Options.Options.Create(
-            new DurableMessagingOptions { QueuePrefix = "sample" }));
+        var resolver = new OutboxRouteResolver(
+            Microsoft.Extensions.Options.Options.Create(new DurableMessagingOptions()),
+            Microsoft.Extensions.Options.Options.Create(new RebusTransportOptions { QueuePrefix = "sample" }));
         OutboxMessage message = OutboxMessage.Create(
             Guid.NewGuid(),
             MessageKind.Command,
@@ -111,12 +112,9 @@ public sealed class RebusOutboxTransportTests
     [Trait("Category", "Unit")]
     public void Resolve_WhenCommandTargetsUnknownModule_Throws()
     {
-        var resolver = new OutboxRouteResolver(Microsoft.Extensions.Options.Options.Create(
-            new DurableMessagingOptions
-            {
-                QueuePrefix = "sample",
-                Modules = ["identity"]
-            }));
+        var resolver = new OutboxRouteResolver(
+            Microsoft.Extensions.Options.Options.Create(new DurableMessagingOptions { Modules = ["identity"] }),
+            Microsoft.Extensions.Options.Options.Create(new RebusTransportOptions { QueuePrefix = "sample" }));
         OutboxMessage message = OutboxMessage.Create(
             Guid.NewGuid(),
             MessageKind.Command,

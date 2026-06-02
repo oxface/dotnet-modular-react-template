@@ -17,7 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\template\server\src\ModularTemplate.Infrastructure\ModularTemplate.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\template\server\src\Bondstone\Bondstone.Mediator\Bondstone.Mediator.csproj" />
+    <ProjectReference Include="..\..\template\server\src\Bondstone\Bondstone.EntityFrameworkCore.Postgres\Bondstone.EntityFrameworkCore.Postgres.csproj" />
+    <ProjectReference Include="..\..\template\server\src\Bondstone\Bondstone.Transport.Rebus\Bondstone.Transport.Rebus.csproj" />
     <ProjectReference Include="..\..\template\server\src\ModularTemplate.SharedKernel\ModularTemplate.SharedKernel.csproj" />
     <ProjectReference Include="..\..\template\server\src\modules\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
     <ProjectReference Include="..\..\template\server\src\modules\ModularTemplate.Identity.Contracts\ModularTemplate.Identity.Contracts.csproj" />

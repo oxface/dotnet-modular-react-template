@@ -1,3 +1,4 @@
+using Bondstone.Domain;
 using ModularTemplate.SharedKernel.Domain;
 
 namespace ModularTemplate.Identity.Users.Events;

@@ -1,9 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
-using ModularTemplate.Infrastructure.Inbox;
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Transport;
-using ModularTemplate.SharedKernel.Messaging;
+using Bondstone;
+using Bondstone.Messaging;
+using Bondstone.Transport.Rebus;
 using Rebus.Messages;
 using Rebus.Pipeline;
 using Rebus.Transport;
@@ -25,15 +23,14 @@ public sealed class ModuleScopedRebusHandlerTests
         await using ServiceProvider serviceProvider = new ServiceCollection().BuildServiceProvider();
         var handler = new ModuleScopedRebusHandler<TestUnhandledEvent>(
             serviceProvider,
-            new ThrowingInboxMessageProcessor(),
+            new ThrowingModuleMessageInbox(),
             [
                 new ModuleMessageHandlerRegistration(
                     "identity",
                     typeof(TestUnhandledEvent),
                     typeof(UnusedHandler),
                     "test.unhandled-event.v1")
-            ],
-            new ThrowingModulePersistenceResolver());
+            ]);
 
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
             async () => await handler.Handle(message));
@@ -53,7 +50,7 @@ public sealed class ModuleScopedRebusHandlerTests
         await using ServiceProvider serviceProvider = new ServiceCollection().BuildServiceProvider();
         var handler = new ModuleScopedRebusHandler<TestDurableCommand>(
             serviceProvider,
-            new ThrowingInboxMessageProcessor(),
+            new ThrowingModuleMessageInbox(),
             [
                 new ModuleMessageHandlerRegistration(
                     "operations",
@@ -65,8 +62,7 @@ public sealed class ModuleScopedRebusHandlerTests
                     typeof(TestDurableCommand),
                     typeof(SecondCommandHandler),
                     "test.durable-command.v1")
-            ],
-            new ThrowingModulePersistenceResolver());
+            ]);
 
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
             async () => await handler.Handle(message));
@@ -113,32 +109,14 @@ public sealed class ModuleScopedRebusHandlerTests
 
     private sealed class SecondCommandHandler;
 
-    private sealed class ThrowingInboxMessageProcessor : IInboxMessageProcessor
+    private sealed class ThrowingModuleMessageInbox : IModuleMessageInbox
     {
-        public Task<InboxMessage?> ClaimAsync(
-            IModuleDbContext dbContext,
-            string messageId,
+        public Task HandleOnceAsync(
             string moduleName,
-            string handlerName,
+            string messageId,
+            string messageIdentity,
+            Func<CancellationToken, Task> handler,
             CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class ThrowingModulePersistenceResolver : IModulePersistenceResolver
-    {
-        public IModuleDbContext ResolveDbContext(string moduleName)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IModuleUnitOfWork ResolveUnitOfWork(string moduleName)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IOutboxWriter ResolveOutboxWriter(string moduleName)
         {
             throw new NotSupportedException();
         }

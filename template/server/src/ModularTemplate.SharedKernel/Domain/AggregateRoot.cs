@@ -1,15 +1,6 @@
+using Bondstone.Domain;
+
 namespace ModularTemplate.SharedKernel.Domain;
-
-public interface IAggregateRoot
-{
-    // Infrastructure uses this non-generic surface to collect domain events from
-    // tracked aggregate roots without knowing each aggregate's identifier type.
-    object Id { get; }
-
-    IReadOnlyCollection<IDomainEvent> DomainEvents { get; }
-
-    IReadOnlyCollection<IDomainEvent> DequeueDomainEvents();
-}
 
 public abstract class AggregateRoot<TId> : Entity<TId>, IAggregateRoot
     where TId : notnull

@@ -75,7 +75,7 @@ namespace ModularTemplate.Operations.Infrastructure.Migrations
                     b.ToTable("operations", "operations");
                 });
 
-            modelBuilder.Entity("ModularTemplate.Infrastructure.Persistence.DomainEvents.StoredDomainEvent", b =>
+            modelBuilder.Entity("Bondstone.EntityFrameworkCore.Persistence.DomainEvents.StoredDomainEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -118,7 +118,7 @@ namespace ModularTemplate.Operations.Infrastructure.Migrations
                     b.ToTable("domain_events", "operations");
                 });
 
-            modelBuilder.Entity("ModularTemplate.Infrastructure.Inbox.InboxMessage", b =>
+            modelBuilder.Entity("Bondstone.EntityFrameworkCore.Inbox.InboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -155,7 +155,7 @@ namespace ModularTemplate.Operations.Infrastructure.Migrations
                     b.ToTable("inbox_messages", "operations");
                 });
 
-            modelBuilder.Entity("ModularTemplate.Infrastructure.Outbox.OutboxMessage", b =>
+            modelBuilder.Entity("Bondstone.EntityFrameworkCore.Outbox.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()

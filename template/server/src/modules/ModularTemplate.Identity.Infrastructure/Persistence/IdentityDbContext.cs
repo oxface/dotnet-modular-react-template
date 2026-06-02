@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Users;
-using ModularTemplate.Infrastructure.Inbox;
-using ModularTemplate.Infrastructure.Outbox;
-using ModularTemplate.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Persistence.DomainEvents;
+using Bondstone.EntityFrameworkCore.Inbox;
+using Bondstone.EntityFrameworkCore.Outbox;
+using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
 
 namespace ModularTemplate.Identity.Infrastructure.Persistence;
 

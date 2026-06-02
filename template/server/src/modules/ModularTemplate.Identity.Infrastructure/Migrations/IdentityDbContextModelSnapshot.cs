@@ -88,7 +88,7 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                     b.ToTable("local_users", "identity");
                 });
 
-            modelBuilder.Entity("ModularTemplate.Infrastructure.Persistence.DomainEvents.StoredDomainEvent", b =>
+            modelBuilder.Entity("Bondstone.EntityFrameworkCore.Persistence.DomainEvents.StoredDomainEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -131,7 +131,7 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                     b.ToTable("domain_events", "identity");
                 });
 
-            modelBuilder.Entity("ModularTemplate.Infrastructure.Inbox.InboxMessage", b =>
+            modelBuilder.Entity("Bondstone.EntityFrameworkCore.Inbox.InboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -168,7 +168,7 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                     b.ToTable("inbox_messages", "identity");
                 });
 
-            modelBuilder.Entity("ModularTemplate.Infrastructure.Outbox.OutboxMessage", b =>
+            modelBuilder.Entity("Bondstone.EntityFrameworkCore.Outbox.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()

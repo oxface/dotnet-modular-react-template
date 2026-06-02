@@ -11,10 +11,9 @@ The shipped backend includes:
   middleware, and application-access authorization policy wiring.
 - Module Infrastructure EF Core DbContexts with baseline `InitialCreate`
   migrations so generated products can create the first local schemas.
-- `ModularTemplate.Infrastructure` platform library with Persistence, Outbox,
-  and Transport capabilities for Mediator-selected module unit-of-work
-  handling, durable outbox persistence, receive-side inbox deduplication,
-  per-module locked polling, and Rebus/PostgreSQL transport dispatch.
+- Bondstone platform libraries for module boundaries, messaging contracts,
+  PostgreSQL persistence/outbox/inbox storage, optional Mediator unit-of-work
+  integration, and Rebus/PostgreSQL transport dispatch.
 - `ModularTemplate.ServiceDefaults` for OpenTelemetry, service discovery,
   default HTTP resilience, and development health endpoints.
 - SharedKernel primitives for entity, aggregate root, value object,

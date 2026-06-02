@@ -1,4 +1,4 @@
-using ModularTemplate.SharedKernel.Messaging;
+using Bondstone.Messaging;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Tests.Messaging;

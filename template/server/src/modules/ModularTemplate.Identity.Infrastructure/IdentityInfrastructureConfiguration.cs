@@ -7,8 +7,10 @@ using ModularTemplate.Identity;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Users;
 using ModularTemplate.Identity.Access;
-using ModularTemplate.Infrastructure.Persistence;
-using ModularTemplate.Infrastructure.Transport;
+using Bondstone.Mediator.Persistence;
+using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Postgres.Persistence;
+using Bondstone.Transport.Rebus;
 
 namespace ModularTemplate.Identity.Infrastructure;
 
@@ -40,7 +42,7 @@ public static class IdentityInfrastructureConfiguration
         services.AddScoped<IApplicationAccessRepository, ApplicationAccessRepository>();
         services.AddModulePersistence<IdentityDbContext>(
             "identity",
-            typeof(GrantInitialAdminAccessCommandHandler));
+            MediatorCommandTypes.FromHandlerAssemblyMarkers(typeof(GrantInitialAdminAccessCommandHandler)));
         services.AddModuleMessaging(
             "identity",
             typeof(GrantInitialAdminAccessCommand),

@@ -5,7 +5,7 @@ using ModularTemplate.Identity.CurrentUser;
 using ModularTemplate.Identity.Infrastructure;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Operations.Infrastructure;
-using ModularTemplate.Infrastructure.Persistence.Transactions;
+using Bondstone.Mediator.Persistence.Transactions;
 
 namespace ModularTemplate.Host.Configuration;
 

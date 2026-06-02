@@ -65,7 +65,8 @@ The Redis resource is referenced by the Host as
 `ConnectionStrings:session-tickets`. The PostgreSQL database resource is
 referenced as `ConnectionStrings:modular-template-host`.
 
-Durable messaging transport is selected by `Messaging:Transport`.
+Durable Rebus transport stores its transport tables in PostgreSQL through
+`Messaging:Rebus:Postgres`.
 Default is `Postgres`, which uses `ConnectionStrings:modular-template-host` for
 Rebus queues and subscriptions under the configured transport schema. External
 broker transports are product decisions and should add their own connection

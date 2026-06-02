@@ -2,9 +2,9 @@ using Mediator;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using ModularTemplate.Host.Tests.Authentication;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Contracts.CurrentUser;
@@ -20,18 +20,10 @@ public sealed class HostApplicationFactory(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
-        builder.UseSetting("Messaging:Enabled", "false");
-
-        builder.ConfigureAppConfiguration((_, configurationBuilder) =>
-        {
-            configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Messaging:Enabled"] = "false"
-            });
-        });
 
         builder.ConfigureServices(services =>
         {
+            services.RemoveAll<IHostedService>();
             services.AddAuthentication(options =>
                 {
                     options.DefaultAuthenticateScheme = TestAuthenticationHandler.Scheme;

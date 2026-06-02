@@ -68,9 +68,11 @@ referenced as `ConnectionStrings:modular-template-host`.
 Durable Rebus transport stores its transport tables in PostgreSQL through
 `Messaging:Rebus:Postgres`.
 Default is `Postgres`, which uses `ConnectionStrings:modular-template-host` for
-Rebus queues and subscriptions under the configured transport schema. External
-broker transports are product decisions and should add their own connection
-strings, deployment resources, and verification coverage when needed.
+Rebus queues and subscriptions under the configured transport schema. The
+Migrator creates the transport schema before module migrations run; Host startup
+does not run transport DDL. External broker transports are product decisions and
+should add their own connection strings, deployment resources, and verification
+coverage when needed.
 
 The checked-in Keycloak realm import includes local users for browser smoke
 testing:

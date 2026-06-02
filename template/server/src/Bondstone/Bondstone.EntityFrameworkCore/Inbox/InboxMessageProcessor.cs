@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Bondstone.EntityFrameworkCore.Persistence;
 
 namespace Bondstone.EntityFrameworkCore.Inbox;
@@ -30,12 +31,25 @@ public sealed class InboxMessageProcessor(
         {
             inboxMessage = InboxMessage.Create(messageId, moduleName, handlerName);
             dbContext.InboxMessages.Add(inboxMessage);
+            IDbContextTransaction? transaction = dbContext.Database.CurrentTransaction;
+            string? savepointName = null;
             try
             {
+                if (transaction is not null)
+                {
+                    savepointName = "inbox_claim_" + Guid.NewGuid().ToString("N");
+                    await transaction.CreateSavepointAsync(savepointName, cancellationToken);
+                }
+
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
             catch (DbUpdateException ex) when (claimConflictDetector.IsClaimConflict(ex))
             {
+                if (transaction is not null && savepointName is not null)
+                {
+                    await transaction.RollbackToSavepointAsync(savepointName, cancellationToken);
+                }
+
                 DetachInboxMessage(dbContext, inboxMessage);
 
                 InboxMessage? competingInboxMessage = await FindInboxMessageAsync(

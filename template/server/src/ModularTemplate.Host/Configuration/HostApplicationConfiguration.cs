@@ -43,7 +43,7 @@ public static class HostApplicationConfiguration
         builder.AddProblemDetails();
         builder.Services.AddOpenApi();
         builder.Services.AddModularTemplateModules();
-        builder.Services.AddModularTemplateMediator();
+        builder.Services.AddModularCommandHandling();
 
         return builder;
     }

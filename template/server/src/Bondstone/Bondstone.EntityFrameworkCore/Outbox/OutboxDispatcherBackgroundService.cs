@@ -2,14 +2,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using Bondstone.EntityFrameworkCore.Persistence;
 using Bondstone.Messaging;
 
 namespace Bondstone.EntityFrameworkCore.Outbox;
 
-public sealed class OutboxDispatcherBackgroundService(
+public sealed class OutboxDispatcherBackgroundService<TDbContext>(
     IServiceProvider serviceProvider,
     IOptions<DurableMessagingOptions> options,
-    ILogger<OutboxDispatcherBackgroundService> logger) : BackgroundService
+    ILogger<OutboxDispatcherBackgroundService<TDbContext>> logger) : BackgroundService
+    where TDbContext : DbContext, IModuleDbContext
 {
     private readonly DurableMessagingOptions _options = options.Value;
 
@@ -20,7 +23,7 @@ public sealed class OutboxDispatcherBackgroundService(
             try
             {
                 using IServiceScope scope = serviceProvider.CreateScope();
-                var dispatcher = scope.ServiceProvider.GetRequiredService<IOutboxDispatcher>();
+                var dispatcher = scope.ServiceProvider.GetRequiredService<OutboxDispatcher<TDbContext>>();
                 await dispatcher.DispatchPendingAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -29,7 +32,7 @@ public sealed class OutboxDispatcherBackgroundService(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Outbox dispatcher background iteration failed.");
+                logger.LogError(ex, "Outbox dispatcher background iteration failed for {DbContextType}.", typeof(TDbContext).FullName);
             }
 
             await Task.Delay(_options.PollingInterval, stoppingToken);

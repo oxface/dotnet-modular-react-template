@@ -7,85 +7,50 @@ using Bondstone.Messaging;
 
 namespace Bondstone.EntityFrameworkCore.Outbox;
 
-public sealed class OutboxDispatcher(
-    IEnumerable<ModulePersistenceRegistration> persistenceRegistrations,
-    IModulePersistenceResolver persistenceResolver,
+public sealed class OutboxDispatcher<TDbContext>(
+    TDbContext context,
     IOutboxTransport outboxTransport,
     IOutboxDispatchLock outboxDispatchLock,
     IOptions<DurableMessagingOptions> options,
     IRetryDelayPolicy retryDelayPolicy,
-    ILogger<OutboxDispatcher> logger)
+    ILogger<OutboxDispatcher<TDbContext>> logger)
     : IOutboxDispatcher
+    where TDbContext : DbContext, IModuleDbContext
 {
     private readonly DurableMessagingOptions _options = options.Value;
 
+    public string ModuleName => context.ModuleName;
+
     public async Task<int> DispatchPendingAsync(CancellationToken cancellationToken)
     {
-        int totalDispatched = 0;
-
-        foreach (string moduleName in GetRegisteredModuleNames())
-        {
-            try
-            {
-                IModuleDbContext ctx = persistenceResolver.ResolveDbContext(moduleName);
-                totalDispatched += await DispatchForContextAsync(ctx, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(
-                    ex,
-                    "Outbox dispatch failed for module {ModuleName}",
-                    moduleName);
-            }
-        }
-
-        return totalDispatched;
-    }
-
-    private string[] GetRegisteredModuleNames()
-    {
-        return persistenceRegistrations
-            .Select(registration => registration.ModuleName)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-    }
-
-    private async Task<int> DispatchForContextAsync(
-        IModuleDbContext ctx,
-        CancellationToken cancellationToken)
-    {
-        await using IAsyncDisposable? dispatchLock = await outboxDispatchLock.TryAcquireAsync(ctx, cancellationToken);
+        await using IAsyncDisposable? dispatchLock = await outboxDispatchLock.TryAcquireAsync(context, cancellationToken);
         if (dispatchLock is null)
         {
             return 0;
         }
 
-        return await DispatchLockedForContextAsync(ctx, cancellationToken);
+        return await DispatchLockedAsync(cancellationToken);
     }
 
-    private async Task<int> DispatchLockedForContextAsync(
-        IModuleDbContext ctx,
-        CancellationToken cancellationToken)
+    private async Task<int> DispatchLockedAsync(CancellationToken cancellationToken)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DateTimeOffset staleThreshold = now - _options.LockTimeout;
         string claimToken = Guid.NewGuid().ToString("N");
-        string schema = DelimitSchema(ctx.ModuleName);
+        string schema = DelimitSchema(context.ModuleName);
 
-        await ClaimEligibleMessagesAsync(
-            ctx,
+        await MarkAbandonedProcessingMessagesAsync(
             schema,
-            claimToken,
             now,
             staleThreshold,
             cancellationToken);
+        await ClaimEligibleMessagesAsync(
+            schema,
+            claimToken,
+            now,
+            cancellationToken);
 
-        IReadOnlyList<OutboxMessage> pendingMessages = await ctx.OutboxMessages
+        IReadOnlyList<OutboxMessage> pendingMessages = await context.OutboxMessages
             .Where(x => x.LockedBy == claimToken)
             .OrderBy(x => x.CreatedAtUtc)
             .ToArrayAsync(cancellationToken);
@@ -102,7 +67,7 @@ public sealed class OutboxDispatcher(
             try
             {
                 message.RefreshLock();
-                await ctx.SaveChangesAsync(cancellationToken);
+                await context.SaveChangesAsync(cancellationToken);
                 await outboxTransport.DispatchAsync(message, cancellationToken);
                 message.MarkProcessed();
                 dispatchedCount++;
@@ -121,28 +86,68 @@ public sealed class OutboxDispatcher(
                 message.MarkFailed(ex.Message, retryDelayPolicy.GetDelay);
             }
 
-            await ctx.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         return dispatchedCount;
     }
 
-    private async Task ClaimEligibleMessagesAsync(
-        IModuleDbContext ctx,
+    private async Task MarkAbandonedProcessingMessagesAsync(
         string schema,
-        string claimToken,
         DateTimeOffset now,
         DateTimeOffset staleThreshold,
         CancellationToken cancellationToken)
     {
-        string pending = PersistedMessageStatus.Pending.ToString();
         string failed = PersistedMessageStatus.Failed.ToString();
         string processing = PersistedMessageStatus.Processing.ToString();
+        string deadLettered = PersistedMessageStatus.DeadLettered.ToString();
+        DateTimeOffset neverRetry = DateTimeOffset.MaxValue;
+
+        string staleSql =
+            $$"""
+            UPDATE {{schema}}.outbox_messages
+            SET "AttemptCount" = "AttemptCount" + 1,
+                "Status" = CASE
+                    WHEN "AttemptCount" + 1 >= "MaxAttempts" THEN {0}
+                    ELSE {1}
+                END,
+                "FailedAtUtc" = {2},
+                "Error" = 'Outbox message lock timed out before dispatch completed.',
+                "LockedAtUtc" = NULL,
+                "LockedBy" = NULL,
+                "NextAttemptAtUtc" = CASE
+                    WHEN "AttemptCount" + 1 >= "MaxAttempts" THEN {3}
+                    ELSE {2}
+                END
+            WHERE "Status" = {4}
+                AND "LockedAtUtc" IS NOT NULL
+                AND "LockedAtUtc" < {5}
+            """;
+
+        await context.Database.ExecuteSqlAsync(
+            FormattableStringFactory.Create(
+                staleSql,
+                deadLettered,
+                failed,
+                now,
+                neverRetry,
+                processing,
+                staleThreshold),
+            cancellationToken);
+    }
+
+    private async Task ClaimEligibleMessagesAsync(
+        string schema,
+        string claimToken,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        string pending = PersistedMessageStatus.Pending.ToString();
+        string failed = PersistedMessageStatus.Failed.ToString();
 
         // The subquery selects work in creation order, but FOR UPDATE SKIP LOCKED
         // lets concurrent dispatchers skip rows claimed by another transaction
-        // instead of blocking. Processing rows older than LockTimeout are treated
-        // as abandoned and become claimable again after a host crash or timeout.
+        // instead of blocking.
         string claimSql =
             $$"""
             UPDATE {{schema}}.outbox_messages
@@ -154,18 +159,14 @@ public sealed class OutboxDispatcher(
                 WHERE (
                     ("Status" = {2} OR "Status" = {3})
                     AND "NextAttemptAtUtc" <= {4}
-                ) OR (
-                    "Status" = {5}
-                    AND "LockedAtUtc" IS NOT NULL
-                    AND "LockedAtUtc" < {6}
                 )
                 ORDER BY "CreatedAtUtc"
-                LIMIT {7}
+                LIMIT {5}
                 FOR UPDATE SKIP LOCKED
             )
             """;
 
-        await ctx.Database.ExecuteSqlAsync(
+        await context.Database.ExecuteSqlAsync(
             FormattableStringFactory.Create(
                 claimSql,
                 now,
@@ -173,8 +174,6 @@ public sealed class OutboxDispatcher(
                 pending,
                 failed,
                 now,
-                processing,
-                staleThreshold,
                 _options.BatchSize),
             cancellationToken);
     }

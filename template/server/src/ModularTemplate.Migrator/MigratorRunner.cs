@@ -1,10 +1,11 @@
-using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Bondstone.Commands;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Operations.Infrastructure.Persistence;
+using Bondstone.Transport.Rebus;
 
 namespace ModularTemplate.Migrator;
 
@@ -25,6 +26,10 @@ public static class MigratorRunner
         }
 
         await using AsyncServiceScope scope = services.CreateAsyncScope();
+
+        RebusPostgresSchemaInitializer rebusSchemaInitializer =
+            scope.ServiceProvider.GetRequiredService<RebusPostgresSchemaInitializer>();
+        await rebusSchemaInitializer.EnsureCreatedAsync(cancellationToken);
 
         IdentityDbContext identityContext =
             scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -48,8 +53,8 @@ public static class MigratorRunner
             return 0;
         }
 
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        GrantInitialAdminAccessResult result = await mediator.Send(
+        var commandBus = scope.ServiceProvider.GetRequiredService<IModuleCommandBus>();
+        GrantInitialAdminAccessResult result = await commandBus.SendAsync(
             new GrantInitialAdminAccessCommand(
                 initialAdmin.Provider,
                 initialAdmin.Subject,

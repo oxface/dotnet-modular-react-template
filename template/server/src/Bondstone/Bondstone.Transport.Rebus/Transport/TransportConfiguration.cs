@@ -10,6 +10,7 @@ using Rebus.Config;
 using Rebus.Pipeline;
 using Rebus.Pipeline.Receive;
 using Rebus.Serialization.Custom;
+using Rebus.ServiceProvider;
 
 namespace Bondstone.Transport.Rebus;
 
@@ -39,7 +40,7 @@ public static class TransportConfiguration
         builder.Services.AddSingleton<IValidateOptions<DurableMessagingOptions>, DurableMessagingOptionsValidator>();
         builder.Services.AddSingleton<IValidateOptions<RebusTransportOptions>, RebusTransportOptionsValidator>();
         builder.Services.AddScoped<IOutboxTransport, RebusOutboxTransport>();
-        builder.Services.AddHostedService<RebusPostgresSchemaInitializerHostedService>();
+        builder.Services.TryAddSingleton<RebusPostgresSchemaInitializer>();
 
         builder.Services.AddOptions<DurableMessagingOptions>()
             .Bind(builder.Configuration.GetSection("Messaging"))
@@ -73,9 +74,12 @@ public static class TransportConfiguration
                     moduleName),
                 isDefaultBus: isDefaultBus,
                 key: MessagingBusKeys.ModuleQueue(moduleName));
+            builder.Services.AddSingleton<IHostedService>(serviceProvider =>
+                new RebusSubscriptionHostedService(
+                    moduleName,
+                    serviceProvider.GetRequiredService<IBusRegistry>(),
+                    serviceProvider.GetServices<ModuleEventSubscription>()));
         }
-
-        builder.Services.AddHostedService<RebusSubscriptionHostedService>();
 
         return builder;
     }

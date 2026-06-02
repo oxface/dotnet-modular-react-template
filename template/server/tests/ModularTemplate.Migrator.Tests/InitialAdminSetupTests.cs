@@ -109,6 +109,7 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
         IdentityDbContext identityContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         OperationsDbContext operationsContext = scope.ServiceProvider.GetRequiredService<OperationsDbContext>();
+        await AssertSchemaExistsAsync(identityContext, "transport");
         await AssertTablesExistAsync(
             identityContext,
             "identity",
@@ -166,5 +167,20 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
         {
             tables.ShouldContain(tableName);
         }
+    }
+
+    private static async Task AssertSchemaExistsAsync(DbContext dbContext, string schema)
+    {
+        string? matchingSchema = await dbContext.Database
+            .SqlQueryRaw<string>(
+                """
+                SELECT schema_name AS "Value"
+                FROM information_schema.schemata
+                WHERE schema_name = {0}
+                """,
+                schema)
+            .SingleOrDefaultAsync(CancellationToken.None);
+
+        matchingSchema.ShouldBe(schema);
     }
 }

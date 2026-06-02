@@ -1,15 +1,11 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
-using Bondstone.EntityFrameworkCore.Inbox;
 using Bondstone.EntityFrameworkCore.Outbox;
-using Bondstone.Messaging;
 using Bondstone.EntityFrameworkCore.Persistence;
-using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
+using Bondstone.Messaging;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;
@@ -135,32 +131,36 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         transport.DispatchedMessageIds.ShouldBe([messageId]);
         OutboxMessage outbox = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
         outbox.Status.ShouldBe(PersistedMessageStatus.Processed);
+        outbox.AttemptCount.ShouldBe(1);
         outbox.LockedBy.ShouldBeNull();
         outbox.LockedAtUtc.ShouldBeNull();
     }
 
     [Fact]
     [Trait("Category", "Integration")]
-    public async Task DispatchPendingAsync_WhenOneModuleFails_ContinuesWithNextModule()
+    public async Task DispatchPendingAsync_WhenProcessingMessageIsStaleAtMaxAttempts_DeadLettersWithoutDispatching()
     {
         await using var dbContext = CreateDbContext();
         await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
         await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
         Guid messageId = Guid.NewGuid();
-        dbContext.OutboxMessages.Add(CreateCommand(messageId));
+        dbContext.OutboxMessages.Add(CreateCommand(messageId, maxAttempts: 1));
         await dbContext.SaveChangesAsync(CancellationToken.None);
+        await MarkProcessingAsync(dbContext, messageId, DateTimeOffset.UtcNow.AddMinutes(-5));
         var transport = new TestOutboxTransport();
-        var dispatcher = CreateDispatcher(
-            [new UnavailableModuleDbContext("broken"), (IModuleDbContext)dbContext],
-            transport,
-            new FailingModuleOutboxDispatchLock("broken"));
+        var dispatcher = CreateDispatcher(dbContext, transport);
 
         int dispatchedCount = await dispatcher.DispatchPendingAsync(CancellationToken.None);
 
-        dispatchedCount.ShouldBe(1);
-        transport.DispatchedMessageIds.ShouldBe([messageId]);
+        dispatchedCount.ShouldBe(0);
+        transport.DispatchedMessageIds.ShouldBeEmpty();
         OutboxMessage outbox = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
-        outbox.Status.ShouldBe(PersistedMessageStatus.Processed);
+        outbox.Status.ShouldBe(PersistedMessageStatus.DeadLettered);
+        outbox.AttemptCount.ShouldBe(1);
+        outbox.LockedBy.ShouldBeNull();
+        outbox.LockedAtUtc.ShouldBeNull();
+        outbox.Error.ShouldNotBeNull();
+        outbox.Error.ShouldContain("lock timed out");
     }
 
     private IdentityDbContext CreateDbContext()
@@ -189,18 +189,18 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         dbContext.ChangeTracker.Clear();
     }
 
-    private static OutboxDispatcher CreateDispatcher(
+    private static OutboxDispatcher<IdentityDbContext> CreateDispatcher(
         IdentityDbContext dbContext,
         IOutboxTransport transport)
     {
         return CreateDispatcher(
-            [(IModuleDbContext)dbContext],
+            dbContext,
             transport,
             new AlwaysAcquiredOutboxDispatchLock());
     }
 
-    private static OutboxDispatcher CreateDispatcher(
-        IEnumerable<IModuleDbContext> dbContexts,
+    private static OutboxDispatcher<IdentityDbContext> CreateDispatcher(
+        IdentityDbContext dbContext,
         IOutboxTransport transport,
         IOutboxDispatchLock outboxDispatchLock)
     {
@@ -211,20 +211,16 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             RetryDelays = [TimeSpan.FromSeconds(10)]
         });
 
-        return new OutboxDispatcher(
-            dbContexts.Select(dbContext => new ModulePersistenceRegistration(
-                dbContext.ModuleName,
-                dbContext.GetType(),
-                [])),
-            new TestModulePersistenceResolver(dbContexts),
+        return new OutboxDispatcher<IdentityDbContext>(
+            dbContext,
             transport,
             outboxDispatchLock,
             options,
             new ConfiguredRetryDelayPolicy(options),
-            NullLogger<OutboxDispatcher>.Instance);
+            NullLogger<OutboxDispatcher<IdentityDbContext>>.Instance);
     }
 
-    private static OutboxMessage CreateCommand(Guid messageId)
+    private static OutboxMessage CreateCommand(Guid messageId, int maxAttempts = 5)
     {
         return OutboxMessage.Create(
             messageId,
@@ -235,7 +231,8 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             correlationId: Guid.NewGuid(),
             causationId: null,
             operationId: null,
-            payload: "{}");
+            payload: "{}",
+            maxAttempts: maxAttempts);
     }
 
     private sealed class TestOutboxTransport : IOutboxTransport
@@ -274,66 +271,4 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         }
     }
 
-    private sealed class FailingModuleOutboxDispatchLock(string failingModuleName) : IOutboxDispatchLock
-    {
-        public Task<IAsyncDisposable?> TryAcquireAsync(
-            IModuleDbContext dbContext,
-            CancellationToken cancellationToken)
-        {
-            if (string.Equals(dbContext.ModuleName, failingModuleName, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException("module dispatch unavailable");
-            }
-
-            return Task.FromResult<IAsyncDisposable?>(new Lease());
-        }
-
-        private sealed class Lease : IAsyncDisposable
-        {
-            public ValueTask DisposeAsync()
-            {
-                return ValueTask.CompletedTask;
-            }
-        }
-    }
-
-    private sealed class TestModulePersistenceResolver(IEnumerable<IModuleDbContext> dbContexts)
-        : IModulePersistenceResolver
-    {
-        public IModuleDbContext ResolveDbContext(string moduleName)
-        {
-            return dbContexts.Single(dbContext =>
-                string.Equals(dbContext.ModuleName, moduleName, StringComparison.Ordinal));
-        }
-
-        public IModuleUnitOfWork ResolveUnitOfWork(string moduleName)
-        {
-            throw new NotSupportedException();
-        }
-
-        public IOutboxWriter ResolveOutboxWriter(string moduleName)
-        {
-            throw new NotSupportedException();
-        }
-    }
-
-    private sealed class UnavailableModuleDbContext(string moduleName) : IModuleDbContext
-    {
-        public string ModuleName { get; } = moduleName;
-
-        public DbSet<OutboxMessage> OutboxMessages => throw new NotSupportedException();
-
-        public DbSet<InboxMessage> InboxMessages => throw new NotSupportedException();
-
-        public DbSet<StoredDomainEvent> DomainEvents => throw new NotSupportedException();
-
-        public DatabaseFacade Database => throw new NotSupportedException();
-
-        public ChangeTracker ChangeTracker => throw new NotSupportedException();
-
-        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
 }

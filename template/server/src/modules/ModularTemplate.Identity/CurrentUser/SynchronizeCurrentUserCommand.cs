@@ -1,4 +1,4 @@
-using Mediator;
+using Bondstone.Commands;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Contracts.CurrentUser;
 using ModularTemplate.Identity.Users;
@@ -6,14 +6,14 @@ using ModularTemplate.Identity.Users;
 namespace ModularTemplate.Identity.CurrentUser;
 
 public sealed record SynchronizeCurrentUserCommand(
-    AuthenticatedIdentity? Identity) : ICommand<CurrentUserContext>;
+    AuthenticatedIdentity? Identity) : IModuleCommand<CurrentUserContext>;
 
 public sealed class SynchronizeCurrentUserCommandHandler(
     ILocalUserRepository localUserRepository,
     IApplicationAccessRepository applicationAccessRepository)
-    : ICommandHandler<SynchronizeCurrentUserCommand, CurrentUserContext>
+    : IModuleCommandHandler<SynchronizeCurrentUserCommand, CurrentUserContext>
 {
-    public async ValueTask<CurrentUserContext> Handle(
+    public async ValueTask<CurrentUserContext> HandleAsync(
         SynchronizeCurrentUserCommand command,
         CancellationToken cancellationToken)
     {

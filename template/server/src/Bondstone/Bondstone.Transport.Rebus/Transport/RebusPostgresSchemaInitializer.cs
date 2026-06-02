@@ -1,18 +1,16 @@
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace Bondstone.Transport.Rebus;
 
-internal sealed class RebusPostgresSchemaInitializerHostedService(
+public sealed class RebusPostgresSchemaInitializer(
     IConfiguration configuration,
     IOptions<RebusTransportOptions> options)
-    : IHostedService
 {
     private readonly RebusTransportOptions _options = options.Value;
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public async Task EnsureCreatedAsync(CancellationToken cancellationToken)
     {
         if (!_options.Postgres.AutoCreateSchema)
         {
@@ -29,11 +27,6 @@ internal sealed class RebusPostgresSchemaInitializerHostedService(
         await using NpgsqlCommand command = connection.CreateCommand();
         command.CommandText = $"CREATE SCHEMA IF NOT EXISTS {schema}";
         await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
     }
 
     private static string DelimitSchema(string schema)

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Bondstone;
 using Bondstone.Messaging;
@@ -71,21 +72,73 @@ public sealed class ModuleScopedRebusHandlerTests
         exception.Message.ShouldContain(typeof(TestDurableCommand).FullName!);
     }
 
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task Handle_WhenMessageHasTraceHeaders_StartsConsumerActivityForInboxAndHandler()
+    {
+        var message = new TestDurableCommand();
+        Guid messageId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        Guid operationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        using Activity parentActivity = new Activity("parent")
+            .SetIdFormat(ActivityIdFormat.W3C)
+            .Start();
+        using RebusTransactionScope transactionScope = StartRebusMessageContext(
+            message,
+            receivingModule: "operations",
+            messageId,
+            parentActivity.Id,
+            operationId);
+        await using ServiceProvider serviceProvider = new ServiceCollection()
+            .AddScoped<HandledCommandHandler>()
+            .BuildServiceProvider();
+        var inbox = new CapturingModuleMessageInbox();
+        var handler = new ModuleScopedRebusHandler<TestDurableCommand>(
+            serviceProvider,
+            inbox,
+            [
+                new ModuleMessageHandlerRegistration(
+                    "operations",
+                    typeof(TestDurableCommand),
+                    typeof(HandledCommandHandler),
+                    "test.durable-command.v1")
+            ]);
+
+        await handler.Handle(message);
+
+        inbox.TraceId.ShouldBe(parentActivity.TraceId.ToHexString());
+        inbox.CausationId.ShouldBe(messageId);
+        inbox.OperationId.ShouldBe(operationId);
+    }
+
     private static RebusTransactionScope StartRebusMessageContext<TMessage>(
         TMessage message,
-        string receivingModule)
+        string receivingModule,
+        Guid? messageId = null,
+        string? traceParent = null,
+        Guid? operationId = null)
     {
         var transactionScope = new RebusTransactionScope();
         var headers = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            [Headers.MessageId] = Guid.NewGuid().ToString("D"),
+            [Headers.MessageId] = (messageId ?? Guid.NewGuid()).ToString("D"),
             ["modular-template-receiving-module"] = receivingModule
         };
+        if (!string.IsNullOrWhiteSpace(traceParent))
+        {
+            headers[BondstoneDiagnostics.TraceParentHeader] = traceParent;
+        }
+
+        if (operationId is not null)
+        {
+            headers[BondstoneMessageHeaders.OperationId] = operationId.Value.ToString("D");
+        }
+
         var transportMessage = new TransportMessage(headers, Array.Empty<byte>());
         var incomingStepContext = new IncomingStepContext(
             transportMessage,
             transactionScope.TransactionContext);
         incomingStepContext.Save(new Message(headers, message!));
+        incomingStepContext.Save(CancellationToken.None);
         transactionScope.TransactionContext.Items[StepContext.StepContextKey] = incomingStepContext;
 
         return transactionScope;
@@ -109,6 +162,14 @@ public sealed class ModuleScopedRebusHandlerTests
 
     private sealed class SecondCommandHandler;
 
+    private sealed class HandledCommandHandler : IModuleMessageHandler<TestDurableCommand>
+    {
+        public Task HandleAsync(TestDurableCommand message, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class ThrowingModuleMessageInbox : IModuleMessageInbox
     {
         public Task HandleOnceAsync(
@@ -119,6 +180,28 @@ public sealed class ModuleScopedRebusHandlerTests
             CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class CapturingModuleMessageInbox : IModuleMessageInbox
+    {
+        public string? TraceId { get; private set; }
+
+        public Guid? CausationId { get; private set; }
+
+        public Guid? OperationId { get; private set; }
+
+        public async Task HandleOnceAsync(
+            string moduleName,
+            string messageId,
+            string messageIdentity,
+            Func<CancellationToken, Task> handler,
+            CancellationToken cancellationToken)
+        {
+            TraceId = Activity.Current?.TraceId.ToHexString();
+            CausationId = BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.CausationIdBaggageKey);
+            OperationId = BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.OperationIdBaggageKey);
+            await handler(cancellationToken);
         }
     }
 }

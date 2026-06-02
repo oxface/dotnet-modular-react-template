@@ -335,14 +335,32 @@ public sealed class ModuleUnitOfWorkTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task ModuleUnitOfWorkBehavior_WhenCommandIsNotMapped_DoesNotSave()
+    public async Task ModuleUnitOfWorkBehavior_WhenCommandIsNotMapped_Throws()
     {
         var behavior = new ModuleUnitOfWorkBehavior<TestCommand, Unit>(
             new StaticModuleUnitOfWorkResolver(null),
             new ThrowingModuleBoundary());
 
+        InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await behavior.Handle(
+                new TestCommand(),
+                (_, _) => new ValueTask<Unit>(Unit.Value),
+                CancellationToken.None));
+
+        exception.Message.ShouldContain(typeof(TestCommand).FullName!);
+        exception.Message.ShouldContain(nameof(NonPersistentCommandAttribute));
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task ModuleUnitOfWorkBehavior_WhenCommandIsNonPersistent_RunsWithoutSave()
+    {
+        var behavior = new ModuleUnitOfWorkBehavior<NonPersistentTestCommand, Unit>(
+            new StaticModuleUnitOfWorkResolver(null),
+            new ThrowingModuleBoundary());
+
         Unit result = await behavior.Handle(
-            new TestCommand(),
+            new NonPersistentTestCommand(),
             (_, _) => new ValueTask<Unit>(Unit.Value),
             CancellationToken.None);
 
@@ -389,6 +407,9 @@ public sealed class ModuleUnitOfWorkTests
     private sealed record TestCommand : ICommand;
 
     private sealed record OtherCommand : ICommand;
+
+    [NonPersistentCommand]
+    private sealed record NonPersistentTestCommand : ICommand;
 
     private sealed class TestCommandHandler : ICommandHandler<TestCommand>
     {
@@ -465,8 +486,6 @@ public sealed class ModuleUnitOfWorkTests
     {
         public string? ResolveModuleName(Type commandType)
         {
-            commandType.ShouldBe(typeof(TestCommand));
-
             return unitOfWork?.ModuleName;
         }
     }

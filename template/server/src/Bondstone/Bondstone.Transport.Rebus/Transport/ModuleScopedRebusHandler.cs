@@ -38,10 +38,18 @@ public sealed class ModuleScopedRebusHandler<TMessage>(
 
         CancellationToken cancellationToken = GetCurrentCancellationToken();
         ModuleMessageHandlerRegistration handler = handlers[0];
+        string messageId = GetCurrentMessageId();
+        IReadOnlyDictionary<string, string> headers = GetCurrentHeaders();
+
+        using var activity = RebusMessageDiagnostics.StartHandlingActivity<TMessage>(
+            moduleName,
+            messageId,
+            handler.MessageIdentity,
+            headers);
 
         await moduleMessageInbox.HandleOnceAsync(
             moduleName,
-            GetCurrentMessageId(),
+            messageId,
             handler.MessageIdentity,
             ct => HandleAsync(handler, message, ct),
             cancellationToken);
@@ -97,5 +105,11 @@ public sealed class ModuleScopedRebusHandler<TMessage>(
             ?? throw new InvalidOperationException("No Rebus message context is active.");
 
         return messageContext.GetCancellationToken();
+    }
+
+    private static IReadOnlyDictionary<string, string> GetCurrentHeaders()
+    {
+        return MessageContext.Current?.Headers
+            ?? throw new InvalidOperationException("No Rebus message context is active.");
     }
 }

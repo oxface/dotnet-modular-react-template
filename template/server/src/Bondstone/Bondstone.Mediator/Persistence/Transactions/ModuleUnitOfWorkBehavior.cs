@@ -18,12 +18,26 @@ public sealed class ModuleUnitOfWorkBehavior<TCommand, TResponse>(
 
         if (moduleName is null)
         {
-            return await next(message, cancellationToken);
+            if (IsNonPersistentCommand())
+            {
+                return await next(message, cancellationToken);
+            }
+
+            throw new InvalidOperationException(
+                $"Command type '{typeof(TCommand).FullName}' is not mapped to a module persistence registration. " +
+                $"Register its handler assembly with module persistence or mark the command with {nameof(NonPersistentCommandAttribute)}.");
         }
 
         return await moduleBoundary.ExecuteAsync(
             moduleName,
             ct => next(message, ct),
             cancellationToken);
+    }
+
+    private static bool IsNonPersistentCommand()
+    {
+        return typeof(TCommand)
+            .GetCustomAttributes(typeof(NonPersistentCommandAttribute), inherit: false)
+            .Any();
     }
 }

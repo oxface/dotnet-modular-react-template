@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using Bondstone.EntityFrameworkCore.Persistence;
 using Bondstone.Internal;
@@ -35,7 +36,9 @@ public sealed class DurableCommandSender(
         Type commandType = command.GetType();
         ValidateTargetModuleHandler(normalizedTargetModule, commandType);
         Guid submissionId = Guid.NewGuid();
-        Guid correlationId = submissionId;
+        Guid correlationId = BondstoneDiagnostics.CreateCorrelationId(Activity.Current) ?? submissionId;
+        Guid? messageCausationId = causationId ?? BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.CausationIdBaggageKey);
+        Guid? messageOperationId = operationId ?? BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.OperationIdBaggageKey);
         string messageType = messageTypeRegistry.GetMessageTypeName(commandType);
         string payload = JsonSerializer.Serialize(command, commandType);
         int messageMaxAttempts = maxAttempts ?? _options.MaxAttempts;
@@ -47,14 +50,15 @@ public sealed class DurableCommandSender(
             sourceModule,
             normalizedTargetModule,
             correlationId,
-            causationId,
-            operationId,
+            messageCausationId,
+            messageOperationId,
             payload,
+            metadata: MessageTraceContext.CaptureMetadata(),
             maxAttempts: messageMaxAttempts));
 
         return new CommandSubmission(
             submissionId,
-            operationId,
+            messageOperationId,
             CommandSubmissionStatus.Accepted);
     }
 

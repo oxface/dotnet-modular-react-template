@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Bondstone.Messaging;
 
 namespace ModularTemplate.ServiceDefaults;
 
@@ -51,6 +52,7 @@ public static class Extensions
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
+                    .AddSource(BondstoneDiagnostics.ActivitySourceName)
                     .AddAspNetCoreInstrumentation(static instrumentation =>
                     {
                         instrumentation.Filter = context =>

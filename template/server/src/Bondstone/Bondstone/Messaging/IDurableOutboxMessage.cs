@@ -20,5 +20,7 @@ public interface IDurableOutboxMessage
 
     string Payload { get; }
 
+    string? Metadata { get; }
+
     DateTimeOffset CreatedAtUtc { get; }
 }

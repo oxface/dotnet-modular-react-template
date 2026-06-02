@@ -1,16 +1,24 @@
-using Mediator;
+using Bondstone.Commands;
 using ModularTemplate.SharedKernel.Validation;
 
 namespace ModularTemplate.Host.Configuration;
 
 public sealed class RequestValidationBehavior<TCommand, TResponse>(
     IEnumerable<IRequestValidator<TCommand>> validators)
-    : IPipelineBehavior<TCommand, TResponse>
-    where TCommand : IBaseCommand
+    : IModuleCommandPipelineBehavior<TCommand, TResponse>
+    where TCommand : IModuleCommand<TResponse>
 {
     public async ValueTask<TResponse> Handle(
         TCommand message,
-        MessageHandlerDelegate<TCommand, TResponse> next,
+        ModuleCommandHandlerDelegate<TCommand, TResponse> next,
+        CancellationToken cancellationToken)
+    {
+        return await HandleAsync(message, next, cancellationToken);
+    }
+
+    public async ValueTask<TResponse> HandleAsync(
+        TCommand command,
+        ModuleCommandHandlerDelegate<TCommand, TResponse> next,
         CancellationToken cancellationToken)
     {
         List<string> errors = [];
@@ -18,7 +26,7 @@ public sealed class RequestValidationBehavior<TCommand, TResponse>(
         foreach (IRequestValidator<TCommand> validator in validators)
         {
             IReadOnlyCollection<string> validatorErrors =
-                await validator.ValidateAsync(message, cancellationToken);
+                await validator.ValidateAsync(command, cancellationToken);
 
             errors.AddRange(validatorErrors);
         }
@@ -28,6 +36,6 @@ public sealed class RequestValidationBehavior<TCommand, TResponse>(
             throw new RequestValidationException(errors);
         }
 
-        return await next(message, cancellationToken);
+        return await next(command, cancellationToken);
     }
 }

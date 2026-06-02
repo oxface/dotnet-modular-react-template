@@ -8,7 +8,7 @@ The shipped Identity module includes:
 - Provider-neutral current-user contracts.
 - Local user aggregates mapped to OIDC subjects.
 - Application access aggregates for application-owned access state.
-- Mediator command handlers.
+- Bondstone command handlers.
 - Module-owned repository contracts.
 - Infrastructure repository implementations through a narrow Identity DbContext
   interface.

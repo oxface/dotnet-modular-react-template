@@ -1,4 +1,4 @@
-using Mediator;
+using Bondstone.Commands;
 using ModularTemplate.Host.Configuration;
 using ModularTemplate.SharedKernel.Validation;
 using Shouldly;
@@ -44,7 +44,7 @@ public sealed class RequestValidationBehaviorTests
         nextWasCalled.ShouldBeFalse();
     }
 
-    private sealed record TestCommand(string Name) : ICommand<string>;
+    private sealed record TestCommand(string Name) : IModuleCommand<string>;
 
     private sealed class PassingValidator : IRequestValidator<TestCommand>
     {

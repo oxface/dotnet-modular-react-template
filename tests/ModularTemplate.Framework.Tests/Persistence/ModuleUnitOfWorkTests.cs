@@ -2,6 +2,7 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Bondstone.Commands;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Users;
 using ModularTemplate.Identity.Users.Events;
@@ -10,8 +11,6 @@ using Bondstone.Messaging;
 using Bondstone.EntityFrameworkCore.Persistence;
 using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
 using Bondstone.EntityFrameworkCore.Postgres.Persistence;
-using Bondstone.Mediator.Persistence;
-using Bondstone.Mediator.Persistence.Transactions;
 using Bondstone.Transport.Rebus;
 using Bondstone;
 using Rebus.Handlers;
@@ -176,7 +175,7 @@ public sealed class ModuleUnitOfWorkTests
 
         services.AddModulePersistence<IdentityDbContext>(
             "identity",
-            MediatorCommandTypes.FromHandlerAssemblyMarkers(typeof(TestCommandHandler)));
+            ModuleCommandTypes.FromHandlerAssemblyMarkers(typeof(TestCommandHandler)));
 
         ModulePersistenceRegistration registration = services
             .Select(service => service.ImplementationInstance)
@@ -198,6 +197,28 @@ public sealed class ModuleUnitOfWorkTests
             .ShouldBe(1);
         services.Count(service => service.ServiceType == typeof(OutboxWriter<IdentityDbContext>))
             .ShouldBe(1);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task ModuleCommandBus_WhenHandlerAndPipelineAreRegistered_ExecutesPipelineThenHandler()
+    {
+        var services = new ServiceCollection();
+        var recorder = new CommandPipelineRecorder();
+        services.AddSingleton(recorder);
+        services.AddModuleCommands(options =>
+        {
+            options.AssemblyMarkers.Add(typeof(TestCommandHandler));
+            options.PipelineBehaviors.Add(typeof(RecordingModuleCommandBehavior<,>));
+        });
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IModuleCommandBus commandBus = serviceProvider.GetRequiredService<IModuleCommandBus>();
+
+        Unit result = await commandBus.SendAsync(new TestCommand(), CancellationToken.None);
+
+        result.ShouldBe(Unit.Value);
+        recorder.Events.ShouldBe(["before", "handler", "after"]);
     }
 
     [Fact]
@@ -242,7 +263,7 @@ public sealed class ModuleUnitOfWorkTests
     public async Task ModuleBoundary_WhenModuleIsRegistered_ExecutesInsideResolvedUnitOfWork()
     {
         var unitOfWork = new TestModuleUnitOfWork("identity");
-        var boundary = new EntityFrameworkCoreModuleBoundary(new TestModulePersistenceResolver(unitOfWork));
+        var boundary = new EntityFrameworkCoreModuleBoundary([new TestModuleBoundaryExecutor(unitOfWork)]);
 
         int result = await boundary.ExecuteAsync(
             "identity",
@@ -321,11 +342,11 @@ public sealed class ModuleUnitOfWorkTests
     public async Task ModuleUnitOfWorkBehavior_WhenCommandIsMapped_SavesResolvedUnitOfWork()
     {
         var unitOfWork = new TestModuleUnitOfWork("identity");
-        var behavior = new ModuleUnitOfWorkBehavior<TestCommand, Unit>(
+        var behavior = new ModuleUnitOfWorkCommandBehavior<TestCommand, Unit>(
             new StaticModuleUnitOfWorkResolver(unitOfWork),
-            new EntityFrameworkCoreModuleBoundary(new TestModulePersistenceResolver(unitOfWork)));
+            new EntityFrameworkCoreModuleBoundary([new TestModuleBoundaryExecutor(unitOfWork)]));
 
-        await behavior.Handle(
+        await behavior.HandleAsync(
             new TestCommand(),
             (_, _) => new ValueTask<Unit>(Unit.Value),
             CancellationToken.None);
@@ -337,12 +358,12 @@ public sealed class ModuleUnitOfWorkTests
     [Trait("Category", "Unit")]
     public async Task ModuleUnitOfWorkBehavior_WhenCommandIsNotMapped_Throws()
     {
-        var behavior = new ModuleUnitOfWorkBehavior<TestCommand, Unit>(
+        var behavior = new ModuleUnitOfWorkCommandBehavior<TestCommand, Unit>(
             new StaticModuleUnitOfWorkResolver(null),
             new ThrowingModuleBoundary());
 
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
-            async () => await behavior.Handle(
+            async () => await behavior.HandleAsync(
                 new TestCommand(),
                 (_, _) => new ValueTask<Unit>(Unit.Value),
                 CancellationToken.None));
@@ -355,11 +376,11 @@ public sealed class ModuleUnitOfWorkTests
     [Trait("Category", "Unit")]
     public async Task ModuleUnitOfWorkBehavior_WhenCommandIsNonPersistent_RunsWithoutSave()
     {
-        var behavior = new ModuleUnitOfWorkBehavior<NonPersistentTestCommand, Unit>(
+        var behavior = new ModuleUnitOfWorkCommandBehavior<NonPersistentTestCommand, Unit>(
             new StaticModuleUnitOfWorkResolver(null),
             new ThrowingModuleBoundary());
 
-        Unit result = await behavior.Handle(
+        Unit result = await behavior.HandleAsync(
             new NonPersistentTestCommand(),
             (_, _) => new ValueTask<Unit>(Unit.Value),
             CancellationToken.None);
@@ -404,19 +425,43 @@ public sealed class ModuleUnitOfWorkTests
         return new IdentityDbContext(options);
     }
 
-    private sealed record TestCommand : ICommand;
+    private sealed record TestCommand : IModuleCommand<Unit>;
 
-    private sealed record OtherCommand : ICommand;
+    private sealed record OtherCommand : IModuleCommand<Unit>;
 
     [NonPersistentCommand]
-    private sealed record NonPersistentTestCommand : ICommand;
+    private sealed record NonPersistentTestCommand : IModuleCommand<Unit>;
 
-    private sealed class TestCommandHandler : ICommandHandler<TestCommand>
+    private sealed class TestCommandHandler(CommandPipelineRecorder? recorder = null)
+        : IModuleCommandHandler<TestCommand, Unit>
     {
-        public ValueTask<Unit> Handle(TestCommand command, CancellationToken cancellationToken)
+        public ValueTask<Unit> HandleAsync(TestCommand command, CancellationToken cancellationToken)
         {
+            recorder?.Events.Add("handler");
             return new ValueTask<Unit>(Unit.Value);
         }
+    }
+
+    private sealed class RecordingModuleCommandBehavior<TCommand, TResult>(
+        CommandPipelineRecorder recorder)
+        : IModuleCommandPipelineBehavior<TCommand, TResult>
+        where TCommand : IModuleCommand<TResult>
+    {
+        public async ValueTask<TResult> HandleAsync(
+            TCommand command,
+            ModuleCommandHandlerDelegate<TCommand, TResult> next,
+            CancellationToken cancellationToken)
+        {
+            recorder.Events.Add("before");
+            TResult result = await next(command, cancellationToken);
+            recorder.Events.Add("after");
+            return result;
+        }
+    }
+
+    private sealed class CommandPipelineRecorder
+    {
+        public List<string> Events { get; } = [];
     }
 
     [MessageIdentity("test.integration-event.v1")]
@@ -458,6 +503,19 @@ public sealed class ModuleUnitOfWorkTests
         {
             TransactionalExecutionCount++;
             return await operation(cancellationToken);
+        }
+    }
+
+    private sealed class TestModuleBoundaryExecutor(TestModuleUnitOfWork unitOfWork)
+        : IModuleBoundaryExecutor
+    {
+        public string ModuleName => unitOfWork.ModuleName;
+
+        public ValueTask<T> ExecuteAsync<T>(
+            Func<CancellationToken, ValueTask<T>> operation,
+            CancellationToken cancellationToken = default)
+        {
+            return unitOfWork.ExecuteTransactionalAsync(operation, cancellationToken);
         }
     }
 

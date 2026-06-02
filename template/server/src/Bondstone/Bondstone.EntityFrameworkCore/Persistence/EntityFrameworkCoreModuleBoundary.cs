@@ -3,7 +3,7 @@ using Bondstone.Internal;
 namespace Bondstone.EntityFrameworkCore.Persistence;
 
 public sealed class EntityFrameworkCoreModuleBoundary(
-    IModulePersistenceResolver persistenceResolver)
+    IEnumerable<IModuleBoundaryExecutor> executors)
     : IModuleBoundary
 {
     public async ValueTask ExecuteAsync(
@@ -31,8 +31,35 @@ public sealed class EntityFrameworkCoreModuleBoundary(
         ArgumentNullException.ThrowIfNull(operation);
 
         string normalizedModuleName = moduleName.TrimRequired(nameof(moduleName));
-        IModuleUnitOfWork unitOfWork = persistenceResolver.ResolveUnitOfWork(normalizedModuleName);
+        IModuleBoundaryExecutor executor = executors.SingleOrDefault(executor =>
+                string.Equals(executor.ModuleName, normalizedModuleName, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"No module boundary executor exists for module '{normalizedModuleName}'.");
 
+        return executor.ExecuteAsync(operation, cancellationToken);
+    }
+}
+
+public interface IModuleBoundaryExecutor
+{
+    string ModuleName { get; }
+
+    ValueTask<T> ExecuteAsync<T>(
+        Func<CancellationToken, ValueTask<T>> operation,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class EntityFrameworkCoreModuleBoundary<TDbContext>(
+    ModuleUnitOfWork<TDbContext> unitOfWork)
+    : IModuleBoundaryExecutor
+    where TDbContext : Microsoft.EntityFrameworkCore.DbContext, IModuleDbContext
+{
+    public string ModuleName => unitOfWork.ModuleName;
+
+    public ValueTask<T> ExecuteAsync<T>(
+        Func<CancellationToken, ValueTask<T>> operation,
+        CancellationToken cancellationToken = default)
+    {
         return unitOfWork.ExecuteTransactionalAsync(operation, cancellationToken);
     }
 }

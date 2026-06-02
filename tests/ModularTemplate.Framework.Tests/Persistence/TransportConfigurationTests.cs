@@ -31,15 +31,32 @@ public sealed class TransportConfigurationTests
         builder.Services.Any(service => service.ServiceType == typeof(IOutboxTransport)).ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(IOutboxRouteResolver)).ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(IBusRegistry)).ShouldBeTrue();
+        builder.Services.Any(service => service.ServiceType == typeof(RebusPostgresSchemaInitializer)).ShouldBeTrue();
+        builder.Services.Any(service =>
+            service.ServiceType == typeof(IHostedService)
+            && service.ImplementationType?.Name?.Contains("SchemaInitializer", StringComparison.Ordinal) == true)
+            .ShouldBeFalse();
+        using IHost host = builder.Build();
+        host.Services.GetServices<IHostedService>()
+            .Count(service => service.GetType().Name == "RebusSubscriptionHostedService")
+            .ShouldBe(2);
+    }
 
-        builder.Services.Any(service =>
-            service.ServiceType == typeof(IHostedService)
-            && service.ImplementationType?.Name == "RebusPostgresSchemaInitializerHostedService")
-            .ShouldBeTrue();
-        builder.Services.Any(service =>
-            service.ServiceType == typeof(IHostedService)
-            && service.ImplementationType?.Name == "RebusSubscriptionHostedService")
-            .ShouldBeTrue();
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddRebusTransport_WhenMultipleModulesAreConfigured_AddsOneSubscriptionServicePerModule()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Messaging:Modules:0"] = "identity";
+        builder.Configuration["Messaging:Modules:1"] = "operations";
+
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
+
+        using IHost host = builder.Build();
+        host.Services.GetServices<IHostedService>()
+            .Count(service => service.GetType().Name == "RebusSubscriptionHostedService")
+            .ShouldBe(2);
     }
 
     [Fact]
@@ -55,11 +72,47 @@ public sealed class TransportConfigurationTests
             && service.ImplementationType == typeof(PostgresAdvisoryOutboxDispatchLock))
             .ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(IOutboxDispatcher)).ShouldBeTrue();
+        builder.Services.Any(service => service.ServiceType == typeof(OutboxDispatcher<IdentityDbContext>)).ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(IModuleMessageInbox)).ShouldBeTrue();
         builder.Services.Any(service =>
-            service.ServiceType == typeof(IHostedService)
-            && service.ImplementationType == typeof(OutboxDispatcherBackgroundService))
+            service.ServiceType == typeof(IModuleMessageInboxExecutor)
+            && service.ImplementationType == typeof(EntityFrameworkCoreModuleMessageInbox<IdentityDbContext>))
             .ShouldBeTrue();
+        builder.Services.Any(service =>
+            service.ServiceType == typeof(IModuleBoundaryExecutor)
+            && service.ImplementationType == typeof(EntityFrameworkCoreModuleBoundary<IdentityDbContext>))
+            .ShouldBeTrue();
+        builder.Services.Any(service =>
+            service.ServiceType == typeof(IHostedService)
+            && service.ImplementationType == typeof(OutboxDispatcherBackgroundService<IdentityDbContext>))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModulePersistence_WhenMultipleModulesAreRegistered_AddsOneOutboxWorkerPerModule()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+
+        builder.Services.AddModulePersistence<IdentityDbContext>("identity");
+        builder.Services.AddModulePersistence<OperationsTransportDbContext>("operations");
+
+        builder.Services
+            .Where(service => service.ServiceType == typeof(IHostedService)
+                && service.ImplementationType?.IsGenericType == true
+                && service.ImplementationType.GetGenericTypeDefinition() == typeof(OutboxDispatcherBackgroundService<>))
+            .Select(service => service.ImplementationType)
+            .OrderBy(type => type!.FullName, StringComparer.Ordinal)
+            .ShouldBe([
+                typeof(OutboxDispatcherBackgroundService<IdentityDbContext>),
+                typeof(OutboxDispatcherBackgroundService<OperationsTransportDbContext>)
+            ]);
+        builder.Services.Any(service => service.ServiceType == typeof(OutboxDispatcher<IdentityDbContext>)).ShouldBeTrue();
+        builder.Services.Any(service => service.ServiceType == typeof(OutboxDispatcher<OperationsTransportDbContext>)).ShouldBeTrue();
+        builder.Services.Count(service => service.ServiceType == typeof(IModuleMessageInboxExecutor))
+            .ShouldBe(2);
+        builder.Services.Count(service => service.ServiceType == typeof(IModuleBoundaryExecutor))
+            .ShouldBe(2);
     }
 
     [Fact]
@@ -250,6 +303,18 @@ public sealed class TransportConfigurationTests
         : DbContext(options), IModuleDbContext
     {
         public string ModuleName => "identity";
+
+        public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+        public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
+
+        public DbSet<StoredDomainEvent> DomainEvents => Set<StoredDomainEvent>();
+    }
+
+    private sealed class OperationsTransportDbContext(DbContextOptions<OperationsTransportDbContext> options)
+        : DbContext(options), IModuleDbContext
+    {
+        public string ModuleName => "operations";
 
         public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

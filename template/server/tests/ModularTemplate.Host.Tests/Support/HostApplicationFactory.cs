@@ -1,4 +1,3 @@
-using Mediator;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -7,8 +6,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using ModularTemplate.Host.Tests.Authentication;
 using ModularTemplate.Identity.Access;
-using ModularTemplate.Identity.Contracts.CurrentUser;
-using ModularTemplate.Identity.CurrentUser;
 using ModularTemplate.Identity.Users;
 
 namespace ModularTemplate.Host.Tests.Support;
@@ -35,10 +32,7 @@ public sealed class HostApplicationFactory(
 
             services.RemoveAll<ILocalUserRepository>();
             services.RemoveAll<IApplicationAccessRepository>();
-            services.RemoveAll(typeof(IPipelineBehavior<,>));
-            services.RemoveModuleUnitOfWorkBehaviors();
-            services.RemoveAll<IPipelineBehavior<SynchronizeCurrentUserCommand, CurrentUserContext>>();
-            services.RemoveAll<IPipelineBehavior<GrantInitialAdminAccessCommand, GrantInitialAdminAccessResult>>();
+            services.RemoveModuleCommandPipelineBehaviors();
             services.AddSingleton<HostTestIdentityContext>();
             services.AddSingleton<ILocalUserRepository>(services => services.GetRequiredService<HostTestIdentityContext>());
             services.AddSingleton<IApplicationAccessRepository>(services => services.GetRequiredService<HostTestIdentityContext>());

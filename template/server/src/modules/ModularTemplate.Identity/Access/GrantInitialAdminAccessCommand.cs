@@ -1,4 +1,4 @@
-using Mediator;
+using Bondstone.Commands;
 using ModularTemplate.Identity.Users;
 
 namespace ModularTemplate.Identity.Access;
@@ -15,7 +15,7 @@ public sealed class InitialAdminOptions
 public sealed record GrantInitialAdminAccessCommand(
     string? Provider,
     string? Subject,
-    bool Force) : ICommand<GrantInitialAdminAccessResult>;
+    bool Force) : IModuleCommand<GrantInitialAdminAccessResult>;
 
 public enum GrantInitialAdminAccessResult
 {
@@ -28,9 +28,9 @@ public enum GrantInitialAdminAccessResult
 public sealed class GrantInitialAdminAccessCommandHandler(
     ILocalUserRepository localUserRepository,
     IApplicationAccessRepository applicationAccessRepository)
-    : ICommandHandler<GrantInitialAdminAccessCommand, GrantInitialAdminAccessResult>
+    : IModuleCommandHandler<GrantInitialAdminAccessCommand, GrantInitialAdminAccessResult>
 {
-    public async ValueTask<GrantInitialAdminAccessResult> Handle(
+    public async ValueTask<GrantInitialAdminAccessResult> HandleAsync(
         GrantInitialAdminAccessCommand command,
         CancellationToken cancellationToken)
     {

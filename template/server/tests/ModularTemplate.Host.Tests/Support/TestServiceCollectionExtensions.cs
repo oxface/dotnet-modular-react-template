@@ -1,25 +1,19 @@
 using Microsoft.Extensions.DependencyInjection;
-using Bondstone.Mediator.Persistence.Transactions;
+using Bondstone.Commands;
 
 namespace ModularTemplate.Host.Tests.Support;
 
 internal static class TestServiceCollectionExtensions
 {
-    public static void RemoveModuleUnitOfWorkBehaviors(this IServiceCollection services)
+    public static void RemoveModuleCommandPipelineBehaviors(this IServiceCollection services)
     {
         for (int index = services.Count - 1; index >= 0; index--)
         {
-            if (IsModuleUnitOfWorkBehavior(services[index].ImplementationType))
+            if (services[index].ServiceType.IsGenericType
+                && services[index].ServiceType.GetGenericTypeDefinition() == typeof(IModuleCommandPipelineBehavior<,>))
             {
                 services.RemoveAt(index);
             }
         }
-    }
-
-    private static bool IsModuleUnitOfWorkBehavior(Type? implementationType)
-    {
-        return implementationType is not null
-            && implementationType.IsGenericType
-            && implementationType.GetGenericTypeDefinition() == typeof(ModuleUnitOfWorkBehavior<,>);
     }
 }

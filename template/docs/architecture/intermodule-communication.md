@@ -11,11 +11,12 @@ Use the smallest communication pattern that matches the consistency need.
 
 ### Same-Module Commands And Queries
 
-Use Mediator command/query handlers for behavior inside one module.
+Use Bondstone command handlers or module-local services for behavior inside one
+module.
 
 - Commands mutate one module through module-owned repositories or stores.
 - Queries return provider-neutral read models.
-- Command handlers rely on the Mediator module unit-of-work pipeline to run in
+- Bondstone command handlers rely on the module unit-of-work pipeline to run in
   one changed module context and save after successful command handling.
 - Command handlers may explicitly flush the active module unit of work when
   they need database-generated values, constraint checks, or other
@@ -23,12 +24,12 @@ Use Mediator command/query handlers for behavior inside one module.
   aggregate domain events captured by that flush. If the enclosing transaction
   later rolls back, retry must start from a fresh request or message-handling
   scope.
-- A Mediator command that is not mapped to a module persistence registration
+- A persistent command that is not mapped to a module persistence registration
   fails at runtime unless it is explicitly marked with
   `NonPersistentCommandAttribute`.
-- Query handlers should not save changes.
+- Query contracts should not save changes.
 
-Do not wrap normal same-module Mediator calls in durable messaging just because
+Do not wrap normal same-module command calls in durable messaging just because
 they are commands. Durable messaging is for asynchronous handoff across a
 reliability boundary.
 
@@ -85,18 +86,18 @@ subscriptions decide which module queues receive them.
 Durable cross-module messages move through these stages:
 
 1. application code changes one source module
-2. the Mediator command pipeline resolves the source module unit of work from
+2. the Bondstone command pipeline resolves the source module unit of work from
    module persistence registration and persists aggregate state, stored domain
    events, and outbox rows in one transaction
-3. `OutboxDispatcher` takes a per-module PostgreSQL advisory lock and claims
-   pending source-module outbox rows with `FOR UPDATE SKIP LOCKED`
+3. the source module's outbox worker takes its PostgreSQL advisory lock and
+   claims pending rows with `FOR UPDATE SKIP LOCKED`
 4. `RebusOutboxTransport` deserializes the stable message identity and sends or
    publishes the message through Rebus
 5. Rebus delivers the message to the target module queue or event subscribers
 6. the module-scoped Rebus adapter opens the receiving module unit of work
 7. the adapter records a target-module inbox row per message id and stable
    message identity, then delegates to the target handler
-8. target handlers may call Mediator for behavior owned by the receiving module
+8. target handlers may call module application behavior owned by the receiving module
    inside that receiving transaction
 9. the adapter commits target state and the inbox row after successful message
    handling
@@ -132,20 +133,23 @@ Outbox rows store dispatch state and a bounded error summary. Full exception
 details belong in structured logs and traces so the outbox table stays an
 operational queue, not a diagnostics archive.
 
-The outbox dispatcher takes a per-module PostgreSQL advisory lock before
-claiming rows. This keeps one Host instance at a time polling a module's outbox
-and claims eligible rows oldest-first while still allowing different modules to
-dispatch independently. It is not a strict FIFO guarantee: if an older message
-fails and is scheduled for retry, later eligible messages from the same module
-may still be dispatched. Products that need causal ordering should model that
-explicitly with aggregate state, sequence numbers, or product-owned process
-managers.
+Each module persistence registration owns one outbox worker for that module's
+schema. The worker takes a module-scoped PostgreSQL advisory lock before
+claiming eligible rows oldest-first with `FOR UPDATE SKIP LOCKED`. Separate
+module workers run independently, so slow or locked dispatch in one module does
+not block another module's outbox. It is not a strict FIFO guarantee: if an
+older message fails and is scheduled for retry, later eligible messages from
+the same module may still be dispatched. Products that need causal ordering
+should model that explicitly with aggregate state, sequence numbers, or
+product-owned process managers.
 
 If the Host stops while a message is claimed as `Processing`, the row is not
 deleted or considered delivered. It becomes eligible again after
-`Messaging:LockTimeout` when another dispatcher treats the claim as stale.
-Choose a timeout that is comfortably longer than normal dispatch latency but
-short enough for the product's restart recovery expectations.
+`Messaging:LockTimeout` when another dispatcher treats the claim as stale. A
+stale claim counts as an abandoned dispatch attempt before the row is retried or
+dead-lettered, so `Messaging:MaxAttempts` still bounds crash-looping dispatch
+work. Choose a timeout that is comfortably longer than normal dispatch latency
+but short enough for the product's restart recovery expectations.
 
 Inbox and processed/dead-lettered outbox rows are retained until product
 operations define a cleanup policy. Do not delete inbox rows inside the maximum
@@ -162,22 +166,24 @@ default.
 ## Rebus Boundary
 
 Rebus owns transport, routing, pub/sub delivery, and receive-side handler
-dispatch. Rebus handlers should stay thin and delegate meaningful state changes
-to target-module application behavior. The module-scoped Rebus adapter owns the
-receiving module transaction because transport delivery starts outside the
-Mediator pipeline; receiving module Mediator calls participate inside that
-transaction when they are used. Do not call another module's write command from
-inside a receiving module transaction; use another durable command or
-integration event for cross-module follow-up work. The template owns both the
-source-side outbox and the
-receive-side inbox so outgoing messages commit atomically with source module
-state and duplicate deliveries are suppressed per receiving module and message
-identity.
+dispatch. Transport registration creates one bus, queue, and subscription
+startup service per configured module, and the module-scoped Rebus adapter owns
+the receiving module transaction because transport delivery starts outside the
+Bondstone command pipeline.
+Rebus handlers should stay thin and delegate meaningful state changes to
+target-module application behavior; receiving module command calls participate
+inside that transaction when they are used. Do not call another module's write
+command from inside a receiving module transaction; use another durable command
+or integration event for cross-module follow-up work. The template owns both the
+source-side outbox and the receive-side inbox so outgoing messages commit
+atomically with source module state and duplicate deliveries are suppressed per
+receiving module and message identity.
 
 The generated transport is Rebus over PostgreSQL, which fits the local
-modular-monolith topology and reuses the product database dependency. External
-broker transports are product decisions and should bring their own deployment
-resources and verification.
+modular-monolith topology and reuses the product database dependency. The
+Migrator creates the configured transport schema; Host startup does not run
+transport DDL. External broker transports are product decisions and should bring
+their own deployment resources and verification.
 
 Messages MUST use stable message identities, not CLR type names, for persisted
 outbox rows and Rebus message type headers. Use `MessageIdentityAttribute` and
@@ -209,25 +215,26 @@ the stable message identity. Event subscribers should also call
 the module's Rebus subscription for that event. Publishing an event with no
 subscribers is allowed.
 
-Module infrastructure registrations that use Mediator should call
-`AddMediatorModulePersistence<{Module}DbContext>("{module}", typeof(SomeCommandHandler))`
-with marker types from assemblies that contain persistent Mediator command
-handlers for that module. The registration scans `ICommandHandler` types and
-maps their command message types to the module DbContext. Modules that do not
-use Mediator can call `AddModulePersistence<{Module}DbContext>("{module}")` and
-run custom handlers through `IModuleBoundary`. Both paths register the module
-persistence resolver, module unit of work, DbContext adapter, and outbox writer
-plumbing used by durable messaging. A command type that is not mapped to any
-module persistence registration fails in the Mediator transaction pipeline.
-Mark a command with `NonPersistentCommandAttribute` only for platform or
-explicitly non-persistent work.
+Module infrastructure registrations should call
+`AddModulePersistence<{Module}DbContext>("{module}", ModuleCommandTypes.FromHandlerAssemblyMarkers(...))`
+with marker types from assemblies that contain persistent
+`IModuleCommandHandler<TCommand, TResult>` handlers for that module. The
+registration maps those command types to the module DbContext. Modules without
+Bondstone command handlers can call `AddModulePersistence<{Module}DbContext>("{module}")`
+and run custom handlers through `IModuleBoundary`. Both paths register the
+module persistence resolver plus the module-owned unit of work, boundary
+executor, inbox executor, outbox writer, and outbox worker used by durable
+messaging. A command type that is not mapped to any module persistence
+registration fails in the Bondstone command pipeline. Mark a command with
+`NonPersistentCommandAttribute` only for platform or explicitly non-persistent
+work.
 
 ## Naming The Application API
 
 Use names that describe caller intent.
 
-- Use Mediator directly for in-process same-module commands and queries.
-- Use `IModuleBoundary` when custom/non-Mediator handlers need the module
+- Use `IModuleCommandBus` for in-process same-module commands.
+- Use `IModuleBoundary` when custom handlers need the module
   transaction and outbox behavior.
 - Use `IDurableCommandSender` when the caller explicitly wants durable
   asynchronous delivery.
@@ -236,8 +243,8 @@ Use names that describe caller intent.
   `ICommandSender`, and keep the immediate/durable choice explicit in its
   implementation and registration.
 
-Do not hide the consistency model from the caller. A command sent through
-Mediator can complete in the current request; a durable command is accepted for
+Do not hide the consistency model from the caller. A command sent through the
+module command bus can complete in the current request; a durable command is accepted for
 later handling and must be observed through state.
 
 ## Adding A Module
@@ -253,15 +260,14 @@ When adding a module:
 5. create `{Module}DbContext` implementing `IModuleDbContext`
 6. configure the module schema, migrations history table, and
    `ApplyOutboxConfiguration("{module}")` for domain events, inbox, and outbox
-7. call `AddMediatorModulePersistence<{Module}DbContext>("{module}", ...)`
+7. call `AddModulePersistence<{Module}DbContext>("{module}", ...)`
    from module infrastructure with marker types from assemblies that contain
-   persistent Mediator command handlers for that module, or
-   `AddModulePersistence<{Module}DbContext>("{module}")` for custom
-   non-Mediator handlers
+   persistent Bondstone command handlers for that module, or omit command
+   markers for custom handlers
 8. call `AddModuleMessaging("{module}", ...)` from module infrastructure for
    the module, contracts, and infrastructure assemblies
-9. add module Mediator handler assembly markers to the Host and Migrator
-   compile-time Mediator configuration when the module has Mediator handlers
+9. add module command handler assembly markers to the Host and Migrator
+   `AddModuleCommands` configuration when the module has command handlers
 10. add the module name to `Messaging:Modules`
 11. add the module context to the Migrator
 12. add module docs and focused tests
@@ -272,15 +278,15 @@ When adding a module:
 2. Put it in a contracts project unless it is truly platform-wide.
 3. Add `MessageIdentityAttribute` and ensure its assembly is registered with
    `AddModuleMessaging("{module}", ...)`.
-4. Send it with `IDurableCommandSender` from inside the source module's
-   Mediator command handler, including the target module name.
+4. Send it with `IDurableCommandSender` from inside the source module's command
+   handler, including the target module name.
 5. Implement an `IModuleMessageHandler<TCommand>` handler in the target module.
 6. Keep the transport handler thin: validate transport assumptions and call a
-   receiving-module Mediator command for state changes.
-7. Ensure the receiving-module Mediator command handler's assembly is included
-   in that module's `AddMediatorModulePersistence` call so the Mediator pipeline
-   commits the receiving module DbContext after successful command handling, or
-   execute custom handlers through `IModuleBoundary`.
+   receiving-module command or service for state changes.
+7. Ensure the receiving-module command handler's assembly is included in that
+   module's persistence registration so the module pipeline commits the
+   receiving module DbContext after successful command handling, or execute
+   custom handlers through `IModuleBoundary`.
 8. If callers need progress or results, model that as operation/read-model state
    and expose it through a query contract or endpoint.
 

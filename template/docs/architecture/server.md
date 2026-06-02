@@ -69,9 +69,9 @@ Host `Program.cs` should stay a composition outline. Module registration should
 be delegated to module-owned configuration extensions, ideally one `Add{Module}Module`
 service extension and one `Map{Module}Module` endpoint extension where the
 module owns endpoints. Those extensions wire module services, infrastructure
-adapters, module persistence, and module messaging. Mediator source generation
-requires compile-time-visible handler assembly markers, so Host and Migrator
-composition must list module Mediator assemblies explicitly.
+adapters, module persistence, and module messaging. Products that opt into
+Mediator-native handlers must keep Mediator source-generator configuration in
+the composing app assembly.
 
 ## DDD And CQRS Direction
 
@@ -83,19 +83,19 @@ feature docs and code model its invariants, equality, lifecycle, and ownership
 as a domain concept.
 
 The template's durable direction is CQRS through narrow module contracts and
-Mediator-backed command/query handlers where behavior grows beyond a very small
-module service. Repository abstractions represent command-side domain
+Bondstone command handlers where behavior grows beyond a very small module
+service. Repository abstractions represent command-side domain
 persistence for aggregate loading and saving. They sit inside the module
 boundary, and infrastructure implements them through module-owned DbContexts.
-Query handlers and read models provide provider-neutral projections for callers
+Query contracts and read models provide provider-neutral projections for callers
 that need read-side data. Avoid `Reader` services unless a feature artifact
-intentionally documents why that term is clearer than a query handler, read
+intentionally documents why that term is clearer than a query contract, read
 model, or repository.
 
-Modules should use the `Mediator` library's command/query abstractions instead
-of template-owned dispatcher abstractions. Command handlers mutate aggregates
-through module-owned repositories and rely on a Mediator pipeline behavior to
-run the command inside the selected module unit of work and save changes after
+Modules should use Bondstone command abstractions for write use cases that need
+module unit-of-work behavior. Command handlers mutate aggregates through
+module-owned repositories and rely on the Bondstone command pipeline to run the
+command inside the selected module unit of work and save changes after
 successful command handling. Handlers may explicitly flush the active module
 unit of work when they need database-generated values, constraint checks,
 stored-procedure inputs, or other mid-transaction persistence effects. Each
@@ -108,21 +108,21 @@ work uses the current .NET `Activity` for trace correlation when one exists;
 otherwise it starts a Bondstone `Activity` for the module transaction.
 Integration-event outbox rows persist the current W3C trace context in outbox
 metadata so later dispatch and receive-side work continue the same distributed
-trace. Module Infrastructure registers its
-persistent command types with `AddModulePersistence<{Module}DbContext>()`;
-Mediator modules can discover those command types from handler assemblies with
-`MediatorCommandTypes.FromHandlerAssemblyMarkers`. The pipeline uses the
+trace. Module Infrastructure registers persistent command types with
+`AddModulePersistence<{Module}DbContext>()`; modules can discover those command
+types from handler assemblies with
+`ModuleCommandTypes.FromHandlerAssemblyMarkers`. The pipeline uses the
 discovered command types to select one module boundary for the command. Modules
-that do not use Mediator can also register persistence with `AddModulePersistence`
-and run arbitrary module work through `IModuleBoundary`. Both paths register the
-shared module DbContext/outbox plumbing used by durable messaging. Mediator
-commands that are not mapped to module persistence fail unless they are
-explicitly marked with `NonPersistentCommandAttribute`. Query handlers read
+that do not use Bondstone command handlers can also register persistence with
+`AddModulePersistence` and run arbitrary module work through `IModuleBoundary`.
+Both paths register the shared module DbContext/outbox plumbing used by durable
+messaging. Commands that are not mapped to module persistence fail unless they
+are explicitly marked with `NonPersistentCommandAttribute`. Query contracts read
 provider-neutral state and do not save changes.
 
 Command handlers should get decision-making data through repositories or
-command-side read ports, not by calling query handlers. Query handlers are
-application read use cases for callers that need read-side data.
+command-side read ports, not by calling external query contracts. Query
+contracts are application read use cases for callers that need read-side data.
 
 Cross-module synchronous reads should use in-process query contracts from the
 target module's Contracts project. Cross-module asynchronous work should use
@@ -135,11 +135,11 @@ inside the source module's command unit of work so the source module outbox row
 is committed consistently with module state.
 Receive-side Rebus handlers should be transport adapters that delegate state
 changes to target-module application behavior. Because transport delivery starts
-outside the Mediator pipeline, the module-scoped Rebus adapter owns the
-receiving module transaction; receiving module Mediator calls participate inside
+outside the Bondstone command pipeline, the module-scoped Rebus adapter owns the
+receiving module transaction; receiving module command calls participate inside
 that transaction when they are used. Cross-module write follow-up from a receive
 handler must use another durable command or integration event, not a synchronous
-Mediator command for another module.
+command for another module.
 See [Intermodule Communication](intermodule-communication.md) for the detailed
 pattern guide, message lifecycle, ordering, retention, and module scaffolding
 checklist.

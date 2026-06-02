@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="..\..\Bondstone\Bondstone\Bondstone.csproj" />
     <ProjectReference Include="..\..\ModularTemplate.SharedKernel\ModularTemplate.SharedKernel.csproj" />
     <ProjectReference Include="..\ModularTemplate.Identity.Contracts\ModularTemplate.Identity.Contracts.csproj" />
   </ItemGroup>
@@ -9,7 +10,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Mediator.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>

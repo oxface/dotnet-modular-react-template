@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Bondstone.Commands;
 using Bondstone.EntityFrameworkCore.Outbox;
 using Bondstone.EntityFrameworkCore.Inbox;
 using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
@@ -32,22 +33,43 @@ public static class ModulePersistenceServiceCollectionExtensions
         services.TryAddScoped<OutboxWriter<TDbContext>>();
         services.TryAddScoped<IDurableCommandSender, DurableCommandSender>();
         services.TryAddScoped<IModuleMessageInbox, EntityFrameworkCoreModuleMessageInbox>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<
+            IModuleMessageInboxExecutor,
+            EntityFrameworkCoreModuleMessageInbox<TDbContext>>());
         services.TryAddScoped<IInboxMessageProcessor, InboxMessageProcessor>();
         services.TryAddScoped<IRetryDelayPolicy, ConfiguredRetryDelayPolicy>();
-        services.TryAddScoped<IOutboxDispatcher, OutboxDispatcher>();
+        services.TryAddScoped<OutboxDispatcher<TDbContext>>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOutboxDispatcher, OutboxDispatcher<TDbContext>>());
         services.TryAddScoped<IStoredDomainEventMapper, StoredDomainEventMapper>();
         services.TryAddScoped<IModuleBoundary, EntityFrameworkCoreModuleBoundary>();
+        services.TryAddScoped<EntityFrameworkCoreModuleBoundary<TDbContext>>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<
+            IModuleBoundaryExecutor,
+            EntityFrameworkCoreModuleBoundary<TDbContext>>());
         services.TryAddScoped<IModuleUnitOfWorkContext, ModuleUnitOfWorkContext>();
         services.TryAddScoped<IModulePersistenceResolver, ModulePersistenceResolver>();
         services.TryAddScoped<IModuleUnitOfWorkResolver, ModuleUnitOfWorkResolver>();
         services.TryAddScoped<IModuleCommandBoundaryResolver, ModuleUnitOfWorkResolver>();
         services.TryAddScoped<ModuleUnitOfWork<TDbContext>>();
+        services.TryAddEnumerable(ServiceDescriptor.Scoped(
+            typeof(IModuleCommandPipelineBehavior<,>),
+            typeof(ModuleUnitOfWorkCommandBehavior<,>)));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<
             Microsoft.Extensions.Options.IValidateOptions<DurableMessagingOptions>,
             EntityFrameworkCoreDurableMessagingOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<
+            Microsoft.Extensions.Options.IValidateOptions<DurableMessagingOptions>,
+            EntityFrameworkCoreModuleTopologyValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<
             Microsoft.Extensions.Hosting.IHostedService,
-            OutboxDispatcherBackgroundService>());
+            OutboxDispatcherBackgroundService<TDbContext>>());
+        services.AddSingleton(new ModuleRuntimeRegistration(
+            normalizedModuleName,
+            typeof(TDbContext),
+            typeof(EntityFrameworkCoreModuleBoundary<TDbContext>),
+            typeof(EntityFrameworkCoreModuleMessageInbox<TDbContext>),
+            typeof(OutboxDispatcher<TDbContext>),
+            typeof(OutboxDispatcherBackgroundService<TDbContext>)));
         AddModulePersistenceRegistration(
             services,
             normalizedModuleName,

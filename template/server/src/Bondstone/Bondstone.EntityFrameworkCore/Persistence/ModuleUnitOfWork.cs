@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,14 +23,26 @@ public sealed class ModuleUnitOfWork<TDbContext>(
     where TDbContext : DbContext, IModuleDbContext
 {
     private readonly DurableMessagingOptions _options = options.Value;
+    private Guid? _transactionCorrelationId;
+    private bool _failed;
 
     public string ModuleName => context.ModuleName;
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        ThrowIfFailed();
+
         if (context.ChangeTracker.HasChanges() || HasDomainEvents())
         {
-            await SaveAsync(cancellationToken);
+            try
+            {
+                await SaveAsync(cancellationToken);
+            }
+            catch
+            {
+                MarkFailed();
+                throw;
+            }
         }
     }
 
@@ -38,20 +51,38 @@ public sealed class ModuleUnitOfWork<TDbContext>(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
+        ThrowIfFailed();
 
         using IDisposable moduleScope = unitOfWorkContext.StartModuleScope(context.ModuleName);
 
         if (context.Database.CurrentTransaction is not null)
         {
-            T result = await operation(cancellationToken);
-            await SaveChangesAsync(cancellationToken);
-            return result;
+            using Activity? activity = BondstoneDiagnostics.StartActivity(
+                $"Bondstone {context.ModuleName} unit of work",
+                ActivityKind.Internal);
+
+            try
+            {
+                T result = await operation(cancellationToken);
+                await SaveChangesAsync(cancellationToken);
+                return result;
+            }
+            catch
+            {
+                MarkFailed();
+                throw;
+            }
         }
 
         IDbContextTransaction? transaction = null;
+        Guid? previousTransactionCorrelationId = _transactionCorrelationId;
 
         try
         {
+            using Activity? activity = BondstoneDiagnostics.StartActivity(
+                $"Bondstone {context.ModuleName} unit of work",
+                ActivityKind.Internal);
+            _transactionCorrelationId = BondstoneDiagnostics.CreateCorrelationId(Activity.Current) ?? Guid.NewGuid();
             transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
             T result = await operation(cancellationToken);
@@ -61,6 +92,8 @@ public sealed class ModuleUnitOfWork<TDbContext>(
         }
         catch
         {
+            MarkFailed();
+
             if (transaction is not null)
             {
                 await transaction.RollbackAsync(cancellationToken);
@@ -74,15 +107,20 @@ public sealed class ModuleUnitOfWork<TDbContext>(
             {
                 await transaction.DisposeAsync();
             }
+
+            _transactionCorrelationId = previousTransactionCorrelationId;
         }
     }
 
     private async Task SaveAsync(CancellationToken cancellationToken)
     {
-        Guid correlationId = Guid.NewGuid();
+        Guid correlationId = _transactionCorrelationId
+            ?? BondstoneDiagnostics.CreateCorrelationId(Activity.Current)
+            ?? Guid.NewGuid();
+        IReadOnlyCollection<IAggregateRoot> capturedAggregates = CaptureDomainEvents(correlationId);
 
-        CaptureDomainEvents(correlationId);
         await context.SaveChangesAsync(cancellationToken);
+        ClearDomainEvents(capturedAggregates);
     }
 
     private bool HasDomainEvents()
@@ -92,7 +130,7 @@ public sealed class ModuleUnitOfWork<TDbContext>(
             .Any(x => x.Entity.DomainEvents.Count > 0);
     }
 
-    private void CaptureDomainEvents(Guid correlationId)
+    private IReadOnlyCollection<IAggregateRoot> CaptureDomainEvents(Guid correlationId)
     {
         var entries = context.ChangeTracker
             .Entries<IAggregateRoot>()
@@ -117,9 +155,17 @@ public sealed class ModuleUnitOfWork<TDbContext>(
             }
         }
 
-        foreach (var entry in entries)
+        return entries
+            .Select(entry => entry.Aggregate)
+            .Distinct()
+            .ToArray();
+    }
+
+    private static void ClearDomainEvents(IReadOnlyCollection<IAggregateRoot> aggregates)
+    {
+        foreach (IAggregateRoot aggregate in aggregates)
         {
-            entry.Aggregate.DequeueDomainEvents();
+            aggregate.DequeueDomainEvents();
         }
     }
 
@@ -157,8 +203,26 @@ public sealed class ModuleUnitOfWork<TDbContext>(
                     causationId: domainEvent.EventId,
                     operationId: null,
                     payload,
+                    metadata: MessageTraceContext.CaptureMetadata(),
                     maxAttempts: _options.MaxAttempts));
             }
         }
+    }
+
+    private void MarkFailed()
+    {
+        _failed = true;
+    }
+
+    private void ThrowIfFailed()
+    {
+        if (!_failed)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Module unit of work '{context.ModuleName}' has failed and cannot be reused. " +
+            "Retry from a fresh request or message-handling scope.");
     }
 }

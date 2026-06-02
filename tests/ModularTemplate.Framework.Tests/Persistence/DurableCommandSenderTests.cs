@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using Bondstone.EntityFrameworkCore.Outbox;
 using Bondstone.Messaging;
@@ -55,6 +56,49 @@ public sealed class DurableCommandSenderTests
         message.Metadata.ShouldBeNull();
         JsonSerializer.Deserialize<RebuildOperationProjectionCommand>(message.Payload)
             .ShouldBe(command);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void Send_WhenActivityIsActive_UsesActivityTraceAndBaggage()
+    {
+        var outboxWriter = new CapturingOutboxWriter("identity");
+        var registry = new MessageTypeRegistry();
+        registry.Register<RebuildOperationProjectionCommand>(
+            "ModularTemplate.operations.rebuild-operation-projection.v1");
+        var unitOfWorkContext = new ModuleUnitOfWorkContext();
+        var sender = new DurableCommandSender(
+            PersistenceResolver(outboxWriter),
+            HandlerRegistrations(),
+            registry,
+            unitOfWorkContext,
+            MessagingOptions());
+        Guid causationId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        Guid operationId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+
+        CommandSubmission submission;
+        using Activity activity = new Activity("test command")
+            .SetIdFormat(ActivityIdFormat.W3C)
+            .Start();
+        activity.AddBaggage(BondstoneDiagnostics.CausationIdBaggageKey, causationId.ToString("D"));
+        activity.AddBaggage(BondstoneDiagnostics.OperationIdBaggageKey, operationId.ToString("D"));
+
+        using (unitOfWorkContext.StartModuleScope("identity"))
+        {
+            submission = sender.Send(
+                new RebuildOperationProjectionCommand(operationId),
+                targetModule: "operations");
+        }
+
+        submission.OperationId.ShouldBe(operationId);
+        OutboxMessage message = outboxWriter.Messages.Single();
+        message.CorrelationId.ShouldBe(BondstoneDiagnostics.CreateCorrelationId(activity).ShouldNotBeNull());
+        message.CausationId.ShouldBe(causationId);
+        message.OperationId.ShouldBe(operationId);
+        message.MessageId.ShouldBe(submission.SubmissionId);
+        MessageTraceContext.FromMetadata(message.Metadata)
+            ?.TraceParent
+            .ShouldBe(activity.Id);
     }
 
     [Fact]

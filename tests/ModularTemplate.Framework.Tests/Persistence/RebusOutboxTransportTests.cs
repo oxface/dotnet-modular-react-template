@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Bondstone.EntityFrameworkCore.Outbox;
 using Bondstone.Messaging;
 using Bondstone.Transport.Rebus;
@@ -28,6 +29,9 @@ public sealed class RebusOutboxTransportTests
         routeResolver.Resolve(Arg.Any<OutboxMessage>())
             .Returns(new OutboxRoute("identity:queue", "modular-template.operations"));
         var transport = new RebusOutboxTransport(busRegistry, registry, routeResolver);
+        using Activity activity = new Activity("test outbox dispatch")
+            .SetIdFormat(ActivityIdFormat.W3C)
+            .Start();
         OutboxMessage outboxMessage = OutboxMessage.Create(
             Guid.NewGuid(),
             MessageKind.Command,
@@ -37,7 +41,8 @@ public sealed class RebusOutboxTransportTests
             correlationId: Guid.NewGuid(),
             causationId: null,
             operationId: null,
-            payload: "{\"Value\":\"hello\"}");
+            payload: "{\"Value\":\"hello\"}",
+            metadata: MessageTraceContext.CaptureMetadata());
 
         await transport.DispatchAsync(outboxMessage, CancellationToken.None);
 
@@ -47,7 +52,8 @@ public sealed class RebusOutboxTransportTests
             Arg.Is<Dictionary<string, string>>(headers =>
                 headers["modular-template-message-type"] == "test.command.v1"
                 && headers["modular-template-source-module"] == "identity"
-                && headers["modular-template-target-module"] == "operations"));
+                && headers["modular-template-target-module"] == "operations"
+                && headers[BondstoneDiagnostics.TraceParentHeader] == activity.Id));
         await bus.DidNotReceiveWithAnyArgs().Publish(default!);
     }
 

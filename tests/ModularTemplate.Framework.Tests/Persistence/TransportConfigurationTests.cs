@@ -180,21 +180,18 @@ public sealed class TransportConfigurationTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void AddRebusTransport_WhenEventSubscriptionHasNoModuleHandler_FailsOptionsValidation()
+    public void AddModuleMessaging_WhenIntegrationEventHandlerIsRegistered_AddsEventSubscription()
     {
-        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
+        var services = new ServiceCollection();
 
-        builder.AddRebusTransport(transport =>
-            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
-        builder.Services.AddModuleEventSubscriptions("identity", typeof(TestIntegrationEvent));
-        using IHost host = builder.Build();
+        services.AddModuleMessaging("identity", typeof(TestModuleMessageHandler));
 
-        OptionsValidationException exception = Should.Throw<OptionsValidationException>(
-            () => host.Services.GetRequiredService<IOptions<DurableMessagingOptions>>().Value);
-        exception.Message.ShouldContain("identity");
-        exception.Message.ShouldContain(typeof(TestIntegrationEvent).FullName!);
-        exception.Message.ShouldContain("matching module message handler");
+        object subscription = services
+            .Select(service => service.ImplementationInstance)
+            .Where(instance => instance?.GetType().Name == "ModuleEventSubscription")
+            .Single(instance => (Type)instance!.GetType().GetProperty("EventType")!.GetValue(instance)! == typeof(TestIntegrationEvent))!;
+        subscription.GetType().GetProperty("ModuleName")!.GetValue(subscription)
+            .ShouldBe("identity");
     }
 
     [Fact]

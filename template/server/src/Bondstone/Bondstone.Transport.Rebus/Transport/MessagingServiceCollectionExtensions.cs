@@ -42,29 +42,6 @@ public static class MessagingServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddModuleEventSubscriptions(
-        this IServiceCollection services,
-        string moduleName,
-        params Type[] eventTypes)
-    {
-        string normalizedModuleName = moduleName.TrimRequired(nameof(moduleName));
-        ArgumentNullException.ThrowIfNull(eventTypes);
-
-        foreach (Type eventType in eventTypes)
-        {
-            if (!typeof(IIntegrationEvent).IsAssignableFrom(eventType))
-            {
-                throw new ArgumentException(
-                    $"Subscription type '{eventType.FullName}' must implement {nameof(IIntegrationEvent)}.",
-                    nameof(eventTypes));
-            }
-
-            AddModuleEventSubscription(services, normalizedModuleName, eventType);
-        }
-
-        return services;
-    }
-
     private static void AddMessagingRegistrationSource(IServiceCollection services, Assembly assembly)
     {
         if (services.Any(service =>
@@ -133,6 +110,11 @@ public static class MessagingServiceCollectionExtensions
                     messageType,
                     handlerType,
                     messageIdentity);
+
+                if (typeof(IIntegrationEvent).IsAssignableFrom(messageType))
+                {
+                    AddModuleEventSubscription(services, moduleName, messageType);
+                }
 
                 services.TryAddEnumerable(ServiceDescriptor.Scoped(
                     typeof(IHandleMessages<>).MakeGenericType(messageType),

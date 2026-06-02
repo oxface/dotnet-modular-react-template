@@ -95,16 +95,30 @@ model, or repository.
 Modules should use the `Mediator` library's command/query abstractions instead
 of template-owned dispatcher abstractions. Command handlers mutate aggregates
 through module-owned repositories and rely on a Mediator pipeline behavior to
-run the command inside the selected module unit of work and save changes once
-after successful command handling. Module Infrastructure registers its
+run the command inside the selected module unit of work and save changes after
+successful command handling. Handlers may explicitly flush the active module
+unit of work when they need database-generated values, constraint checks,
+stored-procedure inputs, or other mid-transaction persistence effects. Each
+successful flush stores and clears the aggregate domain events captured by that
+flush; if the enclosing transaction later rolls back, the scoped DbContext and
+tracked aggregates must not be reused for retry. A retry starts from a fresh
+request or message-handling scope, and the module unit of work rejects further
+save or transaction attempts after a failed save or transaction. The unit of
+work uses the current .NET `Activity` for trace correlation when one exists;
+otherwise it starts a Bondstone `Activity` for the module transaction.
+Integration-event outbox rows persist the current W3C trace context in outbox
+metadata so later dispatch and receive-side work continue the same distributed
+trace. Module Infrastructure registers its
 persistent command types with `AddModulePersistence<{Module}DbContext>()`;
 Mediator modules can discover those command types from handler assemblies with
 `MediatorCommandTypes.FromHandlerAssemblyMarkers`. The pipeline uses the
 discovered command types to select one module boundary for the command. Modules
 that do not use Mediator can also register persistence with `AddModulePersistence`
 and run arbitrary module work through `IModuleBoundary`. Both paths register the
-shared module DbContext/outbox plumbing used by durable messaging. Query handlers
-read provider-neutral state and do not save changes.
+shared module DbContext/outbox plumbing used by durable messaging. Mediator
+commands that are not mapped to module persistence fail unless they are
+explicitly marked with `NonPersistentCommandAttribute`. Query handlers read
+provider-neutral state and do not save changes.
 
 Command handlers should get decision-making data through repositories or
 command-side read ports, not by calling query handlers. Query handlers are

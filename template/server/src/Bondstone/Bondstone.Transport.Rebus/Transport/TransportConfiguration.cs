@@ -40,7 +40,6 @@ public static class TransportConfiguration
         builder.Services.AddSingleton<IValidateOptions<RebusTransportOptions>, RebusTransportOptionsValidator>();
         builder.Services.AddScoped<IOutboxTransport, RebusOutboxTransport>();
         builder.Services.AddHostedService<RebusPostgresSchemaInitializerHostedService>();
-        builder.Services.AddHostedService<RebusSubscriptionHostedService>();
 
         builder.Services.AddOptions<DurableMessagingOptions>()
             .Bind(builder.Configuration.GetSection("Messaging"))
@@ -75,6 +74,8 @@ public static class TransportConfiguration
                 isDefaultBus: isDefaultBus,
                 key: MessagingBusKeys.ModuleQueue(moduleName));
         }
+
+        builder.Services.AddHostedService<RebusSubscriptionHostedService>();
 
         return builder;
     }

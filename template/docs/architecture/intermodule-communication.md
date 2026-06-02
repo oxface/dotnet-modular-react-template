@@ -15,8 +15,17 @@ Use Mediator command/query handlers for behavior inside one module.
 
 - Commands mutate one module through module-owned repositories or stores.
 - Queries return provider-neutral read models.
-- Command handlers rely on the Mediator module unit-of-work pipeline to save
-  one changed module context.
+- Command handlers rely on the Mediator module unit-of-work pipeline to run in
+  one changed module context and save after successful command handling.
+- Command handlers may explicitly flush the active module unit of work when
+  they need database-generated values, constraint checks, or other
+  mid-transaction persistence effects. A successful flush stores and clears the
+  aggregate domain events captured by that flush. If the enclosing transaction
+  later rolls back, retry must start from a fresh request or message-handling
+  scope.
+- A Mediator command that is not mapped to a module persistence registration
+  fails at runtime unless it is explicitly marked with
+  `NonPersistentCommandAttribute`.
 - Query handlers should not save changes.
 
 Do not wrap normal same-module Mediator calls in durable messaging just because
@@ -98,6 +107,27 @@ checks for business-level safety. The template ships a minimal inbox table for
 receive-side duplicate suppression; it is not a full audit log or diagnostics
 store.
 
+Bondstone's durable messaging contract is at-least-once delivery. Source
+module state, stored domain events, and source outbox rows commit atomically;
+outbox dispatch to Rebus happens later and may be retried. The receive-side
+inbox suppresses duplicate deliveries for the same stable transport message id,
+message identity, and receiving module while the inbox row is retained. It does
+not guarantee exactly-once business effects forever. Commands, integration
+events, and handlers that need semantic deduplication should carry an
+operation id, business idempotency key, or enough state for the receiver to
+recognize already-applied work.
+
+Outbox rows capture the current .NET `Activity` trace context in metadata.
+Outbox dispatch writes standard W3C `traceparent`, `tracestate`, and `baggage`
+headers to Rebus messages when trace metadata is available. Receive-side Rebus
+handlers start a consumer `Activity` from those headers so follow-up durable
+commands and integration events stay in the same distributed trace. The
+incoming message id is added as causation baggage when it is a GUID, and the
+incoming operation id is carried as operation baggage when present. New module
+transactions that do not start from an incoming message start a Bondstone
+`Activity`; OpenTelemetry exports that span when the Bondstone activity source
+is registered.
+
 Outbox rows store dispatch state and a bounded error summary. Full exception
 details belong in structured logs and traces so the outbox table stays an
 operational queue, not a diagnostics archive.
@@ -126,6 +156,8 @@ that add those operations should keep them explicit: replay dead-lettered rows
 through a product-owned maintenance command, archive processed outbox rows only
 after observability and incident windows have elapsed, and clean inbox rows only
 after the duplicate-delivery window is no longer needed.
+The template does not ship those replay, archival, or cleanup workflows by
+default.
 
 ## Rebus Boundary
 
@@ -172,8 +204,10 @@ that need independent retry loops or transactions for multiple reactions should
 introduce separate product handlers or a richer message-runtime decision before
 adding that behavior. The inbox key uses the stable transport message id plus
 the stable message identity. Event subscribers should also call
-`AddModuleEventSubscriptions("module", typeof(SomeIntegrationEvent))` so Rebus
-subscriptions are deterministic at startup.
+`AddModuleMessaging("{module}", ...)`; registering an
+`IModuleMessageHandler<TEvent>` for an integration event automatically registers
+the module's Rebus subscription for that event. Publishing an event with no
+subscribers is allowed.
 
 Module infrastructure registrations that use Mediator should call
 `AddMediatorModulePersistence<{Module}DbContext>("{module}", typeof(SomeCommandHandler))`
@@ -184,8 +218,9 @@ use Mediator can call `AddModulePersistence<{Module}DbContext>("{module}")` and
 run custom handlers through `IModuleBoundary`. Both paths register the module
 persistence resolver, module unit of work, DbContext adapter, and outbox writer
 plumbing used by durable messaging. A command type that is not mapped to any
-module persistence registration runs without an automatic module save; reserve
-that for platform commands or explicitly non-persistent work.
+module persistence registration fails in the Mediator transaction pipeline.
+Mark a command with `NonPersistentCommandAttribute` only for platform or
+explicitly non-persistent work.
 
 ## Naming The Application API
 
@@ -259,7 +294,8 @@ When adding a module:
    The mapper source module must match the changed module context; integration
    events are written to that source module's outbox.
 5. Implement `IModuleMessageHandler<TEvent>` handlers in subscriber modules.
-6. Subscribe module queues with `AddModuleEventSubscriptions`.
+6. Register subscriber module handlers with `AddModuleMessaging`; integration
+   event handlers automatically add the module's Rebus subscription.
 
 Generated products should add tests for real communication workflows as those
 workflows appear.

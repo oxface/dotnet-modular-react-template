@@ -94,6 +94,53 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
 
     [Fact]
     [Trait("Category", "Integration")]
+    public async Task DispatchPendingAsync_WhenProcessingMessageIsFresh_DoesNotReclaimMessage()
+    {
+        await using var dbContext = CreateDbContext();
+        await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
+        await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
+        Guid messageId = Guid.NewGuid();
+        dbContext.OutboxMessages.Add(CreateCommand(messageId));
+        await dbContext.SaveChangesAsync(CancellationToken.None);
+        await MarkProcessingAsync(dbContext, messageId, DateTimeOffset.UtcNow);
+        var transport = new TestOutboxTransport();
+        var dispatcher = CreateDispatcher(dbContext, transport);
+
+        int dispatchedCount = await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+        dispatchedCount.ShouldBe(0);
+        transport.DispatchedMessageIds.ShouldBeEmpty();
+        OutboxMessage outbox = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
+        outbox.Status.ShouldBe(PersistedMessageStatus.Processing);
+        outbox.LockedBy.ShouldBe("existing-dispatcher");
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task DispatchPendingAsync_WhenProcessingMessageIsStale_ReclaimsAndDispatchesMessage()
+    {
+        await using var dbContext = CreateDbContext();
+        await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
+        await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
+        Guid messageId = Guid.NewGuid();
+        dbContext.OutboxMessages.Add(CreateCommand(messageId));
+        await dbContext.SaveChangesAsync(CancellationToken.None);
+        await MarkProcessingAsync(dbContext, messageId, DateTimeOffset.UtcNow.AddMinutes(-5));
+        var transport = new TestOutboxTransport();
+        var dispatcher = CreateDispatcher(dbContext, transport);
+
+        int dispatchedCount = await dispatcher.DispatchPendingAsync(CancellationToken.None);
+
+        dispatchedCount.ShouldBe(1);
+        transport.DispatchedMessageIds.ShouldBe([messageId]);
+        OutboxMessage outbox = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
+        outbox.Status.ShouldBe(PersistedMessageStatus.Processed);
+        outbox.LockedBy.ShouldBeNull();
+        outbox.LockedAtUtc.ShouldBeNull();
+    }
+
+    [Fact]
+    [Trait("Category", "Integration")]
     public async Task DispatchPendingAsync_WhenOneModuleFails_ContinuesWithNextModule()
     {
         await using var dbContext = CreateDbContext();
@@ -124,6 +171,22 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
                 .Options;
 
         return new IdentityDbContext(options);
+    }
+
+    private static async Task MarkProcessingAsync(
+        IdentityDbContext dbContext,
+        Guid messageId,
+        DateTimeOffset lockedAtUtc)
+    {
+        await dbContext.Database.ExecuteSqlAsync(
+            $"""
+            UPDATE identity.outbox_messages
+            SET "Status" = 'Processing',
+                "LockedAtUtc" = {lockedAtUtc},
+                "LockedBy" = 'existing-dispatcher'
+            WHERE "MessageId" = {messageId}
+            """);
+        dbContext.ChangeTracker.Clear();
     }
 
     private static OutboxDispatcher CreateDispatcher(

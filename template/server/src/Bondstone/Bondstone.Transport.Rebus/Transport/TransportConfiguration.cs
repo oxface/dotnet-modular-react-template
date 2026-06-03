@@ -21,10 +21,6 @@ public static class TransportConfiguration
         Action<RebusTransportBuilder>? configureTransport = null)
         where TBuilder : IHostApplicationBuilder
     {
-        DurableMessagingOptions messagingOptions = builder.Configuration
-            .GetSection("Messaging")
-            .Get<DurableMessagingOptions>()
-            ?? new DurableMessagingOptions();
         var transportBuilder = new RebusTransportBuilder();
         configureTransport?.Invoke(transportBuilder);
 
@@ -56,14 +52,11 @@ public static class TransportConfiguration
             .Configure(options => CopyTransportOptions(transportBuilder.Options, options))
             .ValidateOnStart();
 
-        string[] modules;
-        try
+        string[] modules = GetRegisteredModules(builder.Services);
+        if (modules.Length == 0)
         {
-            modules = messagingOptions.Modules.TrimDistinctRequired(nameof(messagingOptions.Modules));
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            return builder;
+            throw new InvalidOperationException(
+                "No Bondstone modules are registered for Rebus transport. Register module persistence or module messaging before calling AddRebusTransport.");
         }
 
         for (int index = 0; index < modules.Length; index++)
@@ -91,6 +84,17 @@ public static class TransportConfiguration
         return builder;
     }
 
+    private static string[] GetRegisteredModules(IServiceCollection services)
+    {
+        return services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleTopologyRegistration>()
+            .Select(registration => registration.ModuleName)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+    }
+
     private static void RegisterExistingModuleMessageHandlerAdapters(IServiceCollection services)
     {
         var adapter = new RebusModuleMessageTransportAdapter();
@@ -98,7 +102,8 @@ public static class TransportConfiguration
             .Select(service => service.ImplementationInstance)
             .OfType<ModuleMessageHandlerRegistration>()
             .Select(registration => registration.MessageType)
-            .Distinct())
+            .Distinct()
+            .ToArray())
         {
             adapter.RegisterHandlerAdapter(services, messageType);
         }
@@ -137,6 +142,12 @@ public static class TransportConfiguration
                 typeof(ActivateHandlersStep));
             return injector;
         }));
+        configure.Options(o =>
+        {
+            o.SetNumberOfWorkers(options.Workers.NumberOfWorkers);
+            o.SetMaxParallelism(options.Workers.MaxParallelism);
+            o.SetWorkerShutdownTimeout(options.Workers.ShutdownTimeout);
+        });
 
         return internalTransport switch
         {
@@ -202,6 +213,7 @@ public static class TransportConfiguration
     {
         target.InternalTransport = source.InternalTransport;
         target.QueuePrefix = source.QueuePrefix;
+        target.Workers = source.Workers;
         target.Postgres = source.Postgres;
         target.AzureServiceBus = source.AzureServiceBus;
     }

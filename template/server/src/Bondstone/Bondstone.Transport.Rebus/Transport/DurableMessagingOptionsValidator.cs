@@ -5,6 +5,7 @@ using Bondstone.Messaging;
 namespace Bondstone.Transport.Rebus;
 
 internal sealed class DurableMessagingOptionsValidator(
+    IEnumerable<ModuleTopologyRegistration> moduleRegistrations,
     IEnumerable<ModuleMessageHandlerRegistration> messageHandlerRegistrations,
     IEnumerable<ModuleEventSubscription> eventSubscriptions)
     : IValidateOptions<DurableMessagingOptions>
@@ -19,33 +20,7 @@ internal sealed class DurableMessagingOptionsValidator(
         ValidatePositive(options.MaxAttempts, "Messaging:MaxAttempts", failures);
         ValidatePositive(options.LockTimeout, "Messaging:LockTimeout", failures);
         ValidateRetryDelays(options.RetryDelays, failures);
-
-        string[] configuredModules;
-        try
-        {
-            configuredModules = options.Modules.TrimDistinctRequired(nameof(options.Modules));
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            failures.Add("Messaging:Modules must contain at least one module name.");
-            configuredModules = [];
-        }
-
-        foreach (string moduleName in configuredModules)
-        {
-            ValidateSqlIdentifier(moduleName, "Messaging:Modules", failures);
-        }
-
-        ValidateRegisteredModules(
-            "module message handler registration",
-            messageHandlerRegistrations.Select(registration => registration.ModuleName),
-            configuredModules,
-            failures);
-        ValidateRegisteredModules(
-            "module event subscription",
-            eventSubscriptions.Select(subscription => subscription.ModuleName),
-            configuredModules,
-            failures);
+        ValidateModuleNames(moduleRegistrations, failures);
         ValidateEventSubscriptionsHaveHandlers(
             messageHandlerRegistrations,
             eventSubscriptions,
@@ -110,24 +85,16 @@ internal sealed class DurableMessagingOptionsValidator(
         }
     }
 
-    private static void ValidateRegisteredModules(
-        string registrationKind,
-        IEnumerable<string> moduleNames,
-        IReadOnlyCollection<string> configuredModules,
+    private static void ValidateModuleNames(
+        IEnumerable<ModuleTopologyRegistration> moduleRegistrations,
         ICollection<string> failures)
     {
-        foreach (string moduleName in moduleNames
-            .Select(moduleName => moduleName.TrimRequired(nameof(moduleName)))
+        foreach (string moduleName in moduleRegistrations
+            .Select(registration => registration.ModuleName.TrimRequired(nameof(registration.ModuleName)))
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal))
         {
-            if (configuredModules.Contains(moduleName, StringComparer.Ordinal))
-            {
-                continue;
-            }
-
-            failures.Add(
-                $"Messaging:Modules does not contain module '{moduleName}' used by {registrationKind}.");
+            ValidateSqlIdentifier(moduleName, "Bondstone module name", failures);
         }
     }
 

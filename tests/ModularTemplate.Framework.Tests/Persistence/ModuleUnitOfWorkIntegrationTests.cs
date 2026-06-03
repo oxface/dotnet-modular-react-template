@@ -24,11 +24,13 @@ public sealed class ModuleUnitOfWorkIntegrationTests(PostgreSqlFixture postgreSq
         await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
         await using ServiceProvider serviceProvider = CreateServiceProvider();
         ModuleUnitOfWork<IdentityDbContext> unitOfWork = CreateUnitOfWork(dbContext, serviceProvider);
+        Guid localUserId = Guid.Empty;
 
         await unitOfWork.ExecuteTransactionalAsync(
             async ct =>
             {
                 LocalUser localUser = LocalUser.Create("oidc", "subject-1", "Ada", "ada@example.test");
+                localUserId = localUser.Id;
                 dbContext.LocalUsers.Add(localUser);
                 localUser.DomainEvents.Count.ShouldBe(1);
 
@@ -58,6 +60,11 @@ public sealed class ModuleUnitOfWorkIntegrationTests(PostgreSqlFixture postgreSq
             .Select(message => message.CorrelationId)
             .ToArrayAsync(CancellationToken.None);
         correlationIds.Distinct().Count().ShouldBe(1);
+        string[] partitionKeys = await verifyContext.OutboxMessages
+            .OrderBy(message => message.CreatedAtUtc)
+            .Select(message => message.PartitionKey!)
+            .ToArrayAsync(CancellationToken.None);
+        partitionKeys.Distinct().ShouldBe([$"identity.local-user:{localUserId:D}"]);
     }
 
     [Fact]

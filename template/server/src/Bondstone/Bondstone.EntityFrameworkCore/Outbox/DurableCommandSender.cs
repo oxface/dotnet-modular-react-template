@@ -22,15 +22,14 @@ public sealed class DurableCommandSender(
         string targetModule,
         Guid? durableOperationId = null,
         Guid? causationId = null,
-        int? maxAttempts = null)
+        int? maxAttempts = null,
+        string? partitionKey = null)
         where TCommand : IDurableCommand
     {
         ArgumentNullException.ThrowIfNull(command);
 
         string sourceModule = GetActiveSourceModule();
         string normalizedTargetModule = targetModule.TrimRequired(nameof(targetModule));
-        ValidateConfiguredModule(sourceModule, "active source module");
-        ValidateConfiguredModule(normalizedTargetModule, nameof(targetModule));
 
         IOutboxWriter writer = persistenceResolver.ResolveOutboxWriter(sourceModule);
         Type commandType = command.GetType();
@@ -53,6 +52,7 @@ public sealed class DurableCommandSender(
             messageCausationId,
             messageDurableOperationId,
             payload,
+            partitionKey,
             metadata: MessageTraceContext.CaptureMetadata(),
             maxAttempts: messageMaxAttempts));
 
@@ -60,17 +60,6 @@ public sealed class DurableCommandSender(
             submissionId,
             messageDurableOperationId,
             CommandSubmissionStatus.Accepted);
-    }
-
-    private void ValidateConfiguredModule(string moduleName, string optionName)
-    {
-        if (_options.Modules.ContainsTrimmedOrdinal(moduleName))
-        {
-            return;
-        }
-
-        throw new InvalidOperationException(
-            $"{optionName} '{moduleName}' is not listed in Messaging:Modules.");
     }
 
     private string GetActiveSourceModule()

@@ -24,7 +24,7 @@ public sealed class TransportConfigurationTests
     public void AddRebusTransport_RegistersRebusRuntimeServices()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
+        ConfigurePostgresMessaging(builder, "identity");
 
         builder.AddRebusTransport(transport =>
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
@@ -45,16 +45,15 @@ public sealed class TransportConfigurationTests
         using IHost host = builder.Build();
         host.Services.GetServices<IHostedService>()
             .Count(service => service.GetType().Name == "RebusSubscriptionHostedService")
-            .ShouldBe(2);
+            .ShouldBe(1);
     }
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void AddRebusTransport_WhenMultipleModulesAreConfigured_AddsOneSubscriptionServicePerModule()
+    public void AddRebusTransport_WhenMultipleModulesAreRegistered_AddsOneSubscriptionServicePerModule()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
-        builder.Configuration["Messaging:Modules:1"] = "products";
+        ConfigurePostgresMessaging(builder, "identity", "products");
 
         builder.AddRebusTransport(transport =>
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
@@ -70,7 +69,8 @@ public sealed class TransportConfigurationTests
     public void AddRebusTransport_WhenAzureServiceBusIsConfigured_RegistersBrokerTransportWithoutPostgresBootstrap()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
+        builder.Services.AddModuleTopology("identity");
+        builder.Configuration["Messaging:Rebus:QueuePrefix"] = "test";
         builder.Configuration["Messaging:Rebus:AzureServiceBus:ConnectionStringName"] = "messaging-service-bus";
         builder.Configuration["ConnectionStrings:messaging-service-bus"] =
             "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=test";
@@ -87,7 +87,7 @@ public sealed class TransportConfigurationTests
         options.AzureServiceBus.ConnectionStringName.ShouldBe("messaging-service-bus");
         host.Services.GetServices<IHostedService>()
             .Count(service => service.GetType().Name == "RebusSubscriptionHostedService")
-            .ShouldBe(2);
+            .ShouldBe(1);
     }
 
     [Fact]
@@ -104,6 +104,10 @@ public sealed class TransportConfigurationTests
             .ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(IOutboxDispatcher)).ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(OutboxDispatcher<IdentityDbContext>)).ShouldBeTrue();
+        builder.Services.Any(service =>
+            service.ServiceType == typeof(IOutboxMaintenance)
+            && service.ImplementationType == typeof(OutboxMaintenance<IdentityDbContext>))
+            .ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(IModuleMessageInbox)).ShouldBeTrue();
         builder.Services.Any(service =>
             service.ServiceType == typeof(IModuleMessageInboxExecutor)
@@ -116,17 +120,33 @@ public sealed class TransportConfigurationTests
         builder.Services.Any(service =>
             service.ServiceType == typeof(IHostedService)
             && service.ImplementationType == typeof(OutboxDispatcherBackgroundService<IdentityDbContext>))
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModuleOutboxDispatchers_WhenCalled_RegistersPostgresOutboxWorker()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+
+        builder.Services.AddModulePersistence<IdentityDbContext>("identity");
+        builder.Services.AddModuleOutboxDispatchers();
+
+        builder.Services.Any(service =>
+            service.ServiceType == typeof(IHostedService)
+            && service.ImplementationType == typeof(OutboxDispatcherBackgroundService<IdentityDbContext>))
             .ShouldBeTrue();
     }
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void AddModulePersistence_WhenMultipleModulesAreRegistered_AddsOneOutboxWorkerPerModule()
+    public void AddModuleOutboxDispatchers_WhenMultipleModulesAreRegistered_AddsOneOutboxWorkerPerModule()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
         builder.Services.AddModulePersistence<IdentityDbContext>("identity");
         builder.Services.AddModulePersistence<ProductsTransportDbContext>("products");
+        builder.Services.AddModuleOutboxDispatchers();
 
         builder.Services
             .Where(service => service.ServiceType == typeof(IHostedService)
@@ -165,8 +185,12 @@ public sealed class TransportConfigurationTests
     public void AddRebusTransport_WhenConfiguredInCode_OverridesConfiguration()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
+        builder.Services.AddModuleTopology("identity");
         builder.Configuration["Messaging:Rebus:QueuePrefix"] = "configured";
+        builder.Configuration["Messaging:Rebus:Workers:NumberOfWorkers"] = "2";
+        builder.Configuration["Messaging:Rebus:Workers:MaxParallelism"] = "3";
+        builder.Configuration["Messaging:Rebus:Workers:ShutdownTimeout"] = "00:00:15";
+        builder.Configuration["Messaging:Rebus:Postgres:ConnectionStringName"] = "modular-template-host";
         builder.Configuration["Messaging:Rebus:Postgres:AutoCreateSubscriptionTable"] = "false";
 
         builder.AddRebusTransport(transport => transport
@@ -180,6 +204,21 @@ public sealed class TransportConfigurationTests
             .ShouldBe("from-code");
         host.Services.GetRequiredService<IOptions<RebusTransportOptions>>()
             .Value
+            .Workers
+            .NumberOfWorkers
+            .ShouldBe(2);
+        host.Services.GetRequiredService<IOptions<RebusTransportOptions>>()
+            .Value
+            .Workers
+            .MaxParallelism
+            .ShouldBe(3);
+        host.Services.GetRequiredService<IOptions<RebusTransportOptions>>()
+            .Value
+            .Workers
+            .ShutdownTimeout
+            .ShouldBe(TimeSpan.FromSeconds(15));
+        host.Services.GetRequiredService<IOptions<RebusTransportOptions>>()
+            .Value
             .Postgres
             .AutoCreateSubscriptionTable
             .ShouldBeFalse();
@@ -190,10 +229,13 @@ public sealed class TransportConfigurationTests
     public void AddRebusTransport_WhenTopologyOptionsAreInvalid_FailsOptionsValidation()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "";
+        builder.Services.AddModuleTopology("identity");
         builder.Configuration["Messaging:Rebus:QueuePrefix"] = "";
         builder.Configuration["Messaging:PollingInterval"] = "00:00:00";
         builder.Configuration["Messaging:RetryDelays:0"] = "-00:00:01";
+        builder.Configuration["Messaging:Rebus:Workers:NumberOfWorkers"] = "2";
+        builder.Configuration["Messaging:Rebus:Workers:MaxParallelism"] = "1";
+        builder.Configuration["Messaging:Rebus:Workers:ShutdownTimeout"] = "00:00:00";
 
         builder.AddRebusTransport(transport =>
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
@@ -207,6 +249,8 @@ public sealed class TransportConfigurationTests
         OptionsValidationException rebusException = Should.Throw<OptionsValidationException>(
             () => host.Services.GetRequiredService<IOptions<RebusTransportOptions>>().Value);
         rebusException.Message.ShouldContain("Messaging:Rebus:QueuePrefix");
+        rebusException.Message.ShouldContain("Messaging:Rebus:Workers:NumberOfWorkers");
+        rebusException.Message.ShouldContain("Messaging:Rebus:Workers:ShutdownTimeout");
     }
 
     [Fact]
@@ -214,7 +258,7 @@ public sealed class TransportConfigurationTests
     public void AddRebusTransport_WhenMessagingSqlIdentifiersAreInvalid_FailsOptionsValidation()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity-module";
+        builder.Services.AddModuleTopology("identity-module");
         builder.Configuration["Messaging:Rebus:Postgres:TransportSchema"] = "transport-schema";
         builder.Configuration["Messaging:Rebus:Postgres:TransportTable"] = "rebus messages";
         builder.Configuration["Messaging:Rebus:Postgres:SubscriptionTable"] = "rebus-subscriptions";
@@ -225,7 +269,7 @@ public sealed class TransportConfigurationTests
 
         OptionsValidationException exception = Should.Throw<OptionsValidationException>(
             () => host.Services.GetRequiredService<IOptions<DurableMessagingOptions>>().Value);
-        exception.Message.ShouldContain("Messaging:Modules");
+        exception.Message.ShouldContain("Bondstone module name");
         OptionsValidationException rebusException = Should.Throw<OptionsValidationException>(
             () => host.Services.GetRequiredService<IOptions<RebusTransportOptions>>().Value);
         rebusException.Message.ShouldContain("Messaging:Rebus:Postgres:TransportSchema");
@@ -235,38 +279,17 @@ public sealed class TransportConfigurationTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void AddRebusTransport_WhenPersistenceRegistrationUsesUnknownModule_FailsOptionsValidation()
+    public void AddRebusTransport_WhenNoModulesAreRegistered_Throws()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
+        builder.Configuration["Messaging:Rebus:QueuePrefix"] = "test";
+        builder.Configuration["Messaging:Rebus:Postgres:ConnectionStringName"] = "modular-template-host";
 
-        builder.AddRebusTransport(transport =>
-            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
-        builder.Services.AddModulePersistence<IdentityDbContext>("billing");
-        using IHost host = builder.Build();
+        InvalidOperationException exception = Should.Throw<InvalidOperationException>(() =>
+            builder.AddRebusTransport(transport =>
+                transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus"))));
 
-        OptionsValidationException exception = Should.Throw<OptionsValidationException>(
-            () => host.Services.GetRequiredService<IOptions<DurableMessagingOptions>>().Value);
-        exception.Message.ShouldContain("billing");
-        exception.Message.ShouldContain("Messaging:Modules");
-    }
-
-    [Fact]
-    [Trait("Category", "Unit")]
-    public void AddRebusTransport_WhenMessageHandlerRegistrationUsesUnknownModule_FailsOptionsValidation()
-    {
-        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
-
-        builder.AddRebusTransport(transport =>
-            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
-        builder.Services.AddModuleMessaging("billing", typeof(TestModuleMessageHandler));
-        using IHost host = builder.Build();
-
-        OptionsValidationException exception = Should.Throw<OptionsValidationException>(
-            () => host.Services.GetRequiredService<IOptions<DurableMessagingOptions>>().Value);
-        exception.Message.ShouldContain("billing");
-        exception.Message.ShouldContain("Messaging:Modules");
+        exception.Message.ShouldContain("No Bondstone modules are registered");
     }
 
     [Fact]
@@ -289,6 +312,7 @@ public sealed class TransportConfigurationTests
     public void AddModuleMessaging_WhenRebusTransportIsRegisteredFirst_AddsRebusHandlerAdapter()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        ConfigurePostgresMessaging(builder, "identity");
 
         builder.AddRebusTransport(transport =>
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
@@ -305,8 +329,7 @@ public sealed class TransportConfigurationTests
     public void AddModulePersistence_WhenMessageHandlerHasNoModulePersistence_FailsOptionsValidation()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
-        builder.Configuration["Messaging:Modules:1"] = "billing";
+        ConfigurePostgresMessaging(builder, "identity", "billing");
 
         builder.AddRebusTransport(transport =>
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
@@ -325,7 +348,7 @@ public sealed class TransportConfigurationTests
     public void AddRebusTransport_WhenModulePersistenceHasMultipleDbContexts_FailsOptionsValidation()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration["Messaging:Modules:0"] = "identity";
+        ConfigurePostgresMessaging(builder, "identity");
 
         builder.AddRebusTransport(transport =>
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
@@ -339,6 +362,19 @@ public sealed class TransportConfigurationTests
         exception.Message.ShouldContain("multiple module persistence DbContexts");
         exception.Message.ShouldContain(nameof(IdentityDbContext));
         exception.Message.ShouldContain(nameof(AlternateIdentityDbContext));
+    }
+
+    private static void ConfigurePostgresMessaging(
+        HostApplicationBuilder builder,
+        params string[] modules)
+    {
+        for (int index = 0; index < modules.Length; index++)
+        {
+            builder.Services.AddModuleTopology(modules[index]);
+        }
+
+        builder.Configuration["Messaging:Rebus:QueuePrefix"] = "test";
+        builder.Configuration["Messaging:Rebus:Postgres:ConnectionStringName"] = "modular-template-host";
     }
 
     [IntegrationEventIdentity("test.transport-configuration-event.v1")]

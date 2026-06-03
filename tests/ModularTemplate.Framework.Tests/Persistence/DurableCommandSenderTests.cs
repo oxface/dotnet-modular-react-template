@@ -148,33 +148,6 @@ public sealed class DurableCommandSenderTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void Send_WhenActiveSourceModuleIsNotConfigured_Throws()
-    {
-        var registry = new MessageTypeRegistry();
-        registry.Register<RebuildOperationProjectionCommand>(
-            "products.rebuild-operation-projection.v1");
-        var unitOfWorkContext = new ModuleUnitOfWorkContext();
-        var sender = new DurableCommandSender(
-            PersistenceResolver(new CapturingOutboxWriter("identity")),
-            HandlerRegistrations(),
-            registry,
-            unitOfWorkContext,
-            MessagingOptions());
-
-        using IDisposable moduleScope = unitOfWorkContext.StartModuleScope("billing");
-
-        InvalidOperationException exception = Should.Throw<InvalidOperationException>(
-            () => sender.Send(
-                new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                targetModule: "products"));
-
-        exception.Message.ShouldContain("active source module");
-        exception.Message.ShouldContain("billing");
-        exception.Message.ShouldContain("Messaging:Modules");
-    }
-
-    [Fact]
-    [Trait("Category", "Unit")]
     public void Send_WhenMaxAttemptsIsOverridden_UsesSubmissionValue()
     {
         var outboxWriter = new CapturingOutboxWriter("identity");
@@ -194,10 +167,13 @@ public sealed class DurableCommandSenderTests
             sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
                 targetModule: "products",
-                maxAttempts: 2);
+                maxAttempts: 2,
+                partitionKey: "operation-1");
         }
 
-        outboxWriter.Messages.Single().MaxAttempts.ShouldBe(2);
+        OutboxMessage message = outboxWriter.Messages.Single();
+        message.MaxAttempts.ShouldBe(2);
+        message.PartitionKey.ShouldBe("operation-1");
     }
 
     [Fact]
@@ -313,7 +289,6 @@ public sealed class DurableCommandSenderTests
     {
         return Options.Create(new DurableMessagingOptions
         {
-            Modules = ["identity", "products"],
             MaxAttempts = 7
         });
     }

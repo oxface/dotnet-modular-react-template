@@ -87,6 +87,12 @@ should disable it after moving subscription-table creation to Migrator or
 deployment DDL. Azure Service Bus requires product-owned broker provisioning,
 connection strings, and verification coverage.
 
+The local Host uses conservative message-processing defaults:
+`Messaging:Rebus:Workers:NumberOfWorkers = 1`,
+`Messaging:Rebus:Workers:MaxParallelism = 1`, and
+`Messaging:BatchSize = 20`. This keeps local API responsiveness predictable
+while still exercising durable communication.
+
 The checked-in Keycloak realm import includes local users for browser smoke
 testing:
 

@@ -12,6 +12,7 @@ public interface IDurableCommandSender
         string targetModule,
         Guid? durableOperationId = null,
         Guid? causationId = null,
-        int? maxAttempts = null)
+        int? maxAttempts = null,
+        string? partitionKey = null)
         where TCommand : IDurableCommand;
 }

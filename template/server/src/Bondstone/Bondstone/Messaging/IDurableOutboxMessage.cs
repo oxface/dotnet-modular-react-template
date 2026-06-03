@@ -18,6 +18,8 @@ public interface IDurableOutboxMessage
 
     Guid? DurableOperationId { get; }
 
+    string? PartitionKey { get; }
+
     string Payload { get; }
 
     string? Metadata { get; }

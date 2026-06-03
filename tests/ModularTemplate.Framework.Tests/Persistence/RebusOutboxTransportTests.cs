@@ -42,6 +42,7 @@ public sealed class RebusOutboxTransportTests
             causationId: null,
             durableOperationId: null,
             payload: "{\"Value\":\"hello\"}",
+            partitionKey: "identity:user-1",
             metadata: MessageTraceContext.CaptureMetadata());
 
         await transport.DispatchAsync(outboxMessage, CancellationToken.None);
@@ -53,6 +54,7 @@ public sealed class RebusOutboxTransportTests
                 headers[BondstoneMessageHeaders.MessageType] == "test.command.v1"
                 && headers[BondstoneMessageHeaders.SourceModule] == "identity"
                 && headers[BondstoneMessageHeaders.TargetModule] == "products"
+                && headers[BondstoneMessageHeaders.PartitionKey] == "identity:user-1"
                 && headers[BondstoneDiagnostics.TraceParentHeader] == activity.Id));
         await bus.DidNotReceiveWithAnyArgs().Publish(default!);
     }
@@ -95,7 +97,7 @@ public sealed class RebusOutboxTransportTests
     public void Resolve_WhenCommandTargetsModule_UsesSourceBusAndTargetQueue()
     {
         var resolver = new OutboxRouteResolver(
-            Microsoft.Extensions.Options.Options.Create(new DurableMessagingOptions()),
+            [new ModuleTopologyRegistration("identity"), new ModuleTopologyRegistration("products")],
             Microsoft.Extensions.Options.Options.Create(new RebusTransportOptions { QueuePrefix = "sample" }));
         OutboxMessage message = OutboxMessage.Create(
             Guid.NewGuid(),
@@ -119,7 +121,7 @@ public sealed class RebusOutboxTransportTests
     public void Resolve_WhenCommandTargetsUnknownModule_Throws()
     {
         var resolver = new OutboxRouteResolver(
-            Microsoft.Extensions.Options.Options.Create(new DurableMessagingOptions { Modules = ["identity"] }),
+            [new ModuleTopologyRegistration("identity")],
             Microsoft.Extensions.Options.Options.Create(new RebusTransportOptions { QueuePrefix = "sample" }));
         OutboxMessage message = OutboxMessage.Create(
             Guid.NewGuid(),
@@ -136,7 +138,7 @@ public sealed class RebusOutboxTransportTests
             () => resolver.Resolve(message));
 
         exception.Message.ShouldContain("products");
-        exception.Message.ShouldContain("Messaging:Modules");
+        exception.Message.ShouldContain("registered Bondstone module");
     }
 
     [DurableCommandIdentity("test.command.v1")]

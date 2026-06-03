@@ -143,12 +143,14 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration["ConnectionStrings:modular-template-host"] = postgreSqlFixture.ConnectionString;
         builder.Configuration["Messaging:Rebus:QueuePrefix"] = $"test-{Guid.NewGuid():N}";
+        builder.Configuration["Messaging:Rebus:Postgres:ConnectionStringName"] = "modular-template-host";
         builder.Services.AddDbContext<IdentityDbContext>(options =>
             options.UseNpgsql(postgreSqlFixture.ConnectionString));
-        builder.AddRebusTransport(transport =>
-            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
         builder.Services.AddModulePersistence<IdentityDbContext>("identity");
         builder.Services.AddModuleMessaging("identity", typeof(TestRebusInboxCommandHandler));
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
+        builder.Services.AddModuleOutboxDispatchers();
         builder.Services.AddSingleton<HandledMessageCounter>();
 
         return builder.Build();
@@ -164,15 +166,17 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration["ConnectionStrings:modular-template-host"] = postgreSqlFixture.ConnectionString;
         builder.Configuration["Messaging:Rebus:QueuePrefix"] = $"test-{Guid.NewGuid():N}";
+        builder.Configuration["Messaging:Rebus:Postgres:ConnectionStringName"] = "modular-template-host";
         builder.Services.AddDbContext<IdentityDbContext>(options =>
             options.UseNpgsql(postgreSqlFixture.ConnectionString));
         builder.Services.AddDbContext<ProductsTestDbContext>(options =>
             options.UseNpgsql(postgreSqlFixture.ConnectionString));
-        builder.AddRebusTransport(transport =>
-            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
         builder.Services.AddModulePersistence<IdentityDbContext>("identity");
         builder.Services.AddModulePersistence<ProductsTestDbContext>("products");
         builder.Services.AddModuleMessaging("products", typeof(TestCrossModuleProductCommandHandler));
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
+        builder.Services.AddModuleOutboxDispatchers();
 
         return builder.Build();
     }

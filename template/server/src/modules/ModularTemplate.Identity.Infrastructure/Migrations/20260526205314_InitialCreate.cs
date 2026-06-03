@@ -98,6 +98,7 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                     CorrelationId = table.Column<Guid>(type: "uuid", nullable: false),
                     CausationId = table.Column<Guid>(type: "uuid", nullable: true),
                     DurableOperationId = table.Column<Guid>(type: "uuid", nullable: true),
+                    PartitionKey = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
                     Payload = table.Column<string>(type: "jsonb", nullable: false),
                     Metadata = table.Column<string>(type: "jsonb", nullable: true),
                     Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),

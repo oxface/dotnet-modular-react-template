@@ -16,6 +16,7 @@ public sealed class OutboxMessageConfiguration(
         builder.Property(x => x.MessageType).HasMaxLength(256).IsRequired();
         builder.Property(x => x.SourceModule).HasMaxLength(128).IsRequired();
         builder.Property(x => x.TargetModule).HasMaxLength(128);
+        builder.Property(x => x.PartitionKey).HasMaxLength(OutboxMessage.MaxPartitionKeyLength);
         builder.Property(x => x.Payload).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(x => x.Error).HasMaxLength(OutboxMessage.MaxErrorLength);

@@ -164,6 +164,33 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         outbox.Error.ShouldContain("lock timed out");
     }
 
+    [Fact]
+    [Trait("Category", "Integration")]
+    public async Task RequeueDeadLetteredAsync_WhenMessageIsDeadLettered_MakesMessageEligibleAgain()
+    {
+        await using var dbContext = CreateDbContext();
+        await dbContext.Database.EnsureDeletedAsync(CancellationToken.None);
+        await dbContext.Database.EnsureCreatedAsync(CancellationToken.None);
+        Guid messageId = Guid.NewGuid();
+        dbContext.OutboxMessages.Add(CreateCommand(messageId, maxAttempts: 1));
+        await dbContext.SaveChangesAsync(CancellationToken.None);
+        await MarkProcessingAsync(dbContext, messageId, DateTimeOffset.UtcNow.AddMinutes(-5));
+        var dispatcher = CreateDispatcher(dbContext, new TestOutboxTransport());
+        await dispatcher.DispatchPendingAsync(CancellationToken.None);
+        var maintenance = new OutboxMaintenance<IdentityDbContext>(dbContext);
+
+        bool requeued = await maintenance.RequeueDeadLetteredAsync(
+            messageId,
+            CancellationToken.None);
+
+        requeued.ShouldBeTrue();
+        OutboxMessage outbox = await dbContext.OutboxMessages.SingleAsync(CancellationToken.None);
+        outbox.Status.ShouldBe(PersistedMessageStatus.Pending);
+        outbox.AttemptCount.ShouldBe(0);
+        outbox.NextAttemptAtUtc.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+        outbox.Error.ShouldBeNull();
+    }
+
     private IdentityDbContext CreateDbContext()
     {
         DbContextOptions<IdentityDbContext> options =

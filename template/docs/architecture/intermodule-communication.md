@@ -39,6 +39,9 @@ module.
 - A persistent command that is not mapped to a module persistence registration
   fails at runtime unless it is explicitly marked with
   `NonPersistentCommandAttribute`.
+- Each command type has exactly one Bondstone command handler. If a command
+  needs several internal reactions, keep one command handler as the application
+  use-case owner and fan out to module-local services inside that handler.
 - Query contracts should not save changes.
 
 Do not wrap normal same-module command calls in durable messaging just because
@@ -78,7 +81,10 @@ CommandSubmission submission = durableCommandSender.Send(
 ```
 
 Use `OperationId` when a caller or user workflow needs to observe progress
-after command acceptance.
+after command acceptance. Polling endpoints, websocket notifications, or
+server-side waiters should observe operation/read-model state above the durable
+command sender. Do not turn durable commands into synchronous RPC by waiting for
+the transport handler to return a payload.
 
 ### Cross-Module Facts
 
@@ -152,11 +158,15 @@ Each module persistence registration owns one outbox worker for that module's
 schema. The worker takes a module-scoped PostgreSQL advisory lock before
 claiming eligible rows oldest-first with `FOR UPDATE SKIP LOCKED`. Separate
 module workers run independently, so slow or locked dispatch in one module does
-not block another module's outbox. It is not a strict FIFO guarantee: if an
-older message fails and is scheduled for retry, later eligible messages from
-the same module may still be dispatched. Products that need causal ordering
-should model that explicitly with aggregate state, sequence numbers, or
-product-owned process managers.
+not block another module's outbox.
+
+Bondstone's default outbox is not a strict FIFO or per-aggregate ordered event
+log. If an older message fails and is scheduled for retry, later eligible
+messages from the same module may still be dispatched. Products that need
+causal ordering must model it explicitly with aggregate state, process-manager
+state, sequence numbers, or receiver-side version checks. A receiver that needs
+ordered facts should reject, defer, or no-op out-of-order messages based on the
+product-owned sequence/state rule instead of relying on table scan order.
 
 If the Host stops while a message is claimed as `Processing`, the row is not
 deleted or considered delivered. It becomes eligible again after
@@ -167,7 +177,8 @@ work. Choose a timeout that is comfortably longer than normal dispatch latency
 but short enough for the product's restart recovery expectations.
 
 Inbox and processed/dead-lettered outbox rows are retained until product
-operations define a cleanup policy. Do not delete inbox rows inside the maximum
+operations define a cleanup policy. This is intentionally deferred template
+scope, not an accidental omission. Do not delete inbox rows inside the maximum
 transport redelivery or manual replay window. Dead-letter replay, archival, and
 cleanup are product operational decisions because retention needs depend on the
 deployment, incident response workflow, and compliance expectations. Products
@@ -175,8 +186,12 @@ that add those operations should keep them explicit: replay dead-lettered rows
 through a product-owned maintenance command, archive processed outbox rows only
 after observability and incident windows have elapsed, and clean inbox rows only
 after the duplicate-delivery window is no longer needed.
-The template does not ship those replay, archival, or cleanup workflows by
-default.
+
+The template does not ship replay, archival, cleanup, or operational dashboard
+workflows by default. Add them only with a product or framework decision that
+defines retention windows, replay authorization, poison-message handling,
+observability expectations, and whether replay reuses the existing message id
+or creates a new causally linked message.
 
 ## Transport Boundary
 
@@ -225,6 +240,16 @@ Event identities should name the fact, not the CLR type. Prefer
 facts, such as `local-user.created.v1`. Durable command identities should name
 caller intent, such as `{target-module}.{command}.{version}`.
 
+Message payloads are part of the durable contract once they are written to an
+outbox row. The current template uses the platform serializer directly and does
+not ship message upcasting, payload migration, schema-registry integration, or
+per-message serializer policies. Products should treat message contracts as
+append-compatible by default: add optional fields, keep old identities readable
+until retained rows and in-flight transport messages have drained, and introduce
+a new message identity when a breaking payload change is required. A richer
+versioning/upcasting layer is a future framework decision, not implicit
+behavior.
+
 Module infrastructure registrations should call
 `AddModuleMessaging("{module}", typeof(...))` for every assembly that may
 contain durable messages or module message handlers: usually the module
@@ -251,12 +276,14 @@ Module infrastructure registrations should call
 `AddModulePersistence<{Module}DbContext>("{module}", ModuleCommandTypes.FromHandlerAssemblyMarkers(...))`
 with marker types from assemblies that contain persistent
 `IModuleCommandHandler<TCommand, TResult>` handlers for that module. The
-registration maps those command types to the module DbContext. Modules without
-Bondstone command handlers can call `AddModulePersistence<{Module}DbContext>("{module}")`
-and run custom handlers through `IModuleBoundary`. Both paths register the
-module persistence resolver plus the module-owned unit of work, boundary
-executor, inbox executor, outbox writer, and outbox worker used by durable
-messaging. Known command callers should inject
+registration maps those command types to the module DbContext. Each command
+type must have exactly one registered `IModuleCommandHandler<TCommand,
+TResult>`. Modules without Bondstone command handlers can call
+`AddModulePersistence<{Module}DbContext>("{module}")` and run custom handlers
+through `IModuleBoundary`. Both paths register the module persistence resolver
+plus the module-owned unit of work, boundary executor, inbox executor, outbox
+writer, and outbox worker used by durable messaging. Known command callers
+should inject
 `IModuleCommandExecutor<TCommand, TResult>` rather than the runtime-typed
 command bus. A command type that is not mapped to any module persistence
 registration fails in the Bondstone command pipeline. Mark a command with

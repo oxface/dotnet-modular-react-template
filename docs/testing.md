@@ -107,7 +107,7 @@ Before publishing:
 - Create or sign into an npm account.
 - Confirm `dotnet-modular-react-template` is available.
 - Configure npm trusted publishing for the package and GitHub Actions workflow.
-  Use repository `The-Supremacy/net-react-modular-template` and workflow
+  Use repository `oxface/dotnet-modular-react-template` and workflow
   filename `release-please.yml` for automated releases. The manual retry
   workflow uses `publish-npm.yml`.
 - Let Release Please create the release PR and set the first real version.

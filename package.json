@@ -5,7 +5,7 @@
   "private": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/The-Supremacy/dotnet-modular-react-template.git"
+    "url": "git+https://github.com/oxface/dotnet-modular-react-template.git"
   },
   "packageManager": "pnpm@10.33.4",
   "type": "module",

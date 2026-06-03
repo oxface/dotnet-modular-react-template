@@ -15,7 +15,7 @@ public sealed class CurrentUserProviderTests
         var identityContext = new InMemoryIdentityContext();
         var handler = new SynchronizeCurrentUserCommandHandler(identityContext, identityContext);
 
-        CurrentUserContext currentUser = await handler.Handle(
+        CurrentUserContext currentUser = await handler.HandleAsync(
             new SynchronizeCurrentUserCommand(new AuthenticatedIdentity("oidc", "subject-1", "Ada", "ada@example.test")),
             CancellationToken.None);
 
@@ -33,13 +33,13 @@ public sealed class CurrentUserProviderTests
         var identityContext = new InMemoryIdentityContext();
         var handler = new SynchronizeCurrentUserCommandHandler(identityContext, identityContext);
         var identity = new AuthenticatedIdentity("oidc", "subject-1", "Ada", "ada@example.test");
-        CurrentUserContext created = await handler.Handle(
+        CurrentUserContext created = await handler.HandleAsync(
             new SynchronizeCurrentUserCommand(identity),
             CancellationToken.None);
 
         identityContext.Add(ApplicationAccess.GrantTo(created.LocalUserId!.Value));
 
-        CurrentUserContext currentUser = await handler.Handle(
+        CurrentUserContext currentUser = await handler.HandleAsync(
             new SynchronizeCurrentUserCommand(identity),
             CancellationToken.None);
 
@@ -53,7 +53,7 @@ public sealed class CurrentUserProviderTests
         var identityContext = new InMemoryIdentityContext();
         var handler = new SynchronizeCurrentUserCommandHandler(identityContext, identityContext);
 
-        CurrentUserContext currentUser = await handler.Handle(
+        CurrentUserContext currentUser = await handler.HandleAsync(
             new SynchronizeCurrentUserCommand(null),
             CancellationToken.None);
 

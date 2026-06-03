@@ -22,6 +22,7 @@ public static class PostgresModulePersistenceServiceCollectionExtensions
         services.AddEntityFrameworkCoreModulePersistence<TDbContext>(moduleName, commandTypes);
         services.TryAddScoped<IInboxClaimConflictDetector, PostgresInboxClaimConflictDetector>();
         services.TryAddScoped<IOutboxDispatchLock, PostgresAdvisoryOutboxDispatchLock>();
+        services.TryAddScoped<IOutboxClaimHandler, PostgresOutboxClaimHandler>();
 
         return services;
     }

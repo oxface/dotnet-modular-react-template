@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Products.Products;
 using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Postgres.Persistence;
 
 namespace ModularTemplate.Products.Infrastructure.Persistence;
 
@@ -15,6 +16,6 @@ public sealed class ProductsDbContext(DbContextOptions<ProductsDbContext> option
     {
         modelBuilder.HasDefaultSchema("products");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProductsDbContext).Assembly);
-        ApplyModuleMessagingPersistence(modelBuilder);
+        modelBuilder.ApplyPostgresModuleMessagingPersistence(ModuleName);
     }
 }

@@ -128,8 +128,7 @@
           "productId",
           "name",
           "createdAtUtc",
-          "updatedAtUtc",
-          "metadataJson"
+          "updatedAtUtc"
         ],
         "type": "object",
         "properties": {
@@ -147,12 +146,6 @@
           "updatedAtUtc": {
             "type": "string",
             "format": "date-time"
-          },
-          "metadataJson": {
-            "type": [
-              "null",
-              "string"
-            ]
           }
         }
       }

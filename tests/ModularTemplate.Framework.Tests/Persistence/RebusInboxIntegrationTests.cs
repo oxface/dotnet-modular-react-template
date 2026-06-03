@@ -302,7 +302,7 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
                 builder.HasKey(x => x.Id);
                 builder.Property(x => x.Name).HasMaxLength(256).IsRequired();
             });
-            modelBuilder.ApplyModuleMessagingPersistence("products");
+            modelBuilder.ApplyPostgresModuleMessagingPersistence("products");
         }
     }
 

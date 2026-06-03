@@ -85,16 +85,6 @@ public static class ModulePersistenceServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddDurableRequestPolling(this IServiceCollection services)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-
-        services.AddOptions<DurableRequestOptions>();
-        services.TryAddScoped<IDurableRequestSender, DurableRequestSender>();
-
-        return services;
-    }
-
     private static void AddModulePersistenceRegistration(
         IServiceCollection services,
         string moduleName,

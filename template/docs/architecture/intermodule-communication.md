@@ -168,6 +168,13 @@ Outbox rows store dispatch state and a bounded error summary. Full exception
 details belong in structured logs and traces so the outbox table stays an
 operational queue, not a diagnostics archive.
 
+Outbox and stored-domain-event payload and metadata columns are serialized JSON
+strings in the provider-neutral Bondstone EF model. Provider packages may
+override only the durable payload storage type when that provider has a better
+native fit. The PostgreSQL package maps those flexible columns to `jsonb`;
+providers that do not override them use their normal string/text column
+mapping.
+
 Each module persistence registration owns one outbox worker for that module's
 schema. The worker takes a module-scoped PostgreSQL advisory lock before
 claiming eligible rows oldest-first with `FOR UPDATE SKIP LOCKED`. Separate

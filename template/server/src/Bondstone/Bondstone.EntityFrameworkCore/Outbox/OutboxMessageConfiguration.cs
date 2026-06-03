@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Bondstone.EntityFrameworkCore.Outbox;
 
-public sealed class OutboxMessageConfiguration(string schema)
+public sealed class OutboxMessageConfiguration(
+    string schema)
     : IEntityTypeConfiguration<OutboxMessage>
 {
     public void Configure(EntityTypeBuilder<OutboxMessage> builder)
@@ -15,8 +16,7 @@ public sealed class OutboxMessageConfiguration(string schema)
         builder.Property(x => x.MessageType).HasMaxLength(256).IsRequired();
         builder.Property(x => x.SourceModule).HasMaxLength(128).IsRequired();
         builder.Property(x => x.TargetModule).HasMaxLength(128);
-        builder.Property(x => x.Payload).HasColumnType("jsonb").IsRequired();
-        builder.Property(x => x.Metadata).HasColumnType("jsonb");
+        builder.Property(x => x.Payload).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(x => x.Error).HasMaxLength(OutboxMessage.MaxErrorLength);
         builder.Property(x => x.LockedBy).HasMaxLength(128);

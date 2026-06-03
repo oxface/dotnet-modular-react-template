@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,6 +10,7 @@ public sealed class OutboxDispatcher<TDbContext>(
     TDbContext context,
     IOutboxTransport outboxTransport,
     IOutboxDispatchLock outboxDispatchLock,
+    IOutboxClaimHandler outboxClaimHandler,
     IOptions<DurableMessagingOptions> options,
     IRetryDelayPolicy retryDelayPolicy,
     ILogger<OutboxDispatcher<TDbContext>> logger)
@@ -37,17 +37,17 @@ public sealed class OutboxDispatcher<TDbContext>(
         DateTimeOffset now = DateTimeOffset.UtcNow;
         DateTimeOffset staleThreshold = now - _options.LockTimeout;
         string claimToken = Guid.NewGuid().ToString("N");
-        string schema = DelimitSchema(context.ModuleName);
 
-        await MarkAbandonedProcessingMessagesAsync(
-            schema,
+        await outboxClaimHandler.MarkAbandonedProcessingMessagesAsync(
+            context,
             now,
             staleThreshold,
             cancellationToken);
-        await ClaimEligibleMessagesAsync(
-            schema,
+        await outboxClaimHandler.ClaimEligibleMessagesAsync(
+            context,
             claimToken,
             now,
+            _options.BatchSize,
             cancellationToken);
 
         IReadOnlyList<OutboxMessage> pendingMessages = await context.OutboxMessages
@@ -90,102 +90,5 @@ public sealed class OutboxDispatcher<TDbContext>(
         }
 
         return dispatchedCount;
-    }
-
-    private async Task MarkAbandonedProcessingMessagesAsync(
-        string schema,
-        DateTimeOffset now,
-        DateTimeOffset staleThreshold,
-        CancellationToken cancellationToken)
-    {
-        string failed = PersistedMessageStatus.Failed.ToString();
-        string processing = PersistedMessageStatus.Processing.ToString();
-        string deadLettered = PersistedMessageStatus.DeadLettered.ToString();
-        DateTimeOffset neverRetry = DateTimeOffset.MaxValue;
-
-        string staleSql =
-            $$"""
-            UPDATE {{schema}}.outbox_messages
-            SET "AttemptCount" = "AttemptCount" + 1,
-                "Status" = CASE
-                    WHEN "AttemptCount" + 1 >= "MaxAttempts" THEN {0}
-                    ELSE {1}
-                END,
-                "FailedAtUtc" = {2},
-                "Error" = 'Outbox message lock timed out before dispatch completed.',
-                "LockedAtUtc" = NULL,
-                "LockedBy" = NULL,
-                "NextAttemptAtUtc" = CASE
-                    WHEN "AttemptCount" + 1 >= "MaxAttempts" THEN {3}
-                    ELSE {2}
-                END
-            WHERE "Status" = {4}
-                AND "LockedAtUtc" IS NOT NULL
-                AND "LockedAtUtc" < {5}
-            """;
-
-        await context.Database.ExecuteSqlAsync(
-            FormattableStringFactory.Create(
-                staleSql,
-                deadLettered,
-                failed,
-                now,
-                neverRetry,
-                processing,
-                staleThreshold),
-            cancellationToken);
-    }
-
-    private async Task ClaimEligibleMessagesAsync(
-        string schema,
-        string claimToken,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        string pending = PersistedMessageStatus.Pending.ToString();
-        string failed = PersistedMessageStatus.Failed.ToString();
-
-        // The subquery selects work in creation order, but FOR UPDATE SKIP LOCKED
-        // lets concurrent dispatchers skip rows claimed by another transaction
-        // instead of blocking.
-        string claimSql =
-            $$"""
-            UPDATE {{schema}}.outbox_messages
-            SET "Status" = 'Processing',
-                "LockedAtUtc" = {0},
-                "LockedBy" = {1}
-            WHERE "Id" = ANY(
-                SELECT "Id" FROM {{schema}}.outbox_messages
-                WHERE (
-                    ("Status" = {2} OR "Status" = {3})
-                    AND "NextAttemptAtUtc" <= {4}
-                )
-                ORDER BY "CreatedAtUtc"
-                LIMIT {5}
-                FOR UPDATE SKIP LOCKED
-            )
-            """;
-
-        await context.Database.ExecuteSqlAsync(
-            FormattableStringFactory.Create(
-                claimSql,
-                now,
-                claimToken,
-                pending,
-                failed,
-                now,
-                _options.BatchSize),
-            cancellationToken);
-    }
-
-    private static string DelimitSchema(string schema)
-    {
-        if (string.IsNullOrWhiteSpace(schema)
-            || schema.Any(static c => !char.IsAsciiLetterOrDigit(c) && c != '_'))
-        {
-            throw new InvalidOperationException($"Invalid module schema name '{schema}'.");
-        }
-
-        return "\"" + schema + "\"";
     }
 }

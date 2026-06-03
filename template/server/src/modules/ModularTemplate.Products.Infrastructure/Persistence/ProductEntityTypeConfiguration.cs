@@ -13,7 +13,6 @@ public sealed class ProductEntityTypeConfiguration : IEntityTypeConfiguration<Pr
         builder.Property(x => x.Name).HasMaxLength(256).IsRequired();
         builder.Property(x => x.CreatedAtUtc).IsRequired();
         builder.Property(x => x.UpdatedAtUtc).IsRequired();
-        builder.Property(x => x.MetadataJson).HasColumnType("jsonb");
         builder.Ignore(x => x.DomainEvents);
         builder.HasIndex(x => x.Name);
         builder.HasIndex(x => x.CreatedAtUtc);

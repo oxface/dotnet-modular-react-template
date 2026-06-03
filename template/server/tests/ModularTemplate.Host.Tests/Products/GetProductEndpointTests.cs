@@ -22,8 +22,7 @@ public sealed class GetProductEndpointTests
                 productId,
                 "Document Library",
                 DateTimeOffset.Parse("2026-05-01T12:00:00Z"),
-                DateTimeOffset.Parse("2026-05-01T12:00:03Z"),
-                "{\"color\":\"green\"}"));
+                DateTimeOffset.Parse("2026-05-01T12:00:03Z")));
 
         await using var factory = new HostApplicationFactory(services =>
         {

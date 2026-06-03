@@ -13,7 +13,7 @@ public sealed class GrantInitialAdminAccessCommandHandlerTests
         var identity = new InMemoryIdentityContext();
         var handler = new GrantInitialAdminAccessCommandHandler(identity, identity);
 
-        GrantInitialAdminAccessResult result = await handler.Handle(
+        GrantInitialAdminAccessResult result = await handler.HandleAsync(
             new GrantInitialAdminAccessCommand("oidc", "subject-1", Force: false),
             CancellationToken.None);
         var user = await identity.GetByProviderSubjectAsync(
@@ -34,10 +34,10 @@ public sealed class GrantInitialAdminAccessCommandHandlerTests
         var identity = new InMemoryIdentityContext();
         var handler = new GrantInitialAdminAccessCommandHandler(identity, identity);
 
-        await handler.Handle(
+        await handler.HandleAsync(
             new GrantInitialAdminAccessCommand("oidc", "subject-1", Force: false),
             CancellationToken.None);
-        GrantInitialAdminAccessResult result = await handler.Handle(
+        GrantInitialAdminAccessResult result = await handler.HandleAsync(
             new GrantInitialAdminAccessCommand("oidc", "subject-1", Force: false),
             CancellationToken.None);
 
@@ -51,12 +51,12 @@ public sealed class GrantInitialAdminAccessCommandHandlerTests
     {
         var identity = new InMemoryIdentityContext();
         var handler = new GrantInitialAdminAccessCommandHandler(identity, identity);
-        await handler.Handle(
+        await handler.HandleAsync(
             new GrantInitialAdminAccessCommand("oidc", "subject-1", Force: false),
             CancellationToken.None);
         identity.ApplicationAccess.Single().Revoke();
 
-        GrantInitialAdminAccessResult result = await handler.Handle(
+        GrantInitialAdminAccessResult result = await handler.HandleAsync(
             new GrantInitialAdminAccessCommand("oidc", "subject-1", Force: false),
             CancellationToken.None);
 
@@ -70,12 +70,12 @@ public sealed class GrantInitialAdminAccessCommandHandlerTests
     {
         var identity = new InMemoryIdentityContext();
         var handler = new GrantInitialAdminAccessCommandHandler(identity, identity);
-        await handler.Handle(
+        await handler.HandleAsync(
             new GrantInitialAdminAccessCommand("oidc", "subject-1", Force: false),
             CancellationToken.None);
         identity.ApplicationAccess.Single().Revoke();
 
-        GrantInitialAdminAccessResult result = await handler.Handle(
+        GrantInitialAdminAccessResult result = await handler.HandleAsync(
             new GrantInitialAdminAccessCommand("oidc", "subject-1", Force: true),
             CancellationToken.None);
 

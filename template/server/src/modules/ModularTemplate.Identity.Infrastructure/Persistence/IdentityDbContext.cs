@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Users;
 using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Postgres.Persistence;
 
 namespace ModularTemplate.Identity.Infrastructure.Persistence;
 
@@ -18,6 +19,6 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     {
         modelBuilder.HasDefaultSchema("identity");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(IdentityDbContext).Assembly);
-        ApplyModuleMessagingPersistence(modelBuilder);
+        modelBuilder.ApplyPostgresModuleMessagingPersistence(ModuleName);
     }
 }

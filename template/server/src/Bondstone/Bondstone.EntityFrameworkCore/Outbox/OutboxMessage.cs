@@ -15,7 +15,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         string? targetModule,
         Guid correlationId,
         Guid? causationId,
-        Guid? operationId,
+        Guid? durableOperationId,
         string payload,
         string? metadata,
         DateTimeOffset createdAtUtc,
@@ -29,7 +29,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         TargetModule = targetModule;
         CorrelationId = correlationId;
         CausationId = causationId;
-        OperationId = operationId;
+        DurableOperationId = durableOperationId;
         Payload = payload;
         Metadata = metadata;
         Status = PersistedMessageStatus.Pending;
@@ -59,7 +59,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
 
     public Guid? CausationId { get; private set; }
 
-    public Guid? OperationId { get; private set; }
+    public Guid? DurableOperationId { get; private set; }
 
     public string Payload { get; private set; } = string.Empty;
 
@@ -93,7 +93,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         string? targetModule,
         Guid correlationId,
         Guid? causationId,
-        Guid? operationId,
+        Guid? durableOperationId,
         string payload,
         string? metadata = null,
         int maxAttempts = 5)
@@ -136,7 +136,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
             normalizedTargetModule,
             correlationId,
             causationId,
-            operationId,
+            durableOperationId,
             payload,
             metadata,
             DateTimeOffset.UtcNow,

@@ -201,7 +201,7 @@ public sealed class ModuleUnitOfWork<TDbContext>(
                     targetModule: null,
                     correlationId,
                     causationId: domainEvent.EventId,
-                    operationId: null,
+                    durableOperationId: null,
                     payload,
                     metadata: MessageTraceContext.CaptureMetadata(),
                     maxAttempts: _options.MaxAttempts));

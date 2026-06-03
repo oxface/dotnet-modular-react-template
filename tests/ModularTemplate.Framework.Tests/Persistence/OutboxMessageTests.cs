@@ -15,10 +15,10 @@ public sealed class OutboxMessageTests
             MessageKind.Command,
             "test.command.v1",
             sourceModule: "identity",
-            targetModule: "operations",
+            targetModule: "products",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{}");
         string longError = new('x', OutboxMessage.MaxErrorLength + 100);
 
@@ -41,7 +41,7 @@ public sealed class OutboxMessageTests
                 targetModule: null,
                 correlationId: Guid.NewGuid(),
                 causationId: null,
-                operationId: null,
+                durableOperationId: null,
                 payload: "{}"));
 
         exception.Message.ShouldContain("target module");
@@ -57,10 +57,10 @@ public sealed class OutboxMessageTests
                 MessageKind.Event,
                 "test.event.v1",
                 sourceModule: "identity",
-                targetModule: "operations",
+                targetModule: "products",
                 correlationId: Guid.NewGuid(),
                 causationId: null,
-                operationId: null,
+                durableOperationId: null,
                 payload: "{}"));
 
         exception.Message.ShouldContain("must not specify a target module");

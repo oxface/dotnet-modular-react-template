@@ -27,7 +27,7 @@ public sealed class RebusOutboxTransportTests
         busRegistry.GetBus("identity:queue").Returns(bus);
         IOutboxRouteResolver routeResolver = Substitute.For<IOutboxRouteResolver>();
         routeResolver.Resolve(Arg.Any<OutboxMessage>())
-            .Returns(new OutboxRoute("identity:queue", "modular-template.operations"));
+            .Returns(new OutboxRoute("identity:queue", "modular-template.products"));
         var transport = new RebusOutboxTransport(busRegistry, registry, routeResolver);
         using Activity activity = new Activity("test outbox dispatch")
             .SetIdFormat(ActivityIdFormat.W3C)
@@ -37,22 +37,22 @@ public sealed class RebusOutboxTransportTests
             MessageKind.Command,
             "test.command.v1",
             sourceModule: "identity",
-            targetModule: "operations",
+            targetModule: "products",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{\"Value\":\"hello\"}",
             metadata: MessageTraceContext.CaptureMetadata());
 
         await transport.DispatchAsync(outboxMessage, CancellationToken.None);
 
         await routing.Received(1).Send(
-            "modular-template.operations",
+            "modular-template.products",
             Arg.Is<TestCommand>(message => message.Value == "hello"),
             Arg.Is<Dictionary<string, string>>(headers =>
-                headers["modular-template-message-type"] == "test.command.v1"
-                && headers["modular-template-source-module"] == "identity"
-                && headers["modular-template-target-module"] == "operations"
+                headers[BondstoneMessageHeaders.MessageType] == "test.command.v1"
+                && headers[BondstoneMessageHeaders.SourceModule] == "identity"
+                && headers[BondstoneMessageHeaders.TargetModule] == "products"
                 && headers[BondstoneDiagnostics.TraceParentHeader] == activity.Id));
         await bus.DidNotReceiveWithAnyArgs().Publish(default!);
     }
@@ -78,7 +78,7 @@ public sealed class RebusOutboxTransportTests
             targetModule: null,
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{\"Value\":\"world\"}");
 
         await transport.DispatchAsync(outboxMessage, CancellationToken.None);
@@ -86,8 +86,8 @@ public sealed class RebusOutboxTransportTests
         await bus.Received(1).Publish(
             Arg.Is<TestEvent>(message => message.Value == "world"),
             Arg.Is<Dictionary<string, string>>(headers =>
-                headers["modular-template-message-type"] == "test.event.v1"
-                && !headers.ContainsKey("modular-template-target-module")));
+                headers[BondstoneMessageHeaders.MessageType] == "test.event.v1"
+                && !headers.ContainsKey(BondstoneMessageHeaders.TargetModule)));
     }
 
     [Fact]
@@ -102,16 +102,16 @@ public sealed class RebusOutboxTransportTests
             MessageKind.Command,
             "test.command.v1",
             sourceModule: "identity",
-            targetModule: "operations",
+            targetModule: "products",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{}");
 
         OutboxRoute route = resolver.Resolve(message);
 
         route.BusKey.ShouldBe("identity:queue");
-        route.DestinationAddress.ShouldBe("sample.operations");
+        route.DestinationAddress.ShouldBe("sample.products");
     }
 
     [Fact]
@@ -126,22 +126,22 @@ public sealed class RebusOutboxTransportTests
             MessageKind.Command,
             "test.command.v1",
             sourceModule: "identity",
-            targetModule: "operations",
+            targetModule: "products",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{}");
 
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => resolver.Resolve(message));
 
-        exception.Message.ShouldContain("operations");
+        exception.Message.ShouldContain("products");
         exception.Message.ShouldContain("Messaging:Modules");
     }
 
-    [MessageIdentity("test.command.v1")]
+    [DurableCommandIdentity("test.command.v1")]
     private sealed record TestCommand(string Value) : IDurableCommand;
 
-    [MessageIdentity("test.event.v1")]
+    [IntegrationEventIdentity("test.event.v1")]
     private sealed record TestEvent(string Value) : IIntegrationEvent;
 }

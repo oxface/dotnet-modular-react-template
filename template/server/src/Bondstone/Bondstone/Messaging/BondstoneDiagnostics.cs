@@ -8,7 +8,7 @@ public static class BondstoneDiagnostics
     public const string TraceParentHeader = "traceparent";
     public const string TraceStateHeader = "tracestate";
     public const string BaggageHeader = "baggage";
-    public const string OperationIdBaggageKey = "bondstone.operation_id";
+    public const string DurableOperationIdBaggageKey = "bondstone.durable_operation_id";
     public const string CausationIdBaggageKey = "bondstone.causation_id";
 
     public static readonly ActivitySource ActivitySource = new(ActivitySourceName);

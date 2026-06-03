@@ -33,7 +33,7 @@ Create this shape under `server/src/modules`:
 {Product}.{Module}.Infrastructure/
 ```
 
-Use the existing Identity and Operations modules as local examples.
+Use the existing Identity and Products modules as local examples.
 
 Dependency direction:
 

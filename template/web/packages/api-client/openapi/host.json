@@ -28,15 +28,15 @@
         }
       }
     },
-    "/api/operations/{operationId}": {
+    "/api/products/{productId}": {
       "get": {
         "tags": [
-          "Operations"
+          "Products"
         ],
-        "operationId": "GetOperation",
+        "operationId": "GetProduct",
         "parameters": [
           {
-            "name": "operationId",
+            "name": "productId",
             "in": "path",
             "required": true,
             "schema": {
@@ -51,7 +51,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OperationDetails"
+                  "$ref": "#/components/schemas/ProductDetails"
                 }
               }
             }
@@ -123,30 +123,22 @@
           }
         }
       },
-      "OperationDetails": {
+      "ProductDetails": {
         "required": [
-          "operationId",
-          "operationType",
-          "status",
+          "productId",
+          "name",
           "createdAtUtc",
           "updatedAtUtc",
-          "completedAtUtc",
-          "failedAtUtc",
-          "failureReason",
-          "resultJson",
           "metadataJson"
         ],
         "type": "object",
         "properties": {
-          "operationId": {
+          "productId": {
             "type": "string",
             "format": "uuid"
           },
-          "operationType": {
+          "name": {
             "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/OperationStatus"
           },
           "createdAtUtc": {
             "type": "string",
@@ -156,32 +148,6 @@
             "type": "string",
             "format": "date-time"
           },
-          "completedAtUtc": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "failedAtUtc": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "failureReason": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "resultJson": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "metadataJson": {
             "type": [
               "null",
@@ -189,9 +155,6 @@
             ]
           }
         }
-      },
-      "OperationStatus": {
-        "type": "integer"
       }
     }
   },
@@ -200,7 +163,7 @@
       "name": "CurrentUser"
     },
     {
-      "name": "Operations"
+      "name": "Products"
     }
   ]
 }

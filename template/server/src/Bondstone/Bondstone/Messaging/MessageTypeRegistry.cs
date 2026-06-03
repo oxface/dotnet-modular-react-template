@@ -19,14 +19,7 @@ public sealed class MessageTypeRegistry : IMessageTypeRegistry
     {
         ArgumentNullException.ThrowIfNull(clrType);
 
-        MessageIdentityAttribute identity = clrType
-            .GetCustomAttributes(typeof(MessageIdentityAttribute), inherit: false)
-            .OfType<MessageIdentityAttribute>()
-            .SingleOrDefault()
-            ?? throw new InvalidOperationException(
-                $"Message type '{clrType.FullName}' must declare {nameof(MessageIdentityAttribute)}.");
-
-        return Register(clrType, identity.Name);
+        return Register(clrType, MessageIdentityMetadata.GetRequiredIdentity(clrType));
     }
 
     public MessageTypeRegistration Register<TMessage>(string messageTypeName)
@@ -86,7 +79,7 @@ public sealed class MessageTypeRegistry : IMessageTypeRegistry
             .GetTypes()
             .Where(static type => typeof(IMessage).IsAssignableFrom(type)
                 && type is { IsAbstract: false, IsInterface: false }
-                && type.GetCustomAttributes(typeof(MessageIdentityAttribute), inherit: false).Any())
+                && MessageIdentityMetadata.HasIdentity(type))
             .Select(Register)
             .ToArray();
     }

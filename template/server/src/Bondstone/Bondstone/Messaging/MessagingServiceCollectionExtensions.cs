@@ -83,84 +83,50 @@ public static class MessagingServiceCollectionExtensions
             .Where(type => type is { IsAbstract: false, IsInterface: false })
             .Select(type => type.AsType()))
         {
-            Type[] messageTypes = handlerType.GetInterfaces()
-                .Where(IsModuleMessageHandlerInterface)
-                .Select(handlerInterface => handlerInterface.GenericTypeArguments[0])
-                .Distinct()
-                .ToArray();
+            IReadOnlyCollection<ModuleMessageHandlerRegistrationDescriptor> descriptors =
+                ModuleMessageHandlerRegistrationFactory.Create(handlerType);
 
-            if (messageTypes.Length == 0)
+            if (descriptors.Count == 0)
             {
                 continue;
             }
 
             services.TryAddScoped(handlerType);
 
-            foreach (Type messageType in messageTypes)
+            foreach (ModuleMessageHandlerRegistrationDescriptor descriptor in descriptors)
             {
-                if (!typeof(IMessage).IsAssignableFrom(messageType))
+                AddModuleMessageHandlerRegistration(services, moduleName, descriptor);
+                RegisterTransportHandlerAdapters(services, descriptor.MessageType);
+
+                if (typeof(IIntegrationEvent).IsAssignableFrom(descriptor.MessageType))
                 {
-                    throw new InvalidOperationException(
-                        $"Module message handler '{handlerType.FullName}' handles '{messageType.FullName}', which must implement {nameof(IMessage)}.");
-                }
-
-                string messageIdentity = GetMessageIdentity(handlerType, messageType);
-
-                AddModuleMessageHandlerRegistration(
-                    services,
-                    moduleName,
-                    messageType,
-                    handlerType,
-                    messageIdentity);
-                RegisterTransportHandlerAdapters(services, messageType);
-
-                if (typeof(IIntegrationEvent).IsAssignableFrom(messageType))
-                {
-                    AddModuleEventSubscription(services, moduleName, messageType);
+                    AddModuleEventSubscription(services, moduleName, descriptor.MessageType);
                 }
             }
         }
-    }
-
-    private static bool IsModuleMessageHandlerInterface(Type interfaceType)
-    {
-        return interfaceType.IsGenericType
-            && interfaceType.GetGenericTypeDefinition() == typeof(IModuleMessageHandler<>);
     }
 
     private static void AddModuleMessageHandlerRegistration(
         IServiceCollection services,
         string moduleName,
-        Type messageType,
-        Type handlerType,
-        string messageIdentity)
+        ModuleMessageHandlerRegistrationDescriptor descriptor)
     {
-        if (services.Any(service =>
-                service.ServiceType == typeof(ModuleMessageHandlerRegistration)
-                && service.ImplementationInstance is ModuleMessageHandlerRegistration registration
-                && string.Equals(registration.ModuleName, moduleName, StringComparison.Ordinal)
-                && registration.MessageType == messageType))
-        {
-            if (services.Any(service =>
-                    service.ServiceType == typeof(ModuleMessageHandlerRegistration)
-                    && service.ImplementationInstance is ModuleMessageHandlerRegistration registration
-                    && string.Equals(registration.ModuleName, moduleName, StringComparison.Ordinal)
-                    && registration.MessageType == messageType
-                    && registration.HandlerType != handlerType))
-            {
-                throw new InvalidOperationException(
-                    $"Module '{moduleName}' already has a message handler for '{messageType.FullName}'. " +
-                    "Use one module message handler per message identity and fan out to module-local services when needed.");
-            }
+        ModuleMessageHandlerRegistration[] existingRegistrations = services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleMessageHandlerRegistration>()
+            .ToArray();
 
+        if (!ModuleMessageHandlerRegistrationPolicy.ShouldRegister(moduleName, descriptor, existingRegistrations))
+        {
             return;
         }
 
         services.AddSingleton(new ModuleMessageHandlerRegistration(
             moduleName,
-            messageType,
-            handlerType,
-            messageIdentity));
+            descriptor.MessageType,
+            descriptor.HandlerType,
+            descriptor.MessageIdentity,
+            descriptor.HandlerIdentity));
     }
 
     private static void RegisterTransportHandlerAdapters(IServiceCollection services, Type messageType)
@@ -172,17 +138,5 @@ public static class MessagingServiceCollectionExtensions
         {
             adapter.RegisterHandlerAdapter(services, messageType);
         }
-    }
-
-    private static string GetMessageIdentity(Type handlerType, Type messageType)
-    {
-        return messageType
-            .GetCustomAttributes(typeof(MessageIdentityAttribute), inherit: false)
-            .OfType<MessageIdentityAttribute>()
-            .SingleOrDefault()
-            ?.Name.TrimRequired(nameof(MessageIdentityAttribute.Name))
-            ?? throw new InvalidOperationException(
-                $"Module message handler '{handlerType.FullName}' handles '{messageType.FullName}', " +
-                $"which must declare {nameof(MessageIdentityAttribute)}.");
     }
 }

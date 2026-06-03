@@ -54,7 +54,7 @@ public sealed class TransportConfigurationTests
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration["Messaging:Modules:0"] = "identity";
-        builder.Configuration["Messaging:Modules:1"] = "operations";
+        builder.Configuration["Messaging:Modules:1"] = "products";
 
         builder.AddRebusTransport(transport =>
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
@@ -126,7 +126,7 @@ public sealed class TransportConfigurationTests
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
 
         builder.Services.AddModulePersistence<IdentityDbContext>("identity");
-        builder.Services.AddModulePersistence<OperationsTransportDbContext>("operations");
+        builder.Services.AddModulePersistence<ProductsTransportDbContext>("products");
 
         builder.Services
             .Where(service => service.ServiceType == typeof(IHostedService)
@@ -136,10 +136,10 @@ public sealed class TransportConfigurationTests
             .OrderBy(type => type!.FullName, StringComparer.Ordinal)
             .ShouldBe([
                 typeof(OutboxDispatcherBackgroundService<IdentityDbContext>),
-                typeof(OutboxDispatcherBackgroundService<OperationsTransportDbContext>)
+                typeof(OutboxDispatcherBackgroundService<ProductsTransportDbContext>)
             ]);
         builder.Services.Any(service => service.ServiceType == typeof(OutboxDispatcher<IdentityDbContext>)).ShouldBeTrue();
-        builder.Services.Any(service => service.ServiceType == typeof(OutboxDispatcher<OperationsTransportDbContext>)).ShouldBeTrue();
+        builder.Services.Any(service => service.ServiceType == typeof(OutboxDispatcher<ProductsTransportDbContext>)).ShouldBeTrue();
         builder.Services.Count(service => service.ServiceType == typeof(IModuleMessageInboxExecutor))
             .ShouldBe(2);
         builder.Services.Count(service => service.ServiceType == typeof(IModuleBoundaryExecutor))
@@ -341,7 +341,7 @@ public sealed class TransportConfigurationTests
         exception.Message.ShouldContain(nameof(AlternateIdentityDbContext));
     }
 
-    [MessageIdentity("test.transport-configuration-event.v1")]
+    [IntegrationEventIdentity("test.transport-configuration-event.v1")]
     private sealed record TestIntegrationEvent : IIntegrationEvent;
 
     private sealed class TestModuleMessageHandler : IModuleMessageHandler<TestIntegrationEvent>
@@ -364,10 +364,10 @@ public sealed class TransportConfigurationTests
         public DbSet<StoredDomainEvent> DomainEvents => Set<StoredDomainEvent>();
     }
 
-    private sealed class OperationsTransportDbContext(DbContextOptions<OperationsTransportDbContext> options)
+    private sealed class ProductsTransportDbContext(DbContextOptions<ProductsTransportDbContext> options)
         : DbContext(options), IModuleDbContext
     {
-        public string ModuleName => "operations";
+        public string ModuleName => "products";
 
         public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

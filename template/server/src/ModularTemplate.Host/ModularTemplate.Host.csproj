@@ -11,8 +11,8 @@
     <ProjectReference Include="..\ModularTemplate.SharedKernel\ModularTemplate.SharedKernel.csproj" />
     <ProjectReference Include="..\modules\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
     <ProjectReference Include="..\modules\ModularTemplate.Identity.Infrastructure\ModularTemplate.Identity.Infrastructure.csproj" />
-    <ProjectReference Include="..\modules\ModularTemplate.Operations\ModularTemplate.Operations.csproj" />
-    <ProjectReference Include="..\modules\ModularTemplate.Operations.Infrastructure\ModularTemplate.Operations.Infrastructure.csproj" />
+    <ProjectReference Include="..\modules\ModularTemplate.Products\ModularTemplate.Products.csproj" />
+    <ProjectReference Include="..\modules\ModularTemplate.Products.Infrastructure\ModularTemplate.Products.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />

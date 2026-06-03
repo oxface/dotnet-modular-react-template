@@ -19,7 +19,7 @@ public sealed class ModuleScopedRebusHandlerTests
         var message = new TestUnhandledEvent();
         using RebusTransactionScope transactionScope = StartRebusMessageContext(
             message,
-            receivingModule: "operations");
+            receivingModule: "products");
 
         await using ServiceProvider serviceProvider = new ServiceCollection().BuildServiceProvider();
         var handler = new ModuleScopedRebusHandler<TestUnhandledEvent>(
@@ -35,7 +35,7 @@ public sealed class ModuleScopedRebusHandlerTests
 
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
             async () => await handler.Handle(message));
-        exception.Message.ShouldContain("operations");
+        exception.Message.ShouldContain("products");
         exception.Message.ShouldContain(typeof(TestUnhandledEvent).FullName!);
     }
 
@@ -46,7 +46,7 @@ public sealed class ModuleScopedRebusHandlerTests
         var message = new TestDurableCommand();
         using RebusTransactionScope transactionScope = StartRebusMessageContext(
             message,
-            receivingModule: "operations");
+            receivingModule: "products");
 
         await using ServiceProvider serviceProvider = new ServiceCollection().BuildServiceProvider();
         var handler = new ModuleScopedRebusHandler<TestDurableCommand>(
@@ -54,12 +54,12 @@ public sealed class ModuleScopedRebusHandlerTests
             new ThrowingModuleMessageInbox(),
             [
                 new ModuleMessageHandlerRegistration(
-                    "operations",
+                    "products",
                     typeof(TestDurableCommand),
                     typeof(FirstCommandHandler),
                     "test.durable-command.v1"),
                 new ModuleMessageHandlerRegistration(
-                    "operations",
+                    "products",
                     typeof(TestDurableCommand),
                     typeof(SecondCommandHandler),
                     "test.durable-command.v1")
@@ -68,8 +68,49 @@ public sealed class ModuleScopedRebusHandlerTests
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
             async () => await handler.Handle(message));
         exception.Message.ShouldContain("Multiple");
-        exception.Message.ShouldContain("operations");
+        exception.Message.ShouldContain("products");
         exception.Message.ShouldContain(typeof(TestDurableCommand).FullName!);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task Handle_WhenIntegrationEventHasMultipleHandlers_RunsEachHandlerThroughSeparateInboxIdentity()
+    {
+        var message = new TestIntegrationEvent();
+        using RebusTransactionScope transactionScope = StartRebusMessageContext(
+            message,
+            receivingModule: "products");
+
+        await using ServiceProvider serviceProvider = new ServiceCollection()
+            .AddScoped<FirstIntegrationEventHandler>()
+            .AddScoped<SecondIntegrationEventHandler>()
+            .BuildServiceProvider();
+        var inbox = new CapturingModuleMessageInbox();
+        var handler = new ModuleScopedRebusHandler<TestIntegrationEvent>(
+            serviceProvider,
+            inbox,
+            [
+                new ModuleMessageHandlerRegistration(
+                    "products",
+                    typeof(TestIntegrationEvent),
+                    typeof(FirstIntegrationEventHandler),
+                    "test.module-scoped-integration-event.v1",
+                    "products.first-integration-handler.v1"),
+                new ModuleMessageHandlerRegistration(
+                    "products",
+                    typeof(TestIntegrationEvent),
+                    typeof(SecondIntegrationEventHandler),
+                    "test.module-scoped-integration-event.v1",
+                    "products.second-integration-handler.v1")
+            ]);
+
+        await handler.Handle(message);
+
+        inbox.HandledIdentities.ShouldBe(
+            [
+                "products.first-integration-handler.v1",
+                "products.second-integration-handler.v1"
+            ]);
     }
 
     [Fact]
@@ -78,16 +119,16 @@ public sealed class ModuleScopedRebusHandlerTests
     {
         var message = new TestDurableCommand();
         Guid messageId = Guid.Parse("11111111-1111-1111-1111-111111111111");
-        Guid operationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        Guid durableOperationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         using Activity parentActivity = new Activity("parent")
             .SetIdFormat(ActivityIdFormat.W3C)
             .Start();
         using RebusTransactionScope transactionScope = StartRebusMessageContext(
             message,
-            receivingModule: "operations",
+            receivingModule: "products",
             messageId,
             parentActivity.Id,
-            operationId);
+            durableOperationId);
         await using ServiceProvider serviceProvider = new ServiceCollection()
             .AddScoped<HandledCommandHandler>()
             .BuildServiceProvider();
@@ -97,7 +138,7 @@ public sealed class ModuleScopedRebusHandlerTests
             inbox,
             [
                 new ModuleMessageHandlerRegistration(
-                    "operations",
+                    "products",
                     typeof(TestDurableCommand),
                     typeof(HandledCommandHandler),
                     "test.durable-command.v1")
@@ -107,7 +148,7 @@ public sealed class ModuleScopedRebusHandlerTests
 
         inbox.TraceId.ShouldBe(parentActivity.TraceId.ToHexString());
         inbox.CausationId.ShouldBe(messageId);
-        inbox.OperationId.ShouldBe(operationId);
+        inbox.DurableOperationId.ShouldBe(durableOperationId);
     }
 
     private static RebusTransactionScope StartRebusMessageContext<TMessage>(
@@ -115,22 +156,22 @@ public sealed class ModuleScopedRebusHandlerTests
         string receivingModule,
         Guid? messageId = null,
         string? traceParent = null,
-        Guid? operationId = null)
+        Guid? durableOperationId = null)
     {
         var transactionScope = new RebusTransactionScope();
         var headers = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [Headers.MessageId] = (messageId ?? Guid.NewGuid()).ToString("D"),
-            ["modular-template-receiving-module"] = receivingModule
+            ["bondstone-receiving-module"] = receivingModule
         };
         if (!string.IsNullOrWhiteSpace(traceParent))
         {
             headers[BondstoneDiagnostics.TraceParentHeader] = traceParent;
         }
 
-        if (operationId is not null)
+        if (durableOperationId is not null)
         {
-            headers[BondstoneMessageHeaders.OperationId] = operationId.Value.ToString("D");
+            headers[BondstoneMessageHeaders.DurableOperationId] = durableOperationId.Value.ToString("D");
         }
 
         var transportMessage = new TransportMessage(headers, Array.Empty<byte>());
@@ -144,10 +185,13 @@ public sealed class ModuleScopedRebusHandlerTests
         return transactionScope;
     }
 
-    [MessageIdentity("test.unhandled-event.v1")]
+    [IntegrationEventIdentity("test.unhandled-event.v1")]
     private sealed record TestUnhandledEvent : IIntegrationEvent;
 
-    [MessageIdentity("test.durable-command.v1")]
+    [IntegrationEventIdentity("test.module-scoped-integration-event.v1")]
+    private sealed record TestIntegrationEvent : IIntegrationEvent;
+
+    [DurableCommandIdentity("test.durable-command.v1")]
     private sealed record TestDurableCommand : IDurableCommand;
 
     private sealed class UnusedHandler : IModuleMessageHandler<TestUnhandledEvent>
@@ -165,6 +209,24 @@ public sealed class ModuleScopedRebusHandlerTests
     private sealed class HandledCommandHandler : IModuleMessageHandler<TestDurableCommand>
     {
         public Task HandleAsync(TestDurableCommand message, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    [IntegrationEventHandlerIdentity("products.first-integration-handler.v1")]
+    private sealed class FirstIntegrationEventHandler : IModuleMessageHandler<TestIntegrationEvent>
+    {
+        public Task HandleAsync(TestIntegrationEvent message, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    [IntegrationEventHandlerIdentity("products.second-integration-handler.v1")]
+    private sealed class SecondIntegrationEventHandler : IModuleMessageHandler<TestIntegrationEvent>
+    {
+        public Task HandleAsync(TestIntegrationEvent message, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
         }
@@ -189,7 +251,9 @@ public sealed class ModuleScopedRebusHandlerTests
 
         public Guid? CausationId { get; private set; }
 
-        public Guid? OperationId { get; private set; }
+        public Guid? DurableOperationId { get; private set; }
+
+        public List<string> HandledIdentities { get; } = [];
 
         public async Task HandleOnceAsync(
             string moduleName,
@@ -200,7 +264,8 @@ public sealed class ModuleScopedRebusHandlerTests
         {
             TraceId = Activity.Current?.TraceId.ToHexString();
             CausationId = BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.CausationIdBaggageKey);
-            OperationId = BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.OperationIdBaggageKey);
+            DurableOperationId = BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.DurableOperationIdBaggageKey);
+            HandledIdentities.Add(messageIdentity);
             await handler(cancellationToken);
         }
     }

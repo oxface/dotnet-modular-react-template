@@ -40,8 +40,8 @@ internal static class RebusMessageDiagnostics
             ParseGuidOrNull(messageId));
         AddGuidBaggageAndTag(
             activity,
-            BondstoneDiagnostics.OperationIdBaggageKey,
-            GetOperationId(headers));
+            BondstoneDiagnostics.DurableOperationIdBaggageKey,
+            GetDurableOperationId(headers));
 
         return activity;
     }
@@ -61,10 +61,10 @@ internal static class RebusMessageDiagnostics
         AddIfPresent(headers, BondstoneDiagnostics.BaggageHeader, traceContext.Baggage);
     }
 
-    private static Guid? GetOperationId(IReadOnlyDictionary<string, string> headers)
+    private static Guid? GetDurableOperationId(IReadOnlyDictionary<string, string> headers)
     {
-        return headers.TryGetValue(BondstoneMessageHeaders.OperationId, out string? operationId)
-            ? ParseGuidOrNull(operationId)
+        return headers.TryGetValue(BondstoneMessageHeaders.DurableOperationId, out string? durableOperationId)
+            ? ParseGuidOrNull(durableOperationId)
             : null;
     }
 

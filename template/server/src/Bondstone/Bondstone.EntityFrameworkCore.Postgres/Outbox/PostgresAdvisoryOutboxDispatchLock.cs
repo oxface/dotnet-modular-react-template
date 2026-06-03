@@ -72,7 +72,7 @@ public sealed class PostgresAdvisoryOutboxDispatchLock : IOutboxDispatchLock
     {
         public static long ForModuleOutboxDispatch(string moduleName)
         {
-            string lockName = $"modular-template:outbox-dispatch:{moduleName}";
+            string lockName = $"bondstone:outbox-dispatch:{moduleName}";
 
             // PostgreSQL advisory locks take numeric keys. Keep the source lock
             // name readable here and derive a deterministic 64-bit key from it.

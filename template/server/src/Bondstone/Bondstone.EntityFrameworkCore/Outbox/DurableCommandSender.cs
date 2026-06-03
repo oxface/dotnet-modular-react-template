@@ -20,7 +20,7 @@ public sealed class DurableCommandSender(
     public CommandSubmission Send<TCommand>(
         TCommand command,
         string targetModule,
-        Guid? operationId = null,
+        Guid? durableOperationId = null,
         Guid? causationId = null,
         int? maxAttempts = null)
         where TCommand : IDurableCommand
@@ -38,7 +38,7 @@ public sealed class DurableCommandSender(
         Guid submissionId = Guid.NewGuid();
         Guid correlationId = BondstoneDiagnostics.CreateCorrelationId(Activity.Current) ?? submissionId;
         Guid? messageCausationId = causationId ?? BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.CausationIdBaggageKey);
-        Guid? messageOperationId = operationId ?? BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.OperationIdBaggageKey);
+        Guid? messageDurableOperationId = durableOperationId ?? BondstoneDiagnostics.GetCurrentBaggageGuid(BondstoneDiagnostics.DurableOperationIdBaggageKey);
         string messageType = messageTypeRegistry.GetMessageTypeName(commandType);
         string payload = JsonSerializer.Serialize(command, commandType);
         int messageMaxAttempts = maxAttempts ?? _options.MaxAttempts;
@@ -51,14 +51,14 @@ public sealed class DurableCommandSender(
             normalizedTargetModule,
             correlationId,
             messageCausationId,
-            messageOperationId,
+            messageDurableOperationId,
             payload,
             metadata: MessageTraceContext.CaptureMetadata(),
             maxAttempts: messageMaxAttempts));
 
         return new CommandSubmission(
             submissionId,
-            messageOperationId,
+            messageDurableOperationId,
             CommandSubmissionStatus.Accepted);
     }
 

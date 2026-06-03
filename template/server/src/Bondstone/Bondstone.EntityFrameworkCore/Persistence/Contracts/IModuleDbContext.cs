@@ -15,7 +15,7 @@ namespace Bondstone.EntityFrameworkCore.Persistence;
 public interface IModuleDbContext
 {
     /// <summary>
-    /// The module name, used as the PostgreSQL schema name (e.g. "identity", "operations").
+    /// The module name, used as the PostgreSQL schema name (e.g. "identity", "products").
     /// </summary>
     string ModuleName { get; }
 

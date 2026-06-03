@@ -16,7 +16,7 @@ public interface IDurableOutboxMessage
 
     Guid? CausationId { get; }
 
-    Guid? OperationId { get; }
+    Guid? DurableOperationId { get; }
 
     string Payload { get; }
 

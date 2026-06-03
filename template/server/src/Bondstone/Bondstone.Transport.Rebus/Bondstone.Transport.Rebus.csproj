@@ -9,6 +9,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Rebus.AzureServiceBus" />
     <PackageReference Include="Rebus.PostgreSql" />
     <PackageReference Include="Rebus.ServiceProvider" />
   </ItemGroup>

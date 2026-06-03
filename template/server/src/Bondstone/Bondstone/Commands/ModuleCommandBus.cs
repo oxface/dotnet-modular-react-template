@@ -1,14 +1,17 @@
 using System.Reflection;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bondstone.Commands;
 
 internal sealed class ModuleCommandBus(IServiceProvider serviceProvider) : IModuleCommandBus
 {
-    private static readonly MethodInfo SendTypedMethod = typeof(ModuleCommandBus)
-        .GetMethod(nameof(SendTypedAsync), BindingFlags.Instance | BindingFlags.NonPublic)
+    private static readonly ConcurrentDictionary<CommandInvocationKey, CommandInvoker> Invokers = [];
+
+    private static readonly MethodInfo InvokeTypedMethod = typeof(ModuleCommandBus)
+        .GetMethod(nameof(InvokeTypedAsync), BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException(
-            $"{nameof(ModuleCommandBus)}.{nameof(SendTypedAsync)} could not be found.");
+            $"{nameof(ModuleCommandBus)}.{nameof(InvokeTypedAsync)} could not be found.");
 
     public async ValueTask<TResult> SendAsync<TResult>(
         IModuleCommand<TResult> command,
@@ -16,31 +19,37 @@ internal sealed class ModuleCommandBus(IServiceProvider serviceProvider) : IModu
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        MethodInfo sendTyped = SendTypedMethod.MakeGenericMethod(command.GetType(), typeof(TResult));
-        var result = (ValueTask<TResult>)sendTyped.Invoke(this, [command, cancellationToken])!;
-        return await result;
+        Type commandType = command.GetType();
+        CommandInvoker invoker = Invokers.GetOrAdd(
+            new CommandInvocationKey(commandType, typeof(TResult)),
+            static key => CreateInvoker(key.CommandType, key.ResultType));
+
+        object? result = await invoker(this, command, cancellationToken);
+        return result is null
+            ? default!
+            : (TResult)result;
     }
 
-    private async ValueTask<TResult> SendTypedAsync<TCommand, TResult>(
-        TCommand command,
+    private static CommandInvoker CreateInvoker(Type commandType, Type resultType)
+    {
+        MethodInfo invokeTyped = InvokeTypedMethod.MakeGenericMethod(commandType, resultType);
+        return (CommandInvoker)Delegate.CreateDelegate(typeof(CommandInvoker), invokeTyped);
+    }
+
+    private async ValueTask<object?> InvokeTypedAsync<TCommand, TResult>(
+        object command,
         CancellationToken cancellationToken)
         where TCommand : IModuleCommand<TResult>
     {
-        IModuleCommandHandler<TCommand, TResult> handler =
-            serviceProvider.GetRequiredService<IModuleCommandHandler<TCommand, TResult>>();
-
-        ModuleCommandHandlerDelegate<TCommand, TResult> next = handler.HandleAsync;
-        IModuleCommandPipelineBehavior<TCommand, TResult>[] behaviors = serviceProvider
-            .GetServices<IModuleCommandPipelineBehavior<TCommand, TResult>>()
-            .Reverse()
-            .ToArray();
-
-        foreach (IModuleCommandPipelineBehavior<TCommand, TResult> behavior in behaviors)
-        {
-            ModuleCommandHandlerDelegate<TCommand, TResult> inner = next;
-            next = (message, ct) => behavior.HandleAsync(message, inner, ct);
-        }
-
-        return await next(command, cancellationToken);
+        IModuleCommandExecutor<TCommand, TResult> executor =
+            serviceProvider.GetRequiredService<IModuleCommandExecutor<TCommand, TResult>>();
+        return await executor.SendAsync((TCommand)command, cancellationToken);
     }
+
+    private sealed record CommandInvocationKey(Type CommandType, Type ResultType);
+
+    private delegate ValueTask<object?> CommandInvoker(
+        ModuleCommandBus commandBus,
+        object command,
+        CancellationToken cancellationToken);
 }

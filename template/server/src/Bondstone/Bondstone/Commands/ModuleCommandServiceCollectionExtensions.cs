@@ -15,6 +15,7 @@ public static class ModuleCommandServiceCollectionExtensions
         configure?.Invoke(options);
 
         services.TryAddScoped<IModuleCommandBus, ModuleCommandBus>();
+        services.TryAddScoped(typeof(IModuleCommandExecutor<,>), typeof(ModuleCommandExecutor<,>));
 
         foreach (Type behaviorType in options.PipelineBehaviors)
         {

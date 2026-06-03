@@ -112,6 +112,12 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
         await AssertSchemaExistsAsync(identityContext, "transport");
         await AssertTablesExistAsync(
             identityContext,
+            "transport",
+            [
+                "rebus_subscriptions",
+            ]);
+        await AssertTablesExistAsync(
+            identityContext,
             "identity",
             [
                 "application_access",

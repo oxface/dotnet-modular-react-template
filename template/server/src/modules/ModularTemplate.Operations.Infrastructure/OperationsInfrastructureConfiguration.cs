@@ -8,7 +8,7 @@ using ModularTemplate.Operations.Operations;
 using ModularTemplate.Operations.Infrastructure.Persistence;
 using Bondstone.EntityFrameworkCore.Persistence;
 using Bondstone.EntityFrameworkCore.Postgres.Persistence;
-using Bondstone.Transport.Rebus;
+using Bondstone.Messaging;
 
 namespace ModularTemplate.Operations.Infrastructure;
 

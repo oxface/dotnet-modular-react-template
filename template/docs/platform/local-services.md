@@ -65,14 +65,27 @@ The Redis resource is referenced by the Host as
 `ConnectionStrings:session-tickets`. The PostgreSQL database resource is
 referenced as `ConnectionStrings:modular-template-host`.
 
-Durable Rebus transport stores its transport tables in PostgreSQL through
-`Messaging:Rebus:Postgres`.
-Default is `Postgres`, which uses `ConnectionStrings:modular-template-host` for
-Rebus queues and subscriptions under the configured transport schema. The
-Migrator creates the transport schema before module migrations run; Host startup
-does not run transport DDL. External broker transports are product decisions and
-should add their own connection strings, deployment resources, and verification
-coverage when needed.
+The generated Host uses Rebus with PostgreSQL as the local/default internal
+transport because it avoids another local broker dependency. That default is
+intended for template development, demos, and small generated products, not as a
+claim that PostgreSQL is the ideal production message broker. The Rebus adapter
+also exposes Azure Service Bus through `UseAzureServiceBusInternalTransport`
+and `Messaging:Rebus:AzureServiceBus:ConnectionStringName`, so production
+products can move the transport to a broker while keeping Bondstone outbox,
+inbox, routing, and module-message registration intact.
+
+For the PostgreSQL transport, `Messaging:Rebus:Postgres` uses
+`ConnectionStrings:modular-template-host` for Rebus queues and subscriptions
+under the configured transport schema. The Migrator can run `migrate transport`
+to create the transport schema and centralized subscription table,
+`migrate modules` to apply all module DbContext migrations, or
+`migrate module <name>` for one module. Rebus PostgreSQL transport table
+creation remains adapter-owned in the generated development template.
+Subscription table auto-creation during Host startup is explicit through
+`Messaging:Rebus:Postgres:AutoCreateSubscriptionTable`; production products
+should disable it after moving subscription-table creation to Migrator or
+deployment DDL. Azure Service Bus requires product-owned broker provisioning,
+connection strings, and verification coverage.
 
 The checked-in Keycloak realm import includes local users for browser smoke
 testing:
@@ -87,12 +100,12 @@ Host HTTP endpoint. Their Vite development servers continue to proxy `/api/`
 and `/auth/` routes to the Host rather than calling identity-provider endpoints
 directly from browser code.
 
-The Migrator runs module DbContext migrations during Aspire startup. Generated
-repositories include baseline `InitialCreate` migrations so the local platform
-can create the first module schemas on a fresh database. The AppHost also
-passes `Identity:InitialAdmin` settings to the Migrator so the local Keycloak
-smoke admin receives app-owned access without the Host mutating authorization
-state during web startup.
+The Migrator runs transport bootstrap and module DbContext migrations during
+Aspire startup. Generated repositories include baseline `InitialCreate`
+migrations so the local platform can create the first module schemas on a fresh
+database. The AppHost also passes `Identity:InitialAdmin` settings to the
+Migrator so the local Keycloak smoke admin receives app-owned access without the
+Host mutating authorization state during web startup.
 
 ## Browser Session Smoke
 

@@ -4,7 +4,6 @@
   </Folder>
   <Folder Name="/server/" />
   <Folder Name="/server/src/Bondstone/">
-    <Project Path="server/src/Bondstone/Bondstone.Mediator/Bondstone.Mediator.csproj" />
     <Project Path="server/src/Bondstone/Bondstone.EntityFrameworkCore/Bondstone.EntityFrameworkCore.csproj" />
     <Project Path="server/src/Bondstone/Bondstone.EntityFrameworkCore.Postgres/Bondstone.EntityFrameworkCore.Postgres.csproj" />
     <Project Path="server/src/Bondstone/Bondstone.Transport.Rebus/Bondstone.Transport.Rebus.csproj" />

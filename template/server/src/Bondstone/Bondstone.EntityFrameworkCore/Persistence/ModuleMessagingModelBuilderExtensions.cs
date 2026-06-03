@@ -5,9 +5,9 @@ using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
 
 namespace Bondstone.EntityFrameworkCore.Persistence;
 
-public static class OutboxModelBuilderExtensions
+public static class ModuleMessagingModelBuilderExtensions
 {
-    public static ModelBuilder ApplyOutboxConfiguration(this ModelBuilder modelBuilder, string schema)
+    public static ModelBuilder ApplyModuleMessagingPersistence(this ModelBuilder modelBuilder, string schema)
     {
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration(schema));
         modelBuilder.ApplyConfiguration(new InboxMessageConfiguration(schema));

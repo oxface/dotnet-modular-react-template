@@ -42,6 +42,7 @@ public static class ModulePersistenceServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOutboxDispatcher, OutboxDispatcher<TDbContext>>());
         services.TryAddScoped<IStoredDomainEventMapper, StoredDomainEventMapper>();
         services.TryAddScoped<IModuleBoundary, EntityFrameworkCoreModuleBoundary>();
+        services.TryAddScoped<IEntityFrameworkCoreModuleMigrator, EntityFrameworkCoreModuleMigrator>();
         services.TryAddScoped<EntityFrameworkCoreModuleBoundary<TDbContext>>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<
             IModuleBoundaryExecutor,

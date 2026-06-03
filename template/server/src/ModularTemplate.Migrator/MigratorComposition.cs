@@ -1,4 +1,3 @@
-using Mediator;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Bondstone.Commands;
@@ -32,12 +31,8 @@ public static class MigratorComposition
             {
                 options.AssemblyMarkers.Add(marker);
             }
-        });
 
-        // Mediator's source generator must run in the composing app assembly.
-        builder.Services.AddMediator(options =>
-        {
-            options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.PipelineBehaviors.Add(typeof(ModuleCommandDiagnosticsBehavior<,>));
         });
 
         return builder;

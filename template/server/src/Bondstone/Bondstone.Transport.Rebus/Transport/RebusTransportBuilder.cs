@@ -19,13 +19,15 @@ public sealed class RebusTransportBuilder
     internal void UseInternalTransport(RebusInternalTransport internalTransport)
     {
         InternalTransport = internalTransport;
+        Options.InternalTransport = internalTransport;
     }
 }
 
 internal enum RebusInternalTransport
 {
     None = 0,
-    Postgres = 1
+    Postgres = 1,
+    AzureServiceBus = 2
 }
 
 public static class RebusPostgresTransportBuilderExtensions
@@ -39,6 +41,21 @@ public static class RebusPostgresTransportBuilderExtensions
 
         configuration.Bind(builder.Options);
         builder.UseInternalTransport(RebusInternalTransport.Postgres);
+        return builder;
+    }
+}
+
+public static class RebusAzureServiceBusTransportBuilderExtensions
+{
+    public static RebusTransportBuilder UseAzureServiceBusInternalTransport(
+        this RebusTransportBuilder builder,
+        IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        configuration.Bind(builder.Options);
+        builder.UseInternalTransport(RebusInternalTransport.AzureServiceBus);
         return builder;
     }
 }

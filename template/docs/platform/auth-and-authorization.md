@@ -21,6 +21,7 @@ Identity module responsibilities:
 
 Migrator responsibilities:
 
+- Bootstrap transport infrastructure when requested.
 - Apply module-owned database migrations.
 - Run explicit initial-admin setup when configured or invoked by command.
 

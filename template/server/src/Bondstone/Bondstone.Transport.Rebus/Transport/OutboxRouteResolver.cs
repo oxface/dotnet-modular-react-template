@@ -1,14 +1,17 @@
-using Microsoft.Extensions.Options;
 using Bondstone.Internal;
 using Bondstone.Messaging;
+using Microsoft.Extensions.Options;
 
 namespace Bondstone.Transport.Rebus;
 
 public sealed class OutboxRouteResolver(
-    IOptions<DurableMessagingOptions> messagingOptions,
+    IEnumerable<ModuleTopologyRegistration> moduleRegistrations,
     IOptions<RebusTransportOptions> transportOptions) : IOutboxRouteResolver
 {
-    private readonly DurableMessagingOptions _messagingOptions = messagingOptions.Value;
+    private readonly string[] _modules = moduleRegistrations
+        .Select(registration => registration.ModuleName)
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
     private readonly RebusTransportOptions _transportOptions = transportOptions.Value;
 
     public OutboxRoute Resolve(IDurableOutboxMessage message)
@@ -46,12 +49,12 @@ public sealed class OutboxRouteResolver(
 
     private void ValidateConfiguredModule(string moduleName, string parameterName)
     {
-        if (_messagingOptions.Modules.ContainsTrimmedOrdinal(moduleName))
+        if (_modules.Contains(moduleName, StringComparer.Ordinal))
         {
             return;
         }
 
         throw new InvalidOperationException(
-            $"{parameterName} '{moduleName}' is not listed in Messaging:Modules.");
+            $"{parameterName} '{moduleName}' is not a registered Bondstone module.");
     }
 }

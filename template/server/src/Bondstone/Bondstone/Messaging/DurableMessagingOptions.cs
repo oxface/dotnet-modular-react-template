@@ -2,11 +2,9 @@ namespace Bondstone.Messaging;
 
 public sealed class DurableMessagingOptions
 {
-    public List<string> Modules { get; set; } = ["identity", "products"];
-
     public TimeSpan PollingInterval { get; set; } = TimeSpan.FromSeconds(2);
 
-    public int BatchSize { get; set; } = 50;
+    public int BatchSize { get; set; } = 20;
 
     public int MaxAttempts { get; set; } = 5;
 

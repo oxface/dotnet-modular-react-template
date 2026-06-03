@@ -26,4 +26,14 @@ public static class PostgresModulePersistenceServiceCollectionExtensions
 
         return services;
     }
+
+    public static IServiceCollection AddModuleOutboxDispatchers(
+        this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddEntityFrameworkCoreModuleOutboxDispatchers();
+
+        return services;
+    }
 }

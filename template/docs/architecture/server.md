@@ -129,9 +129,13 @@ discovered command types to select one module boundary for the command. Modules
 that do not use Bondstone command handlers can also register persistence with
 `AddModulePersistence` and run arbitrary module work through `IModuleBoundary`.
 Both paths register the shared module DbContext/outbox plumbing used by durable
-messaging. Commands that are not mapped to module persistence fail unless they
-are explicitly marked with `NonPersistentCommandAttribute`. Query contracts read
-provider-neutral state and do not save changes.
+messaging. The Host starts durable outbox workers once with
+`AddModuleOutboxDispatchers()` after composing modules; persistence
+registration alone should not start background dispatch, so Migrator and other
+tooling can reuse module persistence without draining queues. Commands that are not mapped to
+module persistence fail unless they are explicitly marked with
+`NonPersistentCommandAttribute`. Query contracts read provider-neutral state and
+do not save changes.
 
 Command handlers should get decision-making data through repositories or
 command-side read ports, not by calling external query contracts. Query

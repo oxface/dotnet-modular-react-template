@@ -14,22 +14,6 @@ internal sealed class EntityFrameworkCoreDurableMessagingOptionsValidator(
         ArgumentNullException.ThrowIfNull(options);
 
         var failures = new List<string>();
-        string[] configuredModules;
-
-        try
-        {
-            configuredModules = options.Modules.TrimDistinctRequired(nameof(options.Modules));
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            return ValidateOptionsResult.Success;
-        }
-
-        ValidateRegisteredModules(
-            "module persistence registration",
-            persistenceRegistrations.Select(registration => registration.ModuleName),
-            configuredModules,
-            failures);
         ValidateOnePersistenceContextPerModule(persistenceRegistrations, failures);
         ValidateMessageHandlersHavePersistence(
             persistenceRegistrations,
@@ -39,27 +23,6 @@ internal sealed class EntityFrameworkCoreDurableMessagingOptionsValidator(
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
-    }
-
-    private static void ValidateRegisteredModules(
-        string registrationKind,
-        IEnumerable<string> moduleNames,
-        IReadOnlyCollection<string> configuredModules,
-        ICollection<string> failures)
-    {
-        foreach (string moduleName in moduleNames
-            .Select(moduleName => moduleName.TrimRequired(nameof(moduleName)))
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal))
-        {
-            if (configuredModules.Contains(moduleName, StringComparer.Ordinal))
-            {
-                continue;
-            }
-
-            failures.Add(
-                $"Messaging:Modules does not contain module '{moduleName}' used by {registrationKind}.");
-        }
     }
 
     private static void ValidateOnePersistenceContextPerModule(

@@ -175,18 +175,35 @@ native fit. The PostgreSQL package maps those flexible columns to `jsonb`;
 providers that do not override them use their normal string/text column
 mapping.
 
-Each module persistence registration owns one outbox worker for that module's
-schema. The worker takes a module-scoped PostgreSQL advisory lock before
-claiming eligible rows oldest-first with `FOR UPDATE SKIP LOCKED`. Separate
-module workers run independently, so slow or locked dispatch in one module does
-not block another module's outbox.
+The Host calls `AddModuleOutboxDispatchers()` once after composing modules.
+That registration starts one outbox worker for each registered module
+persistence runtime. Each worker takes a
+module-scoped PostgreSQL advisory lock before claiming eligible rows
+oldest-first with `FOR UPDATE SKIP LOCKED`. Separate module workers run
+independently, so slow or locked dispatch in one module does not block another
+module's outbox. Module persistence can be registered without starting a
+background dispatcher when a product wants to persist durable rows but drain
+them through explicit maintenance tooling or another process.
+
+Outbox dispatch and Rebus receive work are intentionally conservative in the
+generated API Host. `Messaging:BatchSize` defaults to 20 outbox rows per module
+iteration, and `Messaging:PollingInterval` defaults to two seconds. Each Rebus
+module queue defaults to `Messaging:Rebus:Workers:NumberOfWorkers = 1` and
+`Messaging:Rebus:Workers:MaxParallelism = 1`, so the template favors API
+responsiveness over background throughput. Products that move dispatch and
+message handling to a dedicated worker process can raise those limits there.
 
 Bondstone's default outbox is not a strict FIFO or per-aggregate ordered event
 log. If an older message fails and is scheduled for retry, later eligible
 messages from the same module may still be dispatched. Products that need
 causal ordering must model it explicitly with aggregate state, process-manager
-state, sequence numbers, or receiver-side version checks. A receiver that needs
-ordered facts should reject, defer, or no-op out-of-order messages based on the
+state, sequence numbers, or receiver-side version checks. Outbox messages carry
+an optional `PartitionKey` so products can group related commands or facts for
+receiver-side ordering rules and future transport partitioning. Integration
+events raised from aggregate domain events use the source aggregate type and id
+as the default partition key; durable command callers can pass a partition key
+when they know the target ordering boundary. A receiver that needs ordered
+facts should reject, defer, or no-op out-of-order messages based on the
 product-owned sequence/state rule instead of relying on table scan order.
 
 If the Host stops while a message is claimed as `Processing`, the row is not
@@ -206,7 +223,12 @@ deployment, incident response workflow, and compliance expectations. Products
 that add those operations should keep them explicit: replay dead-lettered rows
 through a product-owned maintenance command, archive processed outbox rows only
 after observability and incident windows have elapsed, and clean inbox rows only
-after the duplicate-delivery window is no longer needed.
+after the duplicate-delivery window is no longer needed. Bondstone exposes
+module-scoped `IOutboxMaintenance` hooks for requeueing dead-lettered messages
+and deleting processed outbox rows before a product-defined cutoff; products
+still own who can invoke those hooks, how incidents are audited, and whether a
+manual replay should preserve the original message id or create a new causally
+linked message.
 
 The template does not ship replay, archival, cleanup, or operational dashboard
 workflows by default. Add them only with a product or framework decision that
@@ -304,8 +326,9 @@ TResult>`. Modules without Bondstone command handlers can call
 `AddModulePersistence<{Module}DbContext>("{module}")` and run custom handlers
 through `IModuleBoundary`. Both paths register the module persistence resolver
 plus the module-owned unit of work, boundary executor, inbox executor, outbox
-writer, and outbox worker used by durable messaging. Known command callers
-should inject
+writer, and dispatcher dependencies used by durable messaging. Modules that
+should dispatch their own outbox rows rely on the Host-level
+`AddModuleOutboxDispatchers()` registration. Known command callers should inject
 `IModuleCommandExecutor<TCommand, TResult>` rather than the runtime-typed
 command bus. A command type that is not mapped to any module persistence
 registration fails in the Bondstone command pipeline. Mark a command with
@@ -354,9 +377,10 @@ When adding a module:
    markers for custom handlers
 8. call `AddModuleMessaging("{module}", ...)` from module infrastructure for
    the module, contracts, and infrastructure assemblies
-9. add module command handler assembly markers to the Host and Migrator
-   `AddModuleCommands` configuration when the module has command handlers
-10. add the module name to `Messaging:Modules`
+9. ensure the Host calls `AddModuleOutboxDispatchers()` once after module
+   composition when it should run in-process outbox dispatch
+10. add module command handler assembly markers to the Host and Migrator
+    `AddModuleCommands` configuration when the module has command handlers
 11. ensure the module Infrastructure project is composed by the Migrator; module
     DbContext migrations are discovered through `AddModulePersistence`
 12. add module docs and focused tests

@@ -5,6 +5,7 @@ namespace Bondstone.EntityFrameworkCore.Outbox;
 public sealed class OutboxMessage : IDurableOutboxMessage
 {
     public const int MaxErrorLength = 2048;
+    public const int MaxPartitionKeyLength = 512;
 
     private OutboxMessage(
         Guid id,
@@ -16,6 +17,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         Guid correlationId,
         Guid? causationId,
         Guid? durableOperationId,
+        string? partitionKey,
         string payload,
         string? metadata,
         DateTimeOffset createdAtUtc,
@@ -30,6 +32,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         CorrelationId = correlationId;
         CausationId = causationId;
         DurableOperationId = durableOperationId;
+        PartitionKey = partitionKey;
         Payload = payload;
         Metadata = metadata;
         Status = PersistedMessageStatus.Pending;
@@ -60,6 +63,8 @@ public sealed class OutboxMessage : IDurableOutboxMessage
     public Guid? CausationId { get; private set; }
 
     public Guid? DurableOperationId { get; private set; }
+
+    public string? PartitionKey { get; private set; }
 
     public string Payload { get; private set; } = string.Empty;
 
@@ -95,6 +100,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         Guid? causationId,
         Guid? durableOperationId,
         string payload,
+        string? partitionKey = null,
         string? metadata = null,
         int maxAttempts = 5)
     {
@@ -126,6 +132,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         normalizedTargetModule = string.IsNullOrWhiteSpace(normalizedTargetModule)
             ? null
             : normalizedTargetModule;
+        string? normalizedPartitionKey = NormalizePartitionKey(partitionKey);
 
         return new OutboxMessage(
             Guid.NewGuid(),
@@ -137,6 +144,7 @@ public sealed class OutboxMessage : IDurableOutboxMessage
             correlationId,
             causationId,
             durableOperationId,
+            normalizedPartitionKey,
             payload,
             metadata,
             DateTimeOffset.UtcNow,
@@ -182,6 +190,23 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         NextAttemptAtUtc = DateTimeOffset.UtcNow.Add(retryDelayProvider(AttemptCount));
     }
 
+    public void RequeueDeadLettered()
+    {
+        if (Status != PersistedMessageStatus.DeadLettered)
+        {
+            throw new InvalidOperationException(
+                $"Only {PersistedMessageStatus.DeadLettered} outbox messages can be requeued.");
+        }
+
+        Status = PersistedMessageStatus.Pending;
+        AttemptCount = 0;
+        NextAttemptAtUtc = DateTimeOffset.UtcNow;
+        LockedAtUtc = null;
+        LockedBy = null;
+        FailedAtUtc = null;
+        Error = null;
+    }
+
     private static string TruncateError(string error)
     {
         if (error.Length <= MaxErrorLength)
@@ -190,5 +215,24 @@ public sealed class OutboxMessage : IDurableOutboxMessage
         }
 
         return error[..MaxErrorLength];
+    }
+
+    private static string? NormalizePartitionKey(string? partitionKey)
+    {
+        if (string.IsNullOrWhiteSpace(partitionKey))
+        {
+            return null;
+        }
+
+        string normalizedPartitionKey = partitionKey.Trim();
+        if (normalizedPartitionKey.Length > MaxPartitionKeyLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(partitionKey),
+                partitionKey,
+                $"Partition key must be at most {MaxPartitionKeyLength} characters.");
+        }
+
+        return normalizedPartitionKey;
     }
 }

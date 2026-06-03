@@ -13,10 +13,10 @@ public static class MigratorComposition
 {
     public static IHostApplicationBuilder AddMigratorComposition(this IHostApplicationBuilder builder)
     {
-        builder.AddRebusTransport(transport =>
-            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
         builder.Services.AddIdentityModule();
         builder.Services.AddProductsModule();
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
 
         Type[] commandAssemblyMarkers =
         [

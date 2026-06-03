@@ -14,6 +14,11 @@ The shipped backend includes:
 - Bondstone platform libraries for module boundaries, messaging contracts,
   module message registration, PostgreSQL persistence/outbox/inbox storage, and
   Rebus transport dispatch through PostgreSQL or Azure Service Bus adapters.
+- The Host starts module outbox dispatcher workers once after composing modules;
+  Bondstone module persistence by itself only registers the module DbContext,
+  unit of work, inbox, and outbox plumbing.
+- Bondstone exposes module outbox maintenance hooks for product-owned
+  dead-letter replay and processed-row cleanup workflows.
 - `ModularTemplate.ServiceDefaults` for OpenTelemetry, service discovery,
   default HTTP resilience, and development health endpoints.
 - SharedKernel primitives for entity, aggregate root, value object,

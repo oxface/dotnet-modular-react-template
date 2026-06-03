@@ -37,6 +37,7 @@ public static class MessagingServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(assemblyMarkers);
 
         string normalizedModuleName = moduleName.TrimRequired(nameof(moduleName));
+        services.AddModuleTopology(normalizedModuleName);
 
         if (assemblyMarkers.Any(marker => marker is null))
         {
@@ -51,6 +52,25 @@ public static class MessagingServiceCollectionExtensions
             RegisterModuleMessageHandlers(services, normalizedModuleName, assembly);
         }
 
+        return services;
+    }
+
+    public static IServiceCollection AddModuleTopology(
+        this IServiceCollection services,
+        string moduleName)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        string normalizedModuleName = moduleName.TrimRequired(nameof(moduleName));
+        if (services.Any(service =>
+                service.ServiceType == typeof(ModuleTopologyRegistration)
+                && service.ImplementationInstance is ModuleTopologyRegistration registration
+                && string.Equals(registration.ModuleName, normalizedModuleName, StringComparison.Ordinal)))
+        {
+            return services;
+        }
+
+        services.AddSingleton(new ModuleTopologyRegistration(normalizedModuleName));
         return services;
     }
 

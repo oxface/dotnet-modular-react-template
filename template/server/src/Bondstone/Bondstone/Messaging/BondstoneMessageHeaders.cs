@@ -9,5 +9,6 @@ public static class BondstoneMessageHeaders
     public const string CorrelationId = "bondstone-correlation-id";
     public const string CausationId = "bondstone-causation-id";
     public const string DurableOperationId = "bondstone-durable-operation-id";
+    public const string PartitionKey = "bondstone-partition-key";
     public const string CreatedAtUtc = "bondstone-created-at-utc";
 }

@@ -231,6 +231,10 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                     b.Property<Guid?>("DurableOperationId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("PartitionKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
                     b.Property<string>("Payload")
                         .IsRequired()
                         .HasColumnType("jsonb");

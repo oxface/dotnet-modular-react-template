@@ -151,7 +151,10 @@ public sealed class ModuleUnitOfWork<TDbContext>(
                         domainEvent,
                         entry.Aggregate.Id.ToString() ?? string.Empty));
 
-                PublishIntegrationEvents(domainEvent, correlationId);
+                PublishIntegrationEvents(
+                    domainEvent,
+                    correlationId,
+                    entry.Aggregate.Id.ToString() ?? string.Empty);
             }
         }
 
@@ -171,9 +174,11 @@ public sealed class ModuleUnitOfWork<TDbContext>(
 
     private void PublishIntegrationEvents(
         IDomainEvent domainEvent,
-        Guid correlationId)
+        Guid correlationId,
+        string aggregateId)
     {
         Type mapperInterface = typeof(IIntegrationEventMapper<>).MakeGenericType(domainEvent.GetType());
+        string partitionKey = BuildSourceAggregatePartitionKey(domainEvent, aggregateId);
 
         foreach (IIntegrationEventMapper mapper in
             serviceProvider.GetServices(mapperInterface).OfType<IIntegrationEventMapper>())
@@ -203,10 +208,23 @@ public sealed class ModuleUnitOfWork<TDbContext>(
                     causationId: domainEvent.EventId,
                     durableOperationId: null,
                     payload,
+                    partitionKey,
                     metadata: MessageTraceContext.CaptureMetadata(),
                     maxAttempts: _options.MaxAttempts));
             }
         }
+    }
+
+    private static string BuildSourceAggregatePartitionKey(
+        IDomainEvent domainEvent,
+        string aggregateId)
+    {
+        DomainEventTypeAttribute eventType = domainEvent.GetType()
+            .GetCustomAttributes(typeof(DomainEventTypeAttribute), inherit: false)
+            .OfType<DomainEventTypeAttribute>()
+            .Single();
+
+        return $"{eventType.AggregateType}:{aggregateId}";
     }
 
     private void MarkFailed()

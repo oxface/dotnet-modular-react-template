@@ -13,6 +13,7 @@ internal sealed class RebusTransportOptionsValidator : IValidateOptions<RebusTra
             options.QueuePrefix,
             "Messaging:Rebus:QueuePrefix",
             failures);
+        RebusWorkerOptionsValidator.Validate(options.Workers, failures);
         switch (options.InternalTransport)
         {
             case RebusInternalTransport.Postgres:
@@ -35,6 +36,35 @@ internal sealed class RebusTransportOptionsValidator : IValidateOptions<RebusTra
     }
 }
 
+internal static class RebusWorkerOptionsValidator
+{
+    public static void Validate(
+        RebusWorkerOptions options,
+        ICollection<string> failures)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(failures);
+
+        RebusTransportOptionValidation.ValidatePositive(
+            options.NumberOfWorkers,
+            "Messaging:Rebus:Workers:NumberOfWorkers",
+            failures);
+        RebusTransportOptionValidation.ValidatePositive(
+            options.MaxParallelism,
+            "Messaging:Rebus:Workers:MaxParallelism",
+            failures);
+        RebusTransportOptionValidation.ValidatePositive(
+            options.ShutdownTimeout,
+            "Messaging:Rebus:Workers:ShutdownTimeout",
+            failures);
+
+        if (options.NumberOfWorkers > options.MaxParallelism)
+        {
+            failures.Add("Messaging:Rebus:Workers:NumberOfWorkers must be less than or equal to Messaging:Rebus:Workers:MaxParallelism.");
+        }
+    }
+}
+
 internal static class RebusTransportOptionValidation
 {
     public static void ValidateRequiredString(
@@ -45,6 +75,28 @@ internal static class RebusTransportOptionValidation
         if (string.IsNullOrWhiteSpace(value))
         {
             failures.Add($"{optionName} is required.");
+        }
+    }
+
+    public static void ValidatePositive(
+        int value,
+        string optionName,
+        ICollection<string> failures)
+    {
+        if (value <= 0)
+        {
+            failures.Add($"{optionName} must be greater than zero.");
+        }
+    }
+
+    public static void ValidatePositive(
+        TimeSpan value,
+        string optionName,
+        ICollection<string> failures)
+    {
+        if (value <= TimeSpan.Zero)
+        {
+            failures.Add($"{optionName} must be greater than zero.");
         }
     }
 

@@ -40,6 +40,7 @@ public static class ModulePersistenceServiceCollectionExtensions
         services.TryAddScoped<IRetryDelayPolicy, ConfiguredRetryDelayPolicy>();
         services.TryAddScoped<OutboxDispatcher<TDbContext>>();
         services.TryAddEnumerable(ServiceDescriptor.Scoped<IOutboxDispatcher, OutboxDispatcher<TDbContext>>());
+        services.TryAddEnumerable(ServiceDescriptor.Scoped<IOutboxMaintenance, OutboxMaintenance<TDbContext>>());
         services.TryAddScoped<IStoredDomainEventMapper, StoredDomainEventMapper>();
         services.TryAddScoped<IModuleBoundary, EntityFrameworkCoreModuleBoundary>();
         services.TryAddScoped<IEntityFrameworkCoreModuleMigrator, EntityFrameworkCoreModuleMigrator>();
@@ -61,9 +62,7 @@ public static class ModulePersistenceServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<
             Microsoft.Extensions.Options.IValidateOptions<DurableMessagingOptions>,
             EntityFrameworkCoreModuleTopologyValidator>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<
-            Microsoft.Extensions.Hosting.IHostedService,
-            OutboxDispatcherBackgroundService<TDbContext>>());
+        services.AddModuleTopology(normalizedModuleName);
         services.AddSingleton(new ModuleRuntimeRegistration(
             normalizedModuleName,
             typeof(TDbContext),
@@ -81,6 +80,48 @@ public static class ModulePersistenceServiceCollectionExtensions
             serviceProvider => serviceProvider.GetRequiredService<TDbContext>(),
             serviceProvider => serviceProvider.GetRequiredService<ModuleUnitOfWork<TDbContext>>(),
             serviceProvider => serviceProvider.GetRequiredService<OutboxWriter<TDbContext>>());
+
+        return services;
+    }
+
+    public static IServiceCollection AddEntityFrameworkCoreModuleOutboxDispatchers(
+        this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        Type[] workerTypes = services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleRuntimeRegistration>()
+            .Select(registration => registration.OutboxWorkerType)
+            .Distinct()
+            .OrderBy(type => type.FullName, StringComparer.Ordinal)
+            .ToArray();
+
+        if (workerTypes.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "No module persistence runtimes are registered. Call module persistence registrations before adding outbox dispatchers.");
+        }
+
+        foreach (Type workerType in workerTypes)
+        {
+            if (!typeof(Microsoft.Extensions.Hosting.IHostedService).IsAssignableFrom(workerType))
+            {
+                throw new InvalidOperationException(
+                    $"Module outbox worker type '{workerType.FullName}' must implement {typeof(Microsoft.Extensions.Hosting.IHostedService).FullName}.");
+            }
+
+            if (services.Any(service =>
+                    service.ServiceType == typeof(Microsoft.Extensions.Hosting.IHostedService)
+                    && service.ImplementationType == workerType))
+            {
+                continue;
+            }
+
+            services.Add(ServiceDescriptor.Singleton(
+                typeof(Microsoft.Extensions.Hosting.IHostedService),
+                workerType));
+        }
 
         return services;
     }

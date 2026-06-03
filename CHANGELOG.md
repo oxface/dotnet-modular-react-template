@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.2.0](https://github.com/oxface/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.1.0...dotnet-modular-react-template-v1.2.0) (2026-06-03)
+
+
+### Features
+
+* bondstone born ([906a5ac](https://github.com/oxface/dotnet-modular-react-template/commit/906a5ac247cea3cdd17c92dfc50c87e519e46bcc))
+* request result pattern ([ec6c717](https://github.com/oxface/dotnet-modular-react-template/commit/ec6c717591593d84ed3d9014be023dd0bd903f1d))
+
+
+### Bug Fixes
+
+* added dead letter queue ([099e23b](https://github.com/oxface/dotnet-modular-react-template/commit/099e23b86004f557b2e2029d154bc876c1b86c05))
+* align framework test npgsql version ([27cbf96](https://github.com/oxface/dotnet-modular-react-template/commit/27cbf96033dc0068bb07c5bf70a35578f72f765c))
+* cleanup ([4bc787b](https://github.com/oxface/dotnet-modular-react-template/commit/4bc787bbac13a253f630dc4f4e7565751edaabe6))
+* mediator is gone ([e345251](https://github.com/oxface/dotnet-modular-react-template/commit/e34525101ccd7b0ac5b9060683f63a19a93a4601))
+* module boundaries ([55ceb5e](https://github.com/oxface/dotnet-modular-react-template/commit/55ceb5e98b09a5aff092f6a40e854edf72e5e0d2))
+* more modular fixes ([77f78b5](https://github.com/oxface/dotnet-modular-react-template/commit/77f78b5a4806995750e07ef31309c7852ca5a6ea))
+* more outbox cleaning up ([240ac72](https://github.com/oxface/dotnet-modular-react-template/commit/240ac7272d5178e147132b7a406734210c1a3903))
+* more outbox fixes ([72576fe](https://github.com/oxface/dotnet-modular-react-template/commit/72576fe89a9070e277160a06e8aff61588b9fc2b))
+* more outbox fixes ([e2c150c](https://github.com/oxface/dotnet-modular-react-template/commit/e2c150c21c666e7a488a28df66000c484bc36d7e))
+* more outbox fixes ([b7f1f11](https://github.com/oxface/dotnet-modular-react-template/commit/b7f1f11d20aff0785b17314d3bae400007096126))
+* one executor per module ([7b38e00](https://github.com/oxface/dotnet-modular-react-template/commit/7b38e004fc81755c31a5ca31734b8dcb9d5a29ff))
+* otel improvements ([172ecbc](https://github.com/oxface/dotnet-modular-react-template/commit/172ecbc04fd54df1e6cd7ffd393c9d4c8f063b56))
+* outbox ([5f46e4e](https://github.com/oxface/dotnet-modular-react-template/commit/5f46e4ee80eacea68ffe9d2380b60b84f65f6d92))
+* stale references ([e977ccf](https://github.com/oxface/dotnet-modular-react-template/commit/e977ccf62727e5bbcd7be2552e8137f56bfaea8d))
+
 ## [1.1.0](https://github.com/The-Supremacy/dotnet-modular-react-template/compare/dotnet-modular-react-template-v1.0.15...dotnet-modular-react-template-v1.1.0) (2026-05-27)
 
 

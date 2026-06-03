@@ -20,8 +20,8 @@ The shipped backend includes:
   single-value object, domain event, domain exception, and shared
   normalization helpers.
 - Host feature slices for browser auth endpoints and `GET /api/me`.
-- An Operations module slice with provider-neutral status contracts,
-  module-owned persistence, and `GET /api/operations/{operationId}`.
+- A Products module slice with provider-neutral read contracts, module-owned
+  persistence, and `GET /api/products/{productId}`.
 - Host module registration delegated through a configuration extension rather
   than direct module wiring in `Program.cs`.
 - Command pipeline behaviors for diagnostics and request validation before

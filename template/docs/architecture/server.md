@@ -107,6 +107,7 @@ command inside the selected module unit of work and save changes after
 successful command handling. Normal callers should inject
 `IModuleCommandExecutor<TCommand, TResult>` for known command types; the
 runtime-typed `IModuleCommandBus` exists for dynamic edges and compatibility.
+Each command type has exactly one registered command handler.
 Command handlers should not call `DbContext.SaveChanges` directly. Handlers may
 explicitly flush the active module unit of work when they need
 database-generated values, constraint checks, stored-procedure inputs, or other
@@ -142,7 +143,7 @@ and accepts in-process coupling to that target module. Cross-module writes,
 eventual work, and reliability-boundary handoff should use durable commands or
 integration events through the outbox/transport pipeline.
 Durable commands are send-and-forget: callers may receive an acceptance record
-and operation id, but handler results are observed later through query
+and durable operation id, but handler results are observed later through query
 contracts, operation status, read models, or follow-up integration events.
 Module code should send durable commands through `IDurableCommandSender` from
 inside the source module's command unit of work so the source module outbox row

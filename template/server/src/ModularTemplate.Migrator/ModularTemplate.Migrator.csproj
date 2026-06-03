@@ -3,7 +3,7 @@
     <ProjectReference Include="..\Bondstone\Bondstone.Transport.Rebus\Bondstone.Transport.Rebus.csproj" />
     <ProjectReference Include="..\modules\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
     <ProjectReference Include="..\modules\ModularTemplate.Identity.Infrastructure\ModularTemplate.Identity.Infrastructure.csproj" />
-    <ProjectReference Include="..\modules\ModularTemplate.Operations.Infrastructure\ModularTemplate.Operations.Infrastructure.csproj" />
+    <ProjectReference Include="..\modules\ModularTemplate.Products.Infrastructure\ModularTemplate.Products.Infrastructure.csproj" />
     <ProjectReference Include="..\ModularTemplate.ServiceDefaults\ModularTemplate.ServiceDefaults.csproj" />
   </ItemGroup>
 

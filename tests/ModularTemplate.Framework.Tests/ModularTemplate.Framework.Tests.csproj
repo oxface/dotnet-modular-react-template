@@ -23,7 +23,7 @@
     <ProjectReference Include="..\..\template\server\src\modules\ModularTemplate.Identity\ModularTemplate.Identity.csproj" />
     <ProjectReference Include="..\..\template\server\src\modules\ModularTemplate.Identity.Contracts\ModularTemplate.Identity.Contracts.csproj" />
     <ProjectReference Include="..\..\template\server\src\modules\ModularTemplate.Identity.Infrastructure\ModularTemplate.Identity.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\template\server\src\modules\ModularTemplate.Operations.Contracts\ModularTemplate.Operations.Contracts.csproj" />
+    <ProjectReference Include="..\..\template\server\src\modules\ModularTemplate.Products.Contracts\ModularTemplate.Products.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

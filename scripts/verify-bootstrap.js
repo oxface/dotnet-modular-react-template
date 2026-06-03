@@ -230,7 +230,7 @@ async function assertProductIncludesBaselineMigration(generatedRoot) {
   const modulesRoot = path.join(generatedRoot, "server", "src", "modules");
   const requiredMigrationSets = [
     ["Identity.Infrastructure", "IdentityDbContextModelSnapshot.cs"],
-    ["Operations.Infrastructure", "OperationsDbContextModelSnapshot.cs"],
+    ["Products.Infrastructure", "ProductsDbContextModelSnapshot.cs"],
   ];
 
   for (const [projectSuffix, snapshotName] of requiredMigrationSets) {

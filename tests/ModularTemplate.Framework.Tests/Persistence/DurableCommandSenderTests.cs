@@ -5,7 +5,6 @@ using Bondstone.EntityFrameworkCore.Outbox;
 using Bondstone.Messaging;
 using Bondstone.EntityFrameworkCore.Persistence;
 using Bondstone.Transport.Rebus;
-using ModularTemplate.Operations.Contracts.Operations;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;
@@ -19,7 +18,7 @@ public sealed class DurableCommandSenderTests
         var outboxWriter = new CapturingOutboxWriter("identity");
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             PersistenceResolver(outboxWriter),
@@ -27,31 +26,31 @@ public sealed class DurableCommandSenderTests
             registry,
             unitOfWorkContext,
             MessagingOptions());
-        Guid operationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        Guid durableOperationId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         Guid causationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
-        var command = new RebuildOperationProjectionCommand(operationId);
+        var command = new RebuildOperationProjectionCommand(durableOperationId);
 
         CommandSubmission submission;
         using (unitOfWorkContext.StartModuleScope("identity"))
         {
             submission = sender.Send(
                 command,
-                targetModule: "operations",
-                operationId: operationId,
+                targetModule: "products",
+                durableOperationId: durableOperationId,
                 causationId: causationId);
         }
 
         submission.Status.ShouldBe(CommandSubmissionStatus.Accepted);
-        submission.OperationId.ShouldBe(operationId);
+        submission.DurableOperationId.ShouldBe(durableOperationId);
         OutboxMessage message = outboxWriter.Messages.Single();
         message.MessageId.ShouldBe(submission.SubmissionId);
         message.MessageKind.ShouldBe(MessageKind.Command);
-        message.MessageType.ShouldBe("ModularTemplate.operations.rebuild-operation-projection.v1");
+        message.MessageType.ShouldBe("products.rebuild-operation-projection.v1");
         message.SourceModule.ShouldBe("identity");
-        message.TargetModule.ShouldBe("operations");
+        message.TargetModule.ShouldBe("products");
         message.CorrelationId.ShouldBe(submission.SubmissionId);
         message.CausationId.ShouldBe(causationId);
-        message.OperationId.ShouldBe(operationId);
+        message.DurableOperationId.ShouldBe(durableOperationId);
         message.MaxAttempts.ShouldBe(7);
         message.Metadata.ShouldBeNull();
         JsonSerializer.Deserialize<RebuildOperationProjectionCommand>(message.Payload)
@@ -65,7 +64,7 @@ public sealed class DurableCommandSenderTests
         var outboxWriter = new CapturingOutboxWriter("identity");
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             PersistenceResolver(outboxWriter),
@@ -74,27 +73,27 @@ public sealed class DurableCommandSenderTests
             unitOfWorkContext,
             MessagingOptions());
         Guid causationId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
-        Guid operationId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        Guid durableOperationId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
         CommandSubmission submission;
         using Activity activity = new Activity("test command")
             .SetIdFormat(ActivityIdFormat.W3C)
             .Start();
         activity.AddBaggage(BondstoneDiagnostics.CausationIdBaggageKey, causationId.ToString("D"));
-        activity.AddBaggage(BondstoneDiagnostics.OperationIdBaggageKey, operationId.ToString("D"));
+        activity.AddBaggage(BondstoneDiagnostics.DurableOperationIdBaggageKey, durableOperationId.ToString("D"));
 
         using (unitOfWorkContext.StartModuleScope("identity"))
         {
             submission = sender.Send(
-                new RebuildOperationProjectionCommand(operationId),
-                targetModule: "operations");
+                new RebuildOperationProjectionCommand(durableOperationId),
+                targetModule: "products");
         }
 
-        submission.OperationId.ShouldBe(operationId);
+        submission.DurableOperationId.ShouldBe(durableOperationId);
         OutboxMessage message = outboxWriter.Messages.Single();
         message.CorrelationId.ShouldBe(BondstoneDiagnostics.CreateCorrelationId(activity).ShouldNotBeNull());
         message.CausationId.ShouldBe(causationId);
-        message.OperationId.ShouldBe(operationId);
+        message.DurableOperationId.ShouldBe(durableOperationId);
         message.MessageId.ShouldBe(submission.SubmissionId);
         MessageTraceContext.FromMetadata(message.Metadata)
             ?.TraceParent
@@ -107,7 +106,7 @@ public sealed class DurableCommandSenderTests
     {
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             PersistenceResolver(new CapturingOutboxWriter("identity")),
@@ -116,7 +115,7 @@ public sealed class DurableCommandSenderTests
             unitOfWorkContext,
             MessagingOptions());
 
-        using (unitOfWorkContext.StartModuleScope("operations"))
+        using (unitOfWorkContext.StartModuleScope("products"))
         {
             Should.Throw<InvalidOperationException>(
                 () => sender.Send(
@@ -131,7 +130,7 @@ public sealed class DurableCommandSenderTests
     {
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var sender = new DurableCommandSender(
             PersistenceResolver(new CapturingOutboxWriter("identity")),
             HandlerRegistrations(),
@@ -142,7 +141,7 @@ public sealed class DurableCommandSenderTests
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                targetModule: "operations"));
+                targetModule: "products"));
 
         exception.Message.ShouldContain("inside a module unit of work");
     }
@@ -153,7 +152,7 @@ public sealed class DurableCommandSenderTests
     {
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             PersistenceResolver(new CapturingOutboxWriter("identity")),
@@ -167,7 +166,7 @@ public sealed class DurableCommandSenderTests
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                targetModule: "operations"));
+                targetModule: "products"));
 
         exception.Message.ShouldContain("active source module");
         exception.Message.ShouldContain("billing");
@@ -181,7 +180,7 @@ public sealed class DurableCommandSenderTests
         var outboxWriter = new CapturingOutboxWriter("identity");
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             PersistenceResolver(outboxWriter),
@@ -194,7 +193,7 @@ public sealed class DurableCommandSenderTests
         {
             sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                targetModule: "operations",
+                targetModule: "products",
                 maxAttempts: 2);
         }
 
@@ -208,7 +207,7 @@ public sealed class DurableCommandSenderTests
         var outboxWriter = new CapturingOutboxWriter("identity");
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             PersistenceResolver(outboxWriter),
@@ -222,8 +221,8 @@ public sealed class DurableCommandSenderTests
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                targetModule: "operations"));
-        exception.Message.ShouldContain("operations");
+                targetModule: "products"));
+        exception.Message.ShouldContain("products");
         exception.Message.ShouldContain(typeof(RebuildOperationProjectionCommand).FullName!);
         outboxWriter.Messages.ShouldBeEmpty();
     }
@@ -235,21 +234,21 @@ public sealed class DurableCommandSenderTests
         var outboxWriter = new CapturingOutboxWriter("identity");
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             PersistenceResolver(outboxWriter),
             [
                 new ModuleMessageHandlerRegistration(
-                    "operations",
+                    "products",
                     typeof(RebuildOperationProjectionCommand),
                     typeof(FirstRebuildOperationProjectionCommandHandler),
-                    "operations.rebuild-operation-projection.v1"),
+                    "products.rebuild-operation-projection.v1"),
                 new ModuleMessageHandlerRegistration(
-                    "operations",
+                    "products",
                     typeof(RebuildOperationProjectionCommand),
                     typeof(SecondRebuildOperationProjectionCommandHandler),
-                    "operations.rebuild-operation-projection.v1")
+                    "products.rebuild-operation-projection.v1")
             ],
             registry,
             unitOfWorkContext,
@@ -260,33 +259,27 @@ public sealed class DurableCommandSenderTests
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => sender.Send(
                 new RebuildOperationProjectionCommand(Guid.NewGuid()),
-                targetModule: "operations"));
+                targetModule: "products"));
         exception.Message.ShouldContain("Multiple");
-        exception.Message.ShouldContain("operations");
+        exception.Message.ShouldContain("products");
         outboxWriter.Messages.ShouldBeEmpty();
     }
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task ModuleOwnedOrchestration_WhenResultIsNeeded_SendsWorkWithOperationIdAndLeavesResultForQueries()
+    public async Task ModuleOwnedOrchestration_WhenResultIsNeeded_SendsWorkWithDurableOperationIdAndLeavesResultForQueries()
     {
-        Guid operationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
-        var operationsQueries = new FakeOperationsQueries(
-            new OperationDetails(
-                operationId,
-                "template.communication-example",
-                OperationStatus.Pending,
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                CompletedAtUtc: null,
-                FailedAtUtc: null,
-                FailureReason: null,
+        Guid durableOperationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var operationReader = new FakeDurableOperationReader(
+            new DurableOperationSnapshot(
+                durableOperationId,
+                DurableOperationState.Pending,
                 ResultJson: null,
-                MetadataJson: null));
+                FailureReason: null));
         var outboxWriter = new CapturingOutboxWriter("identity");
         var registry = new MessageTypeRegistry();
         registry.Register<RebuildOperationProjectionCommand>(
-            "ModularTemplate.operations.rebuild-operation-projection.v1");
+            "products.rebuild-operation-projection.v1");
         var unitOfWorkContext = new ModuleUnitOfWorkContext();
         var sender = new DurableCommandSender(
             PersistenceResolver(outboxWriter),
@@ -294,23 +287,23 @@ public sealed class DurableCommandSenderTests
             registry,
             unitOfWorkContext,
             MessagingOptions());
-        var orchestration = new ExampleModuleOwnedOrchestration(operationsQueries, sender);
+        var orchestration = new ExampleModuleOwnedOrchestration(operationReader, sender);
 
         CommandSubmission submission;
         using (unitOfWorkContext.StartModuleScope("identity"))
         {
-            submission = await orchestration.StartAsync(operationId, CancellationToken.None);
+            submission = await orchestration.StartAsync(durableOperationId, CancellationToken.None);
         }
 
-        operationsQueries.RequestedOperationIds.ShouldBe([operationId]);
+        operationReader.RequestedDurableOperationIds.ShouldBe([durableOperationId]);
         submission.Status.ShouldBe(CommandSubmissionStatus.Accepted);
-        submission.OperationId.ShouldBe(operationId);
+        submission.DurableOperationId.ShouldBe(durableOperationId);
         OutboxMessage message = outboxWriter.Messages.Single();
-        message.OperationId.ShouldBe(operationId);
-        message.TargetModule.ShouldBe("operations");
+        message.DurableOperationId.ShouldBe(durableOperationId);
+        message.TargetModule.ShouldBe("products");
     }
 
-    private sealed record RebuildOperationProjectionCommand(Guid OperationId) : IDurableCommand;
+    private sealed record RebuildOperationProjectionCommand(Guid DurableOperationId) : IDurableCommand;
 
     private sealed class FirstRebuildOperationProjectionCommandHandler;
 
@@ -320,12 +313,12 @@ public sealed class DurableCommandSenderTests
     {
         return Options.Create(new DurableMessagingOptions
         {
-            Modules = ["identity", "operations"],
+            Modules = ["identity", "products"],
             MaxAttempts = 7
         });
     }
 
-    private static ModuleMessageHandlerRegistration[] HandlerRegistrations(string moduleName = "operations")
+    private static ModuleMessageHandlerRegistration[] HandlerRegistrations(string moduleName = "products")
     {
         return
         [
@@ -333,7 +326,7 @@ public sealed class DurableCommandSenderTests
                 moduleName,
                 typeof(RebuildOperationProjectionCommand),
                 typeof(object),
-                "operations.rebuild-operation-projection.v1")
+                "products.rebuild-operation-projection.v1")
         ];
     }
 
@@ -343,34 +336,38 @@ public sealed class DurableCommandSenderTests
     }
 
     private sealed class ExampleModuleOwnedOrchestration(
-        IOperationsQueries operationsQueries,
+        IDurableOperationReader operationReader,
         IDurableCommandSender durableCommandSender)
     {
         public async Task<CommandSubmission> StartAsync(
-            Guid operationId,
+            Guid durableOperationId,
             CancellationToken cancellationToken)
         {
-            OperationDetails? operation = await operationsQueries.GetOperationAsync(operationId, cancellationToken);
+            DurableOperationSnapshot? operation = await operationReader.GetOperationAsync(
+                durableOperationId,
+                cancellationToken);
 
             if (operation is null)
             {
-                throw new InvalidOperationException("Operation state is required before durable work is sent.");
+                throw new InvalidOperationException("Durable operation state is required before durable work is sent.");
             }
 
             return durableCommandSender.Send(
-                new RebuildOperationProjectionCommand(operation.OperationId),
-                targetModule: "operations",
-                operationId: operation.OperationId);
+                new RebuildOperationProjectionCommand(operation.DurableOperationId),
+                targetModule: "products",
+                durableOperationId: operation.DurableOperationId);
         }
     }
 
-    private sealed class FakeOperationsQueries(OperationDetails? operation) : IOperationsQueries
+    private sealed class FakeDurableOperationReader(DurableOperationSnapshot? operation) : IDurableOperationReader
     {
-        public List<Guid> RequestedOperationIds { get; } = [];
+        public List<Guid> RequestedDurableOperationIds { get; } = [];
 
-        public Task<OperationDetails?> GetOperationAsync(Guid operationId, CancellationToken cancellationToken)
+        public Task<DurableOperationSnapshot?> GetOperationAsync(
+            Guid durableOperationId,
+            CancellationToken cancellationToken)
         {
-            RequestedOperationIds.Add(operationId);
+            RequestedDurableOperationIds.Add(durableOperationId);
             return Task.FromResult(operation);
         }
     }

@@ -10,7 +10,7 @@ public interface IDurableCommandSender
     CommandSubmission Send<TCommand>(
         TCommand command,
         string targetModule,
-        Guid? operationId = null,
+        Guid? durableOperationId = null,
         Guid? causationId = null,
         int? maxAttempts = null)
         where TCommand : IDurableCommand;

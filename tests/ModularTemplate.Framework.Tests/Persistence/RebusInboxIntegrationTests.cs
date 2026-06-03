@@ -33,7 +33,7 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
             targetModule: "identity",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{\"Value\":\"hello\"}");
         setupContext.OutboxMessages.Add(outboxMessage);
         await setupContext.SaveChangesAsync(CancellationToken.None);
@@ -89,48 +89,48 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
         await using IdentityDbContext identitySetupContext = CreateIdentityDbContext();
         await identitySetupContext.Database.EnsureDeletedAsync(CancellationToken.None);
         await identitySetupContext.Database.EnsureCreatedAsync(CancellationToken.None);
-        await using OperationsTestDbContext operationsSetupContext = CreateOperationsDbContext();
-        await operationsSetupContext.Database.ExecuteSqlRawAsync(
-            operationsSetupContext.Database.GenerateCreateScript(),
+        await using ProductsTestDbContext productsSetupContext = CreateProductsDbContext();
+        await productsSetupContext.Database.ExecuteSqlRawAsync(
+            productsSetupContext.Database.GenerateCreateScript(),
             CancellationToken.None);
         Guid messageId = Guid.NewGuid();
         OutboxMessage outboxMessage = OutboxMessage.Create(
             messageId,
             MessageKind.Command,
-            "test.cross-module-operation-command.v1",
+            "test.cross-module-product-command.v1",
             sourceModule: "identity",
-            targetModule: "operations",
+            targetModule: "products",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
-            payload: "{\"OperationType\":\"template.cross-module-smoke\"}");
+            durableOperationId: null,
+            payload: "{\"ProductName\":\"template.cross-module-smoke\"}");
         identitySetupContext.OutboxMessages.Add(outboxMessage);
         await identitySetupContext.SaveChangesAsync(CancellationToken.None);
 
-        using IHost host = CreateIdentityAndOperationsHost();
+        using IHost host = CreateIdentityAndProductsHost();
         await host.StartAsync(CancellationToken.None);
         try
         {
             await WaitUntilAsync(
-                async () => await CountOperationsAsync(host) == 1,
+                async () => await CountProductsAsync(host) == 1,
                 TimeSpan.FromSeconds(5));
 
             await using AsyncServiceScope verifyScope = host.Services.CreateAsyncScope();
             IdentityDbContext identityContext = verifyScope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-            OperationsTestDbContext operationsContext = verifyScope.ServiceProvider.GetRequiredService<OperationsTestDbContext>();
+            ProductsTestDbContext productsContext = verifyScope.ServiceProvider.GetRequiredService<ProductsTestDbContext>();
 
             (await identityContext.OutboxMessages.SingleAsync(
                     x => x.MessageId == messageId,
                     CancellationToken.None))
                 .Status
                 .ShouldBe(PersistedMessageStatus.Processed);
-            (await operationsContext.InboxMessages.SingleAsync(
+            (await productsContext.InboxMessages.SingleAsync(
                     x => x.MessageId == messageId.ToString("D"),
                     CancellationToken.None))
                 .IsProcessed
                 .ShouldBeTrue();
-            TestOperationRecord operation = await operationsContext.Operations.SingleAsync(CancellationToken.None);
-            operation.OperationType.ShouldBe("template.cross-module-smoke");
+            TestProductRecord product = await productsContext.Products.SingleAsync(CancellationToken.None);
+            product.Name.ShouldBe("template.cross-module-smoke");
         }
         finally
         {
@@ -159,20 +159,20 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
         return CreateIdentityDbContext();
     }
 
-    private IHost CreateIdentityAndOperationsHost()
+    private IHost CreateIdentityAndProductsHost()
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration["ConnectionStrings:modular-template-host"] = postgreSqlFixture.ConnectionString;
         builder.Configuration["Messaging:Rebus:QueuePrefix"] = $"test-{Guid.NewGuid():N}";
         builder.Services.AddDbContext<IdentityDbContext>(options =>
             options.UseNpgsql(postgreSqlFixture.ConnectionString));
-        builder.Services.AddDbContext<OperationsTestDbContext>(options =>
+        builder.Services.AddDbContext<ProductsTestDbContext>(options =>
             options.UseNpgsql(postgreSqlFixture.ConnectionString));
         builder.AddRebusTransport(transport =>
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
         builder.Services.AddModulePersistence<IdentityDbContext>("identity");
-        builder.Services.AddModulePersistence<OperationsTestDbContext>("operations");
-        builder.Services.AddModuleMessaging("operations", typeof(TestCrossModuleOperationCommandHandler));
+        builder.Services.AddModulePersistence<ProductsTestDbContext>("products");
+        builder.Services.AddModuleMessaging("products", typeof(TestCrossModuleProductCommandHandler));
 
         return builder.Build();
     }
@@ -186,13 +186,13 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
         return new IdentityDbContext(options);
     }
 
-    private OperationsTestDbContext CreateOperationsDbContext()
+    private ProductsTestDbContext CreateProductsDbContext()
     {
-        var options = new DbContextOptionsBuilder<OperationsTestDbContext>()
+        var options = new DbContextOptionsBuilder<ProductsTestDbContext>()
             .UseNpgsql(postgreSqlFixture.ConnectionString)
             .Options;
 
-        return new OperationsTestDbContext(options);
+        return new ProductsTestDbContext(options);
     }
 
     private static Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout)
@@ -225,21 +225,21 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
             CancellationToken.None);
     }
 
-    private static async Task<int> CountOperationsAsync(IHost host)
+    private static async Task<int> CountProductsAsync(IHost host)
     {
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
-        OperationsTestDbContext dbContext = scope.ServiceProvider.GetRequiredService<OperationsTestDbContext>();
-        return await dbContext.Operations.CountAsync(CancellationToken.None);
+        ProductsTestDbContext dbContext = scope.ServiceProvider.GetRequiredService<ProductsTestDbContext>();
+        return await dbContext.Products.CountAsync(CancellationToken.None);
     }
 
-    [MessageIdentity("test.rebus-inbox-command.v1")]
+    [DurableCommandIdentity("test.rebus-inbox-command.v1")]
     private sealed record TestRebusInboxCommand(string Value) : IDurableCommand;
 
-    [MessageIdentity("test.rebus-follow-up-command.v1")]
+    [DurableCommandIdentity("test.rebus-follow-up-command.v1")]
     private sealed record TestFollowUpCommand(string Value) : IDurableCommand;
 
-    [MessageIdentity("test.cross-module-operation-command.v1")]
-    private sealed record TestCrossModuleOperationCommand(string OperationType) : IDurableCommand;
+    [DurableCommandIdentity("test.cross-module-product-command.v1")]
+    private sealed record TestCrossModuleProductCommand(string ProductName) : IDurableCommand;
 
     private sealed class TestRebusInboxCommandHandler(
         IDurableCommandSender durableCommandSender,
@@ -264,20 +264,20 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
         }
     }
 
-    private sealed class TestCrossModuleOperationCommandHandler(OperationsTestDbContext dbContext)
-        : IModuleMessageHandler<TestCrossModuleOperationCommand>
+    private sealed class TestCrossModuleProductCommandHandler(ProductsTestDbContext dbContext)
+        : IModuleMessageHandler<TestCrossModuleProductCommand>
     {
-        public Task HandleAsync(TestCrossModuleOperationCommand message, CancellationToken cancellationToken)
+        public Task HandleAsync(TestCrossModuleProductCommand message, CancellationToken cancellationToken)
         {
-            dbContext.Operations.Add(new TestOperationRecord(Guid.NewGuid(), message.OperationType));
+            dbContext.Products.Add(new TestProductRecord(Guid.NewGuid(), message.ProductName));
             return Task.CompletedTask;
         }
     }
 
-    private sealed class OperationsTestDbContext(DbContextOptions<OperationsTestDbContext> options)
+    private sealed class ProductsTestDbContext(DbContextOptions<ProductsTestDbContext> options)
         : DbContext(options), IModuleDbContext
     {
-        public DbSet<TestOperationRecord> Operations => Set<TestOperationRecord>();
+        public DbSet<TestProductRecord> Products => Set<TestProductRecord>();
 
         public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
@@ -285,7 +285,7 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
 
         public DbSet<StoredDomainEvent> DomainEvents => Set<StoredDomainEvent>();
 
-        string IModuleDbContext.ModuleName => "operations";
+        string IModuleDbContext.ModuleName => "products";
 
         DbSet<OutboxMessage> IModuleDbContext.OutboxMessages => OutboxMessages;
 
@@ -295,32 +295,32 @@ public sealed class RebusInboxIntegrationTests(PostgreSqlFixture postgreSqlFixtu
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.HasDefaultSchema("operations");
-            modelBuilder.Entity<TestOperationRecord>(builder =>
+            modelBuilder.HasDefaultSchema("products");
+            modelBuilder.Entity<TestProductRecord>(builder =>
             {
-                builder.ToTable("test_operations", "operations");
+                builder.ToTable("test_products", "products");
                 builder.HasKey(x => x.Id);
-                builder.Property(x => x.OperationType).HasMaxLength(256).IsRequired();
+                builder.Property(x => x.Name).HasMaxLength(256).IsRequired();
             });
-            modelBuilder.ApplyModuleMessagingPersistence("operations");
+            modelBuilder.ApplyModuleMessagingPersistence("products");
         }
     }
 
-    private sealed class TestOperationRecord
+    private sealed class TestProductRecord
     {
-        private TestOperationRecord()
+        private TestProductRecord()
         {
         }
 
-        public TestOperationRecord(Guid id, string operationType)
+        public TestProductRecord(Guid id, string name)
         {
             Id = id;
-            OperationType = operationType;
+            Name = name;
         }
 
         public Guid Id { get; private set; }
 
-        public string OperationType { get; private set; } = string.Empty;
+        public string Name { get; private set; } = string.Empty;
     }
 
     private sealed class HandledMessageCounter

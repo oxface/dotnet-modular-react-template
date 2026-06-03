@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\ModularTemplate.SharedKernel\ModularTemplate.SharedKernel.csproj" />
+    <ProjectReference Include="..\ModularTemplate.Products.Contracts\ModularTemplate.Products.Contracts.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="**\.Contracts\*.cs" />
+  </ItemGroup>
+
+</Project>

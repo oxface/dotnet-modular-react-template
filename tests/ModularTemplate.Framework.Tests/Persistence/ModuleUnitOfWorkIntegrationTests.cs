@@ -127,7 +127,7 @@ public sealed class ModuleUnitOfWorkIntegrationTests(PostgreSqlFixture postgreSq
             .BuildServiceProvider();
     }
 
-    [MessageIdentity("test.local-user-changed.v1")]
+    [IntegrationEventIdentity("test.local-user-changed.v1")]
     private sealed record TestIntegrationEvent(Guid LocalUserId, string Change) : IIntegrationEvent;
 
     private sealed class LocalUserCreatedIntegrationEventMapper

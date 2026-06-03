@@ -20,20 +20,13 @@ export type GetMeUserResponse = {
     email: null | string;
 };
 
-export type OperationDetails = {
-    operationId: string;
-    operationType: string;
-    status: OperationStatus;
+export type ProductDetails = {
+    productId: string;
+    name: string;
     createdAtUtc: string;
     updatedAtUtc: string;
-    completedAtUtc: null | string;
-    failedAtUtc: null | string;
-    failureReason: null | string;
-    resultJson: null | string;
     metadataJson: null | string;
 };
-
-export type OperationStatus = number;
 
 export type GetCurrentUserData = {
     body?: never;
@@ -58,16 +51,16 @@ export type GetCurrentUserResponses = {
 
 export type GetCurrentUserResponse = GetCurrentUserResponses[keyof GetCurrentUserResponses];
 
-export type GetOperationData = {
+export type GetProductData = {
     body?: never;
     path: {
-        operationId: string;
+        productId: string;
     };
     query?: never;
-    url: '/api/operations/{operationId}';
+    url: '/api/products/{productId}';
 };
 
-export type GetOperationErrors = {
+export type GetProductErrors = {
     /**
      * Unauthorized
      */
@@ -78,11 +71,11 @@ export type GetOperationErrors = {
     404: unknown;
 };
 
-export type GetOperationResponses = {
+export type GetProductResponses = {
     /**
      * OK
      */
-    200: OperationDetails;
+    200: ProductDetails;
 };
 
-export type GetOperationResponse = GetOperationResponses[keyof GetOperationResponses];
+export type GetProductResponse = GetProductResponses[keyof GetProductResponses];

@@ -22,7 +22,7 @@ public sealed class ModuleUnitOfWorkTests
     public void Resolve_WhenCommandTypeIsRegistered_ReturnsMatchingModuleUnitOfWork()
     {
         var identityUnitOfWork = new TestModuleUnitOfWork("identity");
-        var operationsUnitOfWork = new TestModuleUnitOfWork("operations");
+        var productsUnitOfWork = new TestModuleUnitOfWork("products");
         var resolver = new ModuleUnitOfWorkResolver(
             [
                 new ModulePersistenceRegistration(
@@ -30,7 +30,7 @@ public sealed class ModuleUnitOfWorkTests
                     typeof(IdentityDbContext),
                     [typeof(TestCommand)])
             ],
-            new TestModulePersistenceResolver(identityUnitOfWork, operationsUnitOfWork));
+            new TestModulePersistenceResolver(identityUnitOfWork, productsUnitOfWork));
 
         IModuleUnitOfWork? unitOfWork = resolver.Resolve(typeof(TestCommand));
 
@@ -67,20 +67,20 @@ public sealed class ModuleUnitOfWorkTests
                     typeof(IdentityDbContext),
                     [typeof(TestCommand)]),
                 new ModulePersistenceRegistration(
-                    "operations",
+                    "products",
                     typeof(IdentityDbContext),
                     [typeof(TestCommand)])
             ],
             new TestModulePersistenceResolver(
                 new TestModuleUnitOfWork("identity"),
-                new TestModuleUnitOfWork("operations")));
+                new TestModuleUnitOfWork("products")));
 
         InvalidOperationException exception = Should.Throw<InvalidOperationException>(
             () => resolver.Resolve(typeof(TestCommand)));
 
         exception.Message.ShouldContain("more than one module persistence registration");
         exception.Message.ShouldContain("identity");
-        exception.Message.ShouldContain("operations");
+        exception.Message.ShouldContain("products");
     }
 
     [Fact]
@@ -134,10 +134,10 @@ public sealed class ModuleUnitOfWorkTests
         using (context.StartModuleScope("identity"))
         {
             InvalidOperationException exception = Should.Throw<InvalidOperationException>(
-                () => context.StartModuleScope("operations"));
+                () => context.StartModuleScope("products"));
 
             exception.Message.ShouldContain("identity");
-            exception.Message.ShouldContain("operations");
+            exception.Message.ShouldContain("products");
             exception.Message.ShouldContain("durable messaging");
             context.CurrentModuleName.ShouldBe("identity");
         }
@@ -161,6 +161,20 @@ public sealed class ModuleUnitOfWorkTests
         services.Any(service => service.ServiceType == typeof(IModulePersistenceResolver))
             .ShouldBeTrue();
         services.Any(service => service.ServiceType == typeof(OutboxWriter<IdentityDbContext>))
+            .ShouldBeTrue();
+        services.Any(service => service.ServiceType == typeof(IDurableRequestSender))
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddDurableRequestPolling_WhenCalled_RegistersDurableRequestSender()
+    {
+        var services = new ServiceCollection();
+
+        services.AddDurableRequestPolling();
+
+        services.Any(service => service.ServiceType == typeof(IDurableRequestSender))
             .ShouldBeTrue();
     }
 
@@ -217,6 +231,24 @@ public sealed class ModuleUnitOfWorkTests
 
         result.ShouldBe(TestResult.Value);
         recorder.Events.ShouldBe(["before", "handler", "after"]);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task ModuleCommandExecutor_WhenNoHandlerIsRegistered_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddModuleCommands();
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IModuleCommandExecutor<TestCommand, TestResult> commandExecutor =
+            serviceProvider.GetRequiredService<IModuleCommandExecutor<TestCommand, TestResult>>();
+
+        InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await commandExecutor.SendAsync(new TestCommand(), CancellationToken.None));
+
+        exception.Message.ShouldContain("No module command handler");
+        exception.Message.ShouldContain(typeof(TestCommand).FullName!);
     }
 
     [Fact]
@@ -286,10 +318,10 @@ public sealed class ModuleUnitOfWorkTests
             messageKind: MessageKind.Command,
             messageType: "test.command.v1",
             sourceModule: "identity",
-            targetModule: "operations",
+            targetModule: "products",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{}");
 
         outboxWriter.Write(message);
@@ -357,6 +389,31 @@ public sealed class ModuleUnitOfWorkTests
             .Single(subscription => subscription.EventType == typeof(TestIntegrationEvent))
             .ModuleName
             .ShouldBe("identity");
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModuleMessaging_WhenIntegrationEventHasMultipleHandlers_RegistersSeparateHandlerIdentities()
+    {
+        var services = new ServiceCollection();
+
+        services.AddModuleMessaging("identity", typeof(FirstMultiHandlerIntegrationEventHandler));
+
+        ModuleMessageHandlerRegistration[] registrations = services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleMessageHandlerRegistration>()
+            .Where(registration => registration.MessageType == typeof(MultiHandlerIntegrationEvent))
+            .ToArray();
+
+        registrations.Length.ShouldBe(2);
+        registrations.ShouldContain(registration =>
+            registration.HandlerType == typeof(FirstMultiHandlerIntegrationEventHandler)
+            && registration.MessageIdentity == "test.multi-handler-integration-event.v1"
+            && registration.HandlerIdentity == "identity.first-multi-handler.v1");
+        registrations.ShouldContain(registration =>
+            registration.HandlerType == typeof(SecondMultiHandlerIntegrationEventHandler)
+            && registration.MessageIdentity == "test.multi-handler-integration-event.v1"
+            && registration.HandlerIdentity == "identity.second-multi-handler.v1");
     }
 
     [Fact]
@@ -455,7 +512,7 @@ public sealed class ModuleUnitOfWorkTests
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
             async () => await unitOfWork.SaveChangesAsync(CancellationToken.None));
 
-        exception.Message.ShouldContain("operations");
+        exception.Message.ShouldContain("products");
         exception.Message.ShouldContain("identity");
     }
 
@@ -512,13 +569,36 @@ public sealed class ModuleUnitOfWorkTests
         public List<string> Events { get; } = [];
     }
 
-    [MessageIdentity("test.integration-event.v1")]
+    [IntegrationEventIdentity("test.integration-event.v1")]
     private sealed record TestIntegrationEvent(Guid LocalUserId) : IIntegrationEvent;
+
+    [IntegrationEventIdentity("test.multi-handler-integration-event.v1")]
+    private sealed record MultiHandlerIntegrationEvent : IIntegrationEvent;
+
+    [IntegrationEventHandlerIdentity("identity.first-multi-handler.v1")]
+    private sealed class FirstMultiHandlerIntegrationEventHandler
+        : IModuleMessageHandler<MultiHandlerIntegrationEvent>
+    {
+        public Task HandleAsync(MultiHandlerIntegrationEvent message, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    [IntegrationEventHandlerIdentity("identity.second-multi-handler.v1")]
+    private sealed class SecondMultiHandlerIntegrationEventHandler
+        : IModuleMessageHandler<MultiHandlerIntegrationEvent>
+    {
+        public Task HandleAsync(MultiHandlerIntegrationEvent message, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class WrongSourceIntegrationEventMapper
         : IIntegrationEventMapper<LocalUserCreatedDomainEvent>
     {
-        public string SourceModule => "operations";
+        public string SourceModule => "products";
 
         public IReadOnlyCollection<IIntegrationEvent> Map(LocalUserCreatedDomainEvent domainEvent)
         {

@@ -12,9 +12,9 @@ Backend project layout:
 - `src/modules/ModularTemplate.Identity.Contracts`
 - `src/modules/ModularTemplate.Identity`
 - `src/modules/ModularTemplate.Identity.Infrastructure`
-- `src/modules/ModularTemplate.Operations.Contracts`
-- `src/modules/ModularTemplate.Operations`
-- `src/modules/ModularTemplate.Operations.Infrastructure`
+- `src/modules/ModularTemplate.Products.Contracts`
+- `src/modules/ModularTemplate.Products`
+- `src/modules/ModularTemplate.Products.Infrastructure`
 
 These projects provide the backend foundation: Host composition,
 ServiceDefaults, SharedKernel primitives, Migrator wiring, platform outbox and

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ModularTemplate.Identity.Access;
 using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Migrator.Tests.Support;
-using ModularTemplate.Operations.Infrastructure.Persistence;
+using ModularTemplate.Products.Infrastructure.Persistence;
 using Shouldly;
 
 namespace ModularTemplate.Migrator.Tests;
@@ -108,7 +108,7 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
         exitCode.ShouldBe(0);
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
         IdentityDbContext identityContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        OperationsDbContext operationsContext = scope.ServiceProvider.GetRequiredService<OperationsDbContext>();
+        ProductsDbContext productsContext = scope.ServiceProvider.GetRequiredService<ProductsDbContext>();
         await AssertSchemaExistsAsync(identityContext, "transport");
         await AssertTablesExistAsync(
             identityContext,
@@ -128,10 +128,10 @@ public sealed class InitialAdminSetupTests(PostgreSqlFixture fixture)
                 "__EFMigrationsHistory",
             ]);
         await AssertTablesExistAsync(
-            operationsContext,
-            "operations",
+            productsContext,
+            "products",
             [
-                "operations",
+                "products",
                 "domain_events",
                 "inbox_messages",
                 "outbox_messages",

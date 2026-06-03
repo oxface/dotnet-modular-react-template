@@ -29,7 +29,7 @@ public sealed class MessagePersistenceTests(PostgreSqlFixture postgreSqlFixture)
             targetModule: null,
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{\"localUserId\":\"00000000-0000-0000-0000-000000000001\"}"));
 
         await dbContext.SaveChangesAsync(CancellationToken.None);
@@ -167,11 +167,11 @@ public sealed class MessagePersistenceTests(PostgreSqlFixture postgreSqlFixture)
             messageId,
             MessageKind.Command,
             "identity.grant-access.v1",
-            sourceModule: "operations",
+            sourceModule: "products",
             targetModule: "identity",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{\"localUserId\":\"00000000-0000-0000-0000-000000000001\"}");
     }
 }

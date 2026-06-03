@@ -55,7 +55,7 @@ public sealed class RebusOutboxTransport(
 
         AddIfPresent(headers, BondstoneMessageHeaders.TargetModule, message.TargetModule);
         AddIfPresent(headers, BondstoneMessageHeaders.CausationId, message.CausationId?.ToString("D"));
-        AddIfPresent(headers, BondstoneMessageHeaders.OperationId, message.OperationId?.ToString("D"));
+        AddIfPresent(headers, BondstoneMessageHeaders.DurableOperationId, message.DurableOperationId?.ToString("D"));
         RebusMessageDiagnostics.AddTraceHeaders(headers, message.Metadata);
 
         return headers;

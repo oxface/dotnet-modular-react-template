@@ -31,28 +31,33 @@ public sealed class ModuleScopedRebusHandler<TMessage>(
 
         if (handlers.Length > 1)
         {
-            throw new InvalidOperationException(
-                $"Multiple module message handlers are registered for message '{typeof(TMessage).FullName}' " +
-                $"in receiving module '{moduleName}'. Use one module message handler per message identity.");
+            if (!typeof(IIntegrationEvent).IsAssignableFrom(typeof(TMessage)))
+            {
+                throw new InvalidOperationException(
+                    $"Multiple module message handlers are registered for durable command '{typeof(TMessage).FullName}' " +
+                    $"in receiving module '{moduleName}'. Durable commands must have exactly one target-module handler.");
+            }
         }
 
         CancellationToken cancellationToken = GetCurrentCancellationToken();
-        ModuleMessageHandlerRegistration handler = handlers[0];
         string messageId = GetCurrentMessageId();
         IReadOnlyDictionary<string, string> headers = GetCurrentHeaders();
 
         using var activity = RebusMessageDiagnostics.StartHandlingActivity<TMessage>(
             moduleName,
             messageId,
-            handler.MessageIdentity,
+            GetActivityMessageIdentity(handlers),
             headers);
 
-        await moduleMessageInbox.HandleOnceAsync(
-            moduleName,
-            messageId,
-            handler.MessageIdentity,
-            ct => HandleAsync(handler, message, ct),
-            cancellationToken);
+        foreach (ModuleMessageHandlerRegistration handler in handlers)
+        {
+            await moduleMessageInbox.HandleOnceAsync(
+                moduleName,
+                messageId,
+                handler.HandlerIdentity,
+                ct => HandleAsync(handler, message, ct),
+                cancellationToken);
+        }
     }
 
     private async Task HandleAsync(
@@ -62,6 +67,18 @@ public sealed class ModuleScopedRebusHandler<TMessage>(
     {
         var handler = (IModuleMessageHandler<TMessage>)serviceProvider.GetRequiredService(registration.HandlerType);
         await handler.HandleAsync(message, cancellationToken);
+    }
+
+    private static string GetActivityMessageIdentity(IReadOnlyCollection<ModuleMessageHandlerRegistration> handlers)
+    {
+        string[] messageIdentities = handlers
+            .Select(handler => handler.MessageIdentity)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return messageIdentities.Length == 1
+            ? messageIdentities[0]
+            : typeof(TMessage).FullName ?? typeof(TMessage).Name;
     }
 
     private static string GetCurrentMessageId()

@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ModularTemplate.Host\ModularTemplate.Host.csproj" />
     <ProjectReference Include="..\..\src\modules\ModularTemplate.Identity.Contracts\ModularTemplate.Identity.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\modules\ModularTemplate.Products.Contracts\ModularTemplate.Products.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

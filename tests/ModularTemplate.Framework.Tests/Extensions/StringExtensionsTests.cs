@@ -9,10 +9,10 @@ public sealed class StringExtensionsTests
     [Trait("Category", "Unit")]
     public void TrimDistinctRequired_WhenValuesContainWhitespaceAndDuplicates_ReturnsNormalizedValues()
     {
-        string[] values = new[] { " identity ", "operations", "identity", " " }
+        string[] values = new[] { " identity ", "products", "identity", " " }
             .TrimDistinctRequired("modules");
 
-        values.ShouldBe(["identity", "operations"]);
+        values.ShouldBe(["identity", "products"]);
     }
 
     [Fact]

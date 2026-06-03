@@ -228,7 +228,7 @@ namespace ModularTemplate.Identity.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("NextAttemptAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("OperationId")
+                    b.Property<Guid?>("DurableOperationId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Payload")

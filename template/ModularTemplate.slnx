@@ -19,9 +19,9 @@
     <Project Path="server/src/modules/ModularTemplate.Identity.Contracts/ModularTemplate.Identity.Contracts.csproj" />
     <Project Path="server/src/modules/ModularTemplate.Identity.Infrastructure/ModularTemplate.Identity.Infrastructure.csproj" />
     <Project Path="server/src/modules/ModularTemplate.Identity/ModularTemplate.Identity.csproj" />
-    <Project Path="server/src/modules/ModularTemplate.Operations.Contracts/ModularTemplate.Operations.Contracts.csproj" />
-    <Project Path="server/src/modules/ModularTemplate.Operations.Infrastructure/ModularTemplate.Operations.Infrastructure.csproj" />
-    <Project Path="server/src/modules/ModularTemplate.Operations/ModularTemplate.Operations.csproj" />
+    <Project Path="server/src/modules/ModularTemplate.Products.Contracts/ModularTemplate.Products.Contracts.csproj" />
+    <Project Path="server/src/modules/ModularTemplate.Products.Infrastructure/ModularTemplate.Products.Infrastructure.csproj" />
+    <Project Path="server/src/modules/ModularTemplate.Products/ModularTemplate.Products.csproj" />
   </Folder>
   <Folder Name="/server/tests/">
     <Project Path="server/tests/ModularTemplate.Host.Tests/ModularTemplate.Host.Tests.csproj" />
@@ -30,6 +30,6 @@
   <Folder Name="/server/tests/modules/">
     <Project Path="server/tests/modules/ModularTemplate.Identity.Infrastructure.Tests/ModularTemplate.Identity.Infrastructure.Tests.csproj" />
     <Project Path="server/tests/modules/ModularTemplate.Identity.Tests/ModularTemplate.Identity.Tests.csproj" />
-    <Project Path="server/tests/modules/ModularTemplate.Operations.Tests/ModularTemplate.Operations.Tests.csproj" />
+    <Project Path="server/tests/modules/ModularTemplate.Products.Tests/ModularTemplate.Products.Tests.csproj" />
   </Folder>
 </Solution>

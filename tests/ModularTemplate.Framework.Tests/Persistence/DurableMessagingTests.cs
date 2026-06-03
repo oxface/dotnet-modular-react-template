@@ -51,7 +51,7 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             targetModule: null,
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{}"));
         await dbContext.SaveChangesAsync(CancellationToken.None);
         var transport = new TestOutboxTransport();
@@ -225,12 +225,12 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
         return OutboxMessage.Create(
             messageId,
             MessageKind.Command,
-            "operations.rebuild-projection.v1",
+            "products.rebuild-projection.v1",
             sourceModule: "identity",
-            targetModule: "operations",
+            targetModule: "products",
             correlationId: Guid.NewGuid(),
             causationId: null,
-            operationId: null,
+            durableOperationId: null,
             payload: "{}",
             maxAttempts: maxAttempts);
     }

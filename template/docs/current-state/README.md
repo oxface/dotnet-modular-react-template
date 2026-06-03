@@ -14,5 +14,5 @@ are intentionally absent at this point.
 - [platform.md](platform.md) records the shipped local platform, auth,
   observability, and testing surfaces.
 - [identity.md](identity.md) records the shipped Identity module slice.
-- [../modules/operations.md](../modules/operations.md) records the durable
-  intent for the shipped Operations module slice.
+- [../modules/products.md](../modules/products.md) records the durable intent
+  for the shipped Products module slice.

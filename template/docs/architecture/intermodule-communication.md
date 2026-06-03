@@ -75,16 +75,30 @@ through Rebus to the target module queue.
 
 ```csharp
 CommandSubmission submission = durableCommandSender.Send(
-    new RebuildOperationProjectionCommand(operationId),
-    targetModule: "operations",
-    operationId: operationId);
+    new RebuildProductProjectionCommand(productId),
+    targetModule: "products",
+    durableOperationId: durableOperationId);
 ```
 
-Use `OperationId` when a caller or user workflow needs to observe progress
-after command acceptance. Polling endpoints, websocket notifications, or
-server-side waiters should observe operation/read-model state above the durable
-command sender. Do not turn durable commands into synchronous RPC by waiting for
-the transport handler to return a payload.
+Use a durable operation id when a caller or user workflow needs to observe
+progress after command acceptance. This is Bondstone runtime workflow/result
+identity, not a product aggregate id. Polling endpoints, websocket
+notifications, or server-side waiters should observe operation/read-model state
+above the durable command sender. Do not turn durable commands into synchronous
+RPC by waiting for the transport handler to return a payload.
+
+When a caller wants to wait briefly for a durable command result, use
+`IDurableRequestSender` and register request/result polling with
+`AddDurableRequestPolling()`. The sender sends the command with a durable
+operation id and polls an `IDurableOperationReader` until the durable operation
+completes, fails, is cancelled, or the caller's wait timeout expires. Timeout
+only stops waiting; it does not cancel already accepted durable work. Bondstone
+exposes the reader contract, but generated sample modules do not provide
+durable operation storage by default. Product modules that need polling should
+implement a module-owned reader or status endpoint for their durable
+operation/read-model state. HTTP clients should normally receive a durable
+operation id and poll an explicit status endpoint instead of depending on
+transport-level request/reply.
 
 ### Cross-Module Facts
 
@@ -135,7 +149,7 @@ outbox dispatch to Rebus happens later and may be retried. The receive-side
 inbox suppresses duplicate deliveries for the same stable transport message id,
 message identity, and receiving module while the inbox row is retained. It does
 not guarantee exactly-once business effects forever. Commands, integration
-events, and handlers that need semantic deduplication should carry an
+events, and handlers that need semantic deduplication should carry a durable
 operation id, business idempotency key, or enough state for the receiver to
 recognize already-applied work.
 
@@ -145,10 +159,10 @@ headers to transport messages when trace metadata is available. Receive-side
 transport handlers start a consumer `Activity` from those headers so follow-up
 durable commands and integration events stay in the same distributed trace. The
 incoming message id is added as causation baggage when it is a GUID, and the
-incoming operation id is carried as operation baggage when present. New module
-transactions that do not start from an incoming message start a Bondstone
-`Activity`; OpenTelemetry exports that span when the Bondstone activity source
-is registered.
+incoming durable operation id is carried as durable operation baggage when
+present. New module transactions that do not start from an incoming message
+start a Bondstone `Activity`; OpenTelemetry exports that span when the
+Bondstone activity source is registered.
 
 Outbox rows store dispatch state and a bounded error summary. Full exception
 details belong in structured logs and traces so the outbox table stays an
@@ -231,8 +245,10 @@ broker transports are product decisions and should bring their own deployment
 resources and verification.
 
 Messages MUST use stable message identities, not CLR type names, for persisted
-outbox rows and transport message type headers. Use `MessageIdentityAttribute`
-and register message assemblies through
+outbox rows and transport message type headers. Use
+`DurableCommandIdentityAttribute` for durable commands,
+`IntegrationEventIdentityAttribute` for integration events, and register
+message assemblies through
 `AddModuleMessaging("{module}", ...)`; explicit `IMessageTypeRegistry`
 registration is still available for tests or unusual composition.
 Event identities should name the fact, not the CLR type. Prefer
@@ -257,16 +273,15 @@ assembly, its `.Contracts` assembly, and its `.Infrastructure` assembly. This
 scans stable message identities and registers module-scoped
 `IModuleMessageHandler<T>` handlers as Bondstone module messaging metadata. The
 configured transport adapter consumes that metadata to expose transport
-handlers and subscriptions. Each receiving module should register one module
-message handler per message identity. If a module needs several internal
-reactions to the same event, keep the module message handler as the single
-receive adapter and fan out to module-local services inside that handler. This
-is an intentional template simplification: internal reactions share the
-receiving module transaction, retry, and failure outcome. Products that need
-independent retry loops or transactions for multiple reactions should introduce
-separate product handlers or a richer message-runtime decision before adding
-that behavior. The inbox key uses the stable transport message id plus the
-stable message identity. Event subscribers should also call
+handlers and subscriptions. Durable commands must have exactly one target-module
+handler. Integration events may have multiple handlers in the same receiving
+module only when each handler declares `IntegrationEventHandlerIdentityAttribute`;
+Bondstone then records one inbox row per handler identity so successful handlers
+are not rerun when another handler fails. If a module needs ordered internal
+reactions, prefer one module message handler as the module-local event owner and
+fan out to module-local services inside that handler. The inbox key uses the
+stable transport message id plus the stable handler identity. Event subscribers
+should also call
 `AddModuleMessaging("{module}", ...)`; registering an
 `IModuleMessageHandler<TEvent>` for an integration event automatically registers
 the module's transport subscription for that event. Publishing an event with no
@@ -297,6 +312,10 @@ Use names that describe caller intent.
 - Use `IModuleCommandBus` for in-process same-module commands.
 - Use `IModuleBoundary` when custom handlers need the module
   transaction and outbox behavior.
+- Use `IModuleCommandExecutor<TCommand, TResult>` for known in-process module
+  commands.
+- Use `IModuleCommandBus` only for dynamic edges and compatibility where the
+  command type is not known at compile time.
 - Use `IDurableCommandSender` when the caller explicitly wants durable
   asynchronous delivery.
 - If a product wants one abstraction that can choose immediate or durable
@@ -339,8 +358,8 @@ When adding a module:
 
 1. Define a command that implements `IDurableCommand`.
 2. Put it in a contracts project unless it is truly platform-wide.
-3. Add `MessageIdentityAttribute` and ensure its assembly is registered with
-   `AddModuleMessaging("{module}", ...)`.
+3. Add `DurableCommandIdentityAttribute` and ensure its assembly is registered
+   with `AddModuleMessaging("{module}", ...)`.
 4. Send it with `IDurableCommandSender` from inside the source module's command
    handler, including the target module name.
 5. Implement an `IModuleMessageHandler<TCommand>` handler in the target module.
@@ -357,14 +376,16 @@ When adding a module:
 
 1. Keep the source domain event internal to the source module.
 2. Add an `IIntegrationEvent` contract only when there is a real consumer.
-3. Add `MessageIdentityAttribute` and ensure its assembly is registered with
-   `AddModuleMessaging("{module}", ...)`.
+3. Add `IntegrationEventIdentityAttribute` and ensure its assembly is
+   registered with `AddModuleMessaging("{module}", ...)`.
 4. Add an `IIntegrationEventMapper<TDomainEvent>` in the source module.
    The mapper source module must match the changed module context; integration
    events are written to that source module's outbox.
 5. Implement `IModuleMessageHandler<TEvent>` handlers in subscriber modules.
 6. Register subscriber module handlers with `AddModuleMessaging`; integration
    event handlers automatically add the module's transport subscription.
+7. If a subscriber module has multiple handlers for the same integration event,
+   add `IntegrationEventHandlerIdentityAttribute` to each handler.
 
 Generated products should add tests for real communication workflows as those
 workflows appear.

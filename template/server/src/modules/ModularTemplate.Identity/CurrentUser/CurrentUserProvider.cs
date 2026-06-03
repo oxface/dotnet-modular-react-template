@@ -3,13 +3,15 @@ using ModularTemplate.Identity.Contracts.CurrentUser;
 
 namespace ModularTemplate.Identity.CurrentUser;
 
-public sealed class CurrentUserProvider(IModuleCommandBus commandBus) : ICurrentUserProvider
+public sealed class CurrentUserProvider(
+    IModuleCommandExecutor<SynchronizeCurrentUserCommand, CurrentUserContext> commandExecutor)
+    : ICurrentUserProvider
 {
     public async Task<CurrentUserContext> GetCurrentUserAsync(
         AuthenticatedIdentity? identity,
         CancellationToken cancellationToken)
     {
-        return await commandBus.SendAsync(
+        return await commandExecutor.SendAsync(
             new SynchronizeCurrentUserCommand(identity),
             cancellationToken);
     }

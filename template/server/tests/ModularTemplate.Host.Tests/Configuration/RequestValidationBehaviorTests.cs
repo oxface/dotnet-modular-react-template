@@ -1,4 +1,5 @@
 using Bondstone.Commands;
+using Microsoft.Extensions.DependencyInjection;
 using ModularTemplate.Host.Configuration;
 using ModularTemplate.SharedKernel.Validation;
 using Shouldly;
@@ -44,7 +45,60 @@ public sealed class RequestValidationBehaviorTests
         nextWasCalled.ShouldBeFalse();
     }
 
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task ModuleCommandBus_WhenValidationFails_DoesNotEnterLaterTransactionBehavior()
+    {
+        var services = new ServiceCollection();
+        var recorder = new PipelineRecorder();
+        services.AddSingleton(recorder);
+        services.AddScoped<IRequestValidator<TestCommand>>(_ => new FailingValidator("Name is required."));
+        services.AddModuleCommands(options =>
+        {
+            options.AssemblyMarkers.Add(typeof(TestCommandHandler));
+            options.PipelineBehaviors.Add(typeof(RecordingTransactionBehavior<,>));
+            options.PipelineBehaviors.Add(typeof(RequestValidationBehavior<,>));
+        });
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IModuleCommandBus commandBus = serviceProvider.GetRequiredService<IModuleCommandBus>();
+
+        RequestValidationException exception = await Should.ThrowAsync<RequestValidationException>(
+            async () => await commandBus.SendAsync(new TestCommand(""), CancellationToken.None));
+
+        exception.Errors.ShouldBe(["Name is required."]);
+        recorder.TransactionWasEntered.ShouldBeFalse();
+    }
+
     private sealed record TestCommand(string Name) : IModuleCommand<string>;
+
+    private sealed class TestCommandHandler : IModuleCommandHandler<TestCommand, string>
+    {
+        public ValueTask<string> HandleAsync(TestCommand command, CancellationToken cancellationToken)
+        {
+            return new ValueTask<string>("handled");
+        }
+    }
+
+    private sealed class RecordingTransactionBehavior<TCommand, TResult>(
+        PipelineRecorder recorder)
+        : IModuleCommandPipelineBehavior<TCommand, TResult>
+        where TCommand : IModuleCommand<TResult>
+    {
+        public ValueTask<TResult> HandleAsync(
+            TCommand command,
+            ModuleCommandHandlerDelegate<TCommand, TResult> next,
+            CancellationToken cancellationToken)
+        {
+            recorder.TransactionWasEntered = true;
+            return next(command, cancellationToken);
+        }
+    }
+
+    private sealed class PipelineRecorder
+    {
+        public bool TransactionWasEntered { get; set; }
+    }
 
     private sealed class PassingValidator : IRequestValidator<TestCommand>
     {

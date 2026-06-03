@@ -1,8 +1,8 @@
 # Server Current State
 
 The generated template ships a .NET modular-monolith backend using ASP.NET Core
-Minimal APIs, EF Core with PostgreSQL, Mediator, and explicit module
-boundaries.
+Minimal APIs, EF Core with PostgreSQL, Bondstone command handling, and explicit
+module boundaries.
 
 The shipped backend includes:
 
@@ -12,8 +12,8 @@ The shipped backend includes:
 - Module Infrastructure EF Core DbContexts with baseline `InitialCreate`
   migrations so generated products can create the first local schemas.
 - Bondstone platform libraries for module boundaries, messaging contracts,
-  PostgreSQL persistence/outbox/inbox storage, optional Mediator unit-of-work
-  integration, and Rebus/PostgreSQL transport dispatch.
+  module message registration, PostgreSQL persistence/outbox/inbox storage, and
+  Rebus transport dispatch through PostgreSQL or Azure Service Bus adapters.
 - `ModularTemplate.ServiceDefaults` for OpenTelemetry, service discovery,
   default HTTP resilience, and development health endpoints.
 - SharedKernel primitives for entity, aggregate root, value object,
@@ -24,8 +24,8 @@ The shipped backend includes:
   module-owned persistence, and `GET /api/operations/{operationId}`.
 - Host module registration delegated through a configuration extension rather
   than direct module wiring in `Program.cs`.
-- A command request-validation pipeline that executes registered validators
-  before module unit-of-work handling.
+- Command pipeline behaviors for diagnostics and request validation before
+  module unit-of-work handling.
 
 Business modules are expected under `server/src/modules` when products add
 more behavior. Modules with persistence or external adapters should keep

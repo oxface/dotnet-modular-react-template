@@ -11,6 +11,7 @@ using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
 using Bondstone.EntityFrameworkCore.Postgres.Outbox;
 using Bondstone.EntityFrameworkCore.Postgres.Persistence;
 using Bondstone.Transport.Rebus;
+using Rebus.Handlers;
 using Rebus.ServiceProvider;
 using Shouldly;
 
@@ -32,6 +33,11 @@ public sealed class TransportConfigurationTests
         builder.Services.Any(service => service.ServiceType == typeof(IOutboxRouteResolver)).ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(IBusRegistry)).ShouldBeTrue();
         builder.Services.Any(service => service.ServiceType == typeof(RebusPostgresSchemaInitializer)).ShouldBeTrue();
+        builder.Services
+            .Select(service => service.ImplementationInstance)
+            .OfType<IModuleMessageTransportAdapter>()
+            .Any(adapter => adapter.GetType().Name == "RebusModuleMessageTransportAdapter")
+            .ShouldBeTrue();
         builder.Services.Any(service =>
             service.ServiceType == typeof(IHostedService)
             && service.ImplementationType?.Name?.Contains("SchemaInitializer", StringComparison.Ordinal) == true)
@@ -54,6 +60,31 @@ public sealed class TransportConfigurationTests
             transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
 
         using IHost host = builder.Build();
+        host.Services.GetServices<IHostedService>()
+            .Count(service => service.GetType().Name == "RebusSubscriptionHostedService")
+            .ShouldBe(2);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddRebusTransport_WhenAzureServiceBusIsConfigured_RegistersBrokerTransportWithoutPostgresBootstrap()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+        builder.Configuration["Messaging:Modules:0"] = "identity";
+        builder.Configuration["Messaging:Rebus:AzureServiceBus:ConnectionStringName"] = "messaging-service-bus";
+        builder.Configuration["ConnectionStrings:messaging-service-bus"] =
+            "Endpoint=sb://example.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=test";
+
+        builder.AddRebusTransport(transport =>
+            transport.UseAzureServiceBusInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
+
+        builder.Services.Any(service => service.ServiceType == typeof(IOutboxTransport)).ShouldBeTrue();
+        builder.Services.Any(service => service.ServiceType == typeof(IBusRegistry)).ShouldBeTrue();
+        builder.Services.Any(service => service.ServiceType == typeof(RebusPostgresSchemaInitializer)).ShouldBeFalse();
+
+        using IHost host = builder.Build();
+        RebusTransportOptions options = host.Services.GetRequiredService<IOptions<RebusTransportOptions>>().Value;
+        options.AzureServiceBus.ConnectionStringName.ShouldBe("messaging-service-bus");
         host.Services.GetServices<IHostedService>()
             .Count(service => service.GetType().Name == "RebusSubscriptionHostedService")
             .ShouldBe(2);
@@ -126,6 +157,7 @@ public sealed class TransportConfigurationTests
 
         exception.Message.ShouldContain("Rebus internal transport is not configured");
         exception.Message.ShouldContain(nameof(RebusPostgresTransportBuilderExtensions.UsePostgresInternalTransport));
+        exception.Message.ShouldContain(nameof(RebusAzureServiceBusTransportBuilderExtensions.UseAzureServiceBusInternalTransport));
     }
 
     [Fact]
@@ -135,6 +167,7 @@ public sealed class TransportConfigurationTests
         HostApplicationBuilder builder = Host.CreateApplicationBuilder();
         builder.Configuration["Messaging:Modules:0"] = "identity";
         builder.Configuration["Messaging:Rebus:QueuePrefix"] = "configured";
+        builder.Configuration["Messaging:Rebus:Postgres:AutoCreateSubscriptionTable"] = "false";
 
         builder.AddRebusTransport(transport => transport
             .UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus"))
@@ -145,6 +178,11 @@ public sealed class TransportConfigurationTests
             .Value
             .QueuePrefix
             .ShouldBe("from-code");
+        host.Services.GetRequiredService<IOptions<RebusTransportOptions>>()
+            .Value
+            .Postgres
+            .AutoCreateSubscriptionTable
+            .ShouldBeFalse();
     }
 
     [Fact]
@@ -239,12 +277,27 @@ public sealed class TransportConfigurationTests
 
         services.AddModuleMessaging("identity", typeof(TestModuleMessageHandler));
 
-        object subscription = services
+        ModuleEventSubscription subscription = services
             .Select(service => service.ImplementationInstance)
-            .Where(instance => instance?.GetType().Name == "ModuleEventSubscription")
-            .Single(instance => (Type)instance!.GetType().GetProperty("EventType")!.GetValue(instance)! == typeof(TestIntegrationEvent))!;
-        subscription.GetType().GetProperty("ModuleName")!.GetValue(subscription)
-            .ShouldBe("identity");
+            .OfType<ModuleEventSubscription>()
+            .Single(subscription => subscription.EventType == typeof(TestIntegrationEvent));
+        subscription.ModuleName.ShouldBe("identity");
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void AddModuleMessaging_WhenRebusTransportIsRegisteredFirst_AddsRebusHandlerAdapter()
+    {
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+
+        builder.AddRebusTransport(transport =>
+            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
+        builder.Services.AddModuleMessaging("identity", typeof(TestModuleMessageHandler));
+
+        builder.Services.Any(service =>
+            service.ServiceType == typeof(IHandleMessages<TestIntegrationEvent>)
+            && service.ImplementationType == typeof(ModuleScopedRebusHandler<TestIntegrationEvent>))
+            .ShouldBeTrue();
     }
 
     [Fact]

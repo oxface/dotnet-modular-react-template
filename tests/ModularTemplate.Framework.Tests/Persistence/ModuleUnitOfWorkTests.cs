@@ -1,4 +1,3 @@
-using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -11,9 +10,7 @@ using Bondstone.Messaging;
 using Bondstone.EntityFrameworkCore.Persistence;
 using Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
 using Bondstone.EntityFrameworkCore.Postgres.Persistence;
-using Bondstone.Transport.Rebus;
 using Bondstone;
-using Rebus.Handlers;
 using Shouldly;
 
 namespace ModularTemplate.Identity.Infrastructure.Tests.Persistence;
@@ -201,7 +198,30 @@ public sealed class ModuleUnitOfWorkTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public async Task ModuleCommandBus_WhenHandlerAndPipelineAreRegistered_ExecutesPipelineThenHandler()
+    public async Task ModuleCommandExecutor_WhenHandlerAndPipelineAreRegistered_ExecutesPipelineThenHandler()
+    {
+        var services = new ServiceCollection();
+        var recorder = new CommandPipelineRecorder();
+        services.AddSingleton(recorder);
+        services.AddModuleCommands(options =>
+        {
+            options.AssemblyMarkers.Add(typeof(TestCommandHandler));
+            options.PipelineBehaviors.Add(typeof(RecordingModuleCommandBehavior<,>));
+        });
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IModuleCommandExecutor<TestCommand, TestResult> commandExecutor =
+            serviceProvider.GetRequiredService<IModuleCommandExecutor<TestCommand, TestResult>>();
+
+        TestResult result = await commandExecutor.SendAsync(new TestCommand(), CancellationToken.None);
+
+        result.ShouldBe(TestResult.Value);
+        recorder.Events.ShouldBe(["before", "handler", "after"]);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
+    public async Task ModuleCommandBus_WhenHandlerAndPipelineAreRegistered_DelegatesToTypedExecutor()
     {
         var services = new ServiceCollection();
         var recorder = new CommandPipelineRecorder();
@@ -215,9 +235,9 @@ public sealed class ModuleUnitOfWorkTests
         using ServiceProvider serviceProvider = services.BuildServiceProvider();
         IModuleCommandBus commandBus = serviceProvider.GetRequiredService<IModuleCommandBus>();
 
-        Unit result = await commandBus.SendAsync(new TestCommand(), CancellationToken.None);
+        TestResult result = await commandBus.SendAsync(new TestCommand(), CancellationToken.None);
 
-        result.ShouldBe(Unit.Value);
+        result.ShouldBe(TestResult.Value);
         recorder.Events.ShouldBe(["before", "handler", "after"]);
     }
 
@@ -297,7 +317,7 @@ public sealed class ModuleUnitOfWorkTests
 
     [Fact]
     [Trait("Category", "Unit")]
-    public void AddModuleMessaging_WhenHandlerAssemblyMarkerIsProvided_RegistersModuleScopedRebusAdapter()
+    public void AddModuleMessaging_WhenHandlerAssemblyMarkerIsProvided_RegistersModuleMessagingMetadata()
     {
         var services = new ServiceCollection();
 
@@ -311,10 +331,12 @@ public sealed class ModuleUnitOfWorkTests
         registration.MessageType.ShouldBe(typeof(TestIntegrationEvent));
         registration.HandlerType.ShouldBe(typeof(TestModuleMessageHandler));
         registration.MessageIdentity.ShouldBe("test.integration-event.v1");
-        services.Any(service =>
-            service.ServiceType == typeof(IHandleMessages<TestIntegrationEvent>)
-            && service.ImplementationType == typeof(ModuleScopedRebusHandler<TestIntegrationEvent>))
-            .ShouldBeTrue();
+        services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleEventSubscription>()
+            .Single(subscription => subscription.EventType == typeof(TestIntegrationEvent))
+            .ModuleName
+            .ShouldBe("identity");
     }
 
     [Fact]
@@ -331,9 +353,10 @@ public sealed class ModuleUnitOfWorkTests
             .OfType<ModuleMessageHandlerRegistration>()
             .Count(registration => registration.HandlerType == typeof(TestModuleMessageHandler))
             .ShouldBe(1);
-        services.Count(service =>
-                service.ServiceType == typeof(IHandleMessages<TestIntegrationEvent>)
-                && service.ImplementationType == typeof(ModuleScopedRebusHandler<TestIntegrationEvent>))
+        services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleEventSubscription>()
+            .Count(subscription => subscription.EventType == typeof(TestIntegrationEvent))
             .ShouldBe(1);
     }
 
@@ -342,13 +365,13 @@ public sealed class ModuleUnitOfWorkTests
     public async Task ModuleUnitOfWorkBehavior_WhenCommandIsMapped_SavesResolvedUnitOfWork()
     {
         var unitOfWork = new TestModuleUnitOfWork("identity");
-        var behavior = new ModuleUnitOfWorkCommandBehavior<TestCommand, Unit>(
+        var behavior = new ModuleUnitOfWorkCommandBehavior<TestCommand, TestResult>(
             new StaticModuleUnitOfWorkResolver(unitOfWork),
             new EntityFrameworkCoreModuleBoundary([new TestModuleBoundaryExecutor(unitOfWork)]));
 
         await behavior.HandleAsync(
             new TestCommand(),
-            (_, _) => new ValueTask<Unit>(Unit.Value),
+            (_, _) => new ValueTask<TestResult>(TestResult.Value),
             CancellationToken.None);
 
         unitOfWork.TransactionalExecutionCount.ShouldBe(1);
@@ -358,14 +381,14 @@ public sealed class ModuleUnitOfWorkTests
     [Trait("Category", "Unit")]
     public async Task ModuleUnitOfWorkBehavior_WhenCommandIsNotMapped_Throws()
     {
-        var behavior = new ModuleUnitOfWorkCommandBehavior<TestCommand, Unit>(
+        var behavior = new ModuleUnitOfWorkCommandBehavior<TestCommand, TestResult>(
             new StaticModuleUnitOfWorkResolver(null),
             new ThrowingModuleBoundary());
 
         InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
             async () => await behavior.HandleAsync(
                 new TestCommand(),
-                (_, _) => new ValueTask<Unit>(Unit.Value),
+                (_, _) => new ValueTask<TestResult>(TestResult.Value),
                 CancellationToken.None));
 
         exception.Message.ShouldContain(typeof(TestCommand).FullName!);
@@ -376,16 +399,16 @@ public sealed class ModuleUnitOfWorkTests
     [Trait("Category", "Unit")]
     public async Task ModuleUnitOfWorkBehavior_WhenCommandIsNonPersistent_RunsWithoutSave()
     {
-        var behavior = new ModuleUnitOfWorkCommandBehavior<NonPersistentTestCommand, Unit>(
+        var behavior = new ModuleUnitOfWorkCommandBehavior<NonPersistentTestCommand, TestResult>(
             new StaticModuleUnitOfWorkResolver(null),
             new ThrowingModuleBoundary());
 
-        Unit result = await behavior.HandleAsync(
+        TestResult result = await behavior.HandleAsync(
             new NonPersistentTestCommand(),
-            (_, _) => new ValueTask<Unit>(Unit.Value),
+            (_, _) => new ValueTask<TestResult>(TestResult.Value),
             CancellationToken.None);
 
-        result.ShouldBe(Unit.Value);
+        result.ShouldBe(TestResult.Value);
     }
 
     [Fact]
@@ -425,20 +448,25 @@ public sealed class ModuleUnitOfWorkTests
         return new IdentityDbContext(options);
     }
 
-    private sealed record TestCommand : IModuleCommand<Unit>;
+    private sealed record TestResult
+    {
+        public static TestResult Value { get; } = new();
+    }
 
-    private sealed record OtherCommand : IModuleCommand<Unit>;
+    private sealed record TestCommand : IModuleCommand<TestResult>;
+
+    private sealed record OtherCommand : IModuleCommand<TestResult>;
 
     [NonPersistentCommand]
-    private sealed record NonPersistentTestCommand : IModuleCommand<Unit>;
+    private sealed record NonPersistentTestCommand : IModuleCommand<TestResult>;
 
     private sealed class TestCommandHandler(CommandPipelineRecorder? recorder = null)
-        : IModuleCommandHandler<TestCommand, Unit>
+        : IModuleCommandHandler<TestCommand, TestResult>
     {
-        public ValueTask<Unit> HandleAsync(TestCommand command, CancellationToken cancellationToken)
+        public ValueTask<TestResult> HandleAsync(TestCommand command, CancellationToken cancellationToken)
         {
             recorder?.Events.Add("handler");
-            return new ValueTask<Unit>(Unit.Value);
+            return new ValueTask<TestResult>(TestResult.Value);
         }
     }
 

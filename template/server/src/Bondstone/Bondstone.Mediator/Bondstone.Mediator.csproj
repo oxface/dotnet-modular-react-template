@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="..\Bondstone\Bondstone.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Mediator.Abstractions" />
-  </ItemGroup>
-</Project>

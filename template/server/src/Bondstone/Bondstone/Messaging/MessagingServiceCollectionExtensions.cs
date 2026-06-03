@@ -2,15 +2,15 @@ using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Bondstone.Internal;
-using Bondstone.Messaging;
-using Rebus.Handlers;
 
-namespace Bondstone.Transport.Rebus;
+namespace Bondstone.Messaging;
 
 public static class MessagingServiceCollectionExtensions
 {
     public static IServiceCollection AddMessagingAssembly<TMarker>(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
         Assembly assembly = typeof(TMarker).Assembly;
 
         AddMessagingRegistrationSource(services, assembly);
@@ -23,8 +23,10 @@ public static class MessagingServiceCollectionExtensions
         string moduleName,
         params Type[] assemblyMarkers)
     {
-        string normalizedModuleName = moduleName.TrimRequired(nameof(moduleName));
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(assemblyMarkers);
+
+        string normalizedModuleName = moduleName.TrimRequired(nameof(moduleName));
 
         if (assemblyMarkers.Any(marker => marker is null))
         {
@@ -110,15 +112,12 @@ public static class MessagingServiceCollectionExtensions
                     messageType,
                     handlerType,
                     messageIdentity);
+                RegisterTransportHandlerAdapters(services, messageType);
 
                 if (typeof(IIntegrationEvent).IsAssignableFrom(messageType))
                 {
                     AddModuleEventSubscription(services, moduleName, messageType);
                 }
-
-                services.TryAddEnumerable(ServiceDescriptor.Scoped(
-                    typeof(IHandleMessages<>).MakeGenericType(messageType),
-                    typeof(ModuleScopedRebusHandler<>).MakeGenericType(messageType)));
             }
         }
     }
@@ -162,6 +161,17 @@ public static class MessagingServiceCollectionExtensions
             messageType,
             handlerType,
             messageIdentity));
+    }
+
+    private static void RegisterTransportHandlerAdapters(IServiceCollection services, Type messageType)
+    {
+        foreach (IModuleMessageTransportAdapter adapter in services
+            .Select(service => service.ImplementationInstance)
+            .OfType<IModuleMessageTransportAdapter>()
+            .ToArray())
+        {
+            adapter.RegisterHandlerAdapter(services, messageType);
+        }
     }
 
     private static string GetMessageIdentity(Type handlerType, Type messageType)

@@ -1,8 +1,6 @@
-using Bondstone.Messaging;
+namespace Bondstone.Messaging;
 
-namespace Bondstone.Transport.Rebus;
-
-internal static class MessageTypeRegistryFactory
+public static class MessageTypeRegistryFactory
 {
     public static IMessageTypeRegistry Create(IEnumerable<MessagingRegistrationSource> sources)
     {

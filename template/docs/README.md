@@ -33,8 +33,8 @@ reports.
 - [architecture/server.md](architecture/server.md) records backend architecture
   guidance.
 - [architecture/intermodule-communication.md](architecture/intermodule-communication.md)
-  records how modules should use contracts, Mediator, durable commands,
-  integration events, outbox persistence, and Rebus transport.
+  records how modules should use contracts, Bondstone commands, durable
+  commands, integration events, outbox persistence, and transport adapters.
 - [architecture/web.md](architecture/web.md) records frontend architecture
   guidance.
 - [architecture/orchestration.md](architecture/orchestration.md) records local

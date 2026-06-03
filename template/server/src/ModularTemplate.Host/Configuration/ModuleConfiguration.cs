@@ -1,4 +1,3 @@
-using Mediator;
 using Bondstone.Commands;
 using ModularTemplate.Host.Authorization;
 using ModularTemplate.Host.Features.CurrentUser;
@@ -28,12 +27,7 @@ public static class ModuleConfiguration
             }
 
             options.PipelineBehaviors.Add(typeof(RequestValidationBehavior<,>));
-        });
-
-        // Mediator's source generator must run in the composing app assembly.
-        services.AddMediator(options =>
-        {
-            options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.PipelineBehaviors.Add(typeof(ModuleCommandDiagnosticsBehavior<,>));
         });
 
         return services;

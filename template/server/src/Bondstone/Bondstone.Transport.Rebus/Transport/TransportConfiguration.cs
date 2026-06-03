@@ -31,16 +31,23 @@ public static class TransportConfiguration
         if (transportBuilder.InternalTransport == RebusInternalTransport.None)
         {
             throw new InvalidOperationException(
-                "Rebus internal transport is not configured. Call UsePostgresInternalTransport or another internal transport extension.");
+                "Rebus internal transport is not configured. Call UsePostgresInternalTransport, UseAzureServiceBusInternalTransport, or another internal transport extension.");
         }
 
         builder.Services.AddSingleton<IMessageTypeRegistry>(sp =>
             MessageTypeRegistryFactory.Create(sp.GetServices<MessagingRegistrationSource>()));
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IModuleMessageTransportAdapter>(
+                new RebusModuleMessageTransportAdapter()));
         builder.Services.AddScoped<IOutboxRouteResolver, OutboxRouteResolver>();
         builder.Services.AddSingleton<IValidateOptions<DurableMessagingOptions>, DurableMessagingOptionsValidator>();
         builder.Services.AddSingleton<IValidateOptions<RebusTransportOptions>, RebusTransportOptionsValidator>();
         builder.Services.AddScoped<IOutboxTransport, RebusOutboxTransport>();
-        builder.Services.TryAddSingleton<RebusPostgresSchemaInitializer>();
+        RegisterExistingModuleMessageHandlerAdapters(builder.Services);
+        if (transportBuilder.InternalTransport == RebusInternalTransport.Postgres)
+        {
+            builder.Services.TryAddSingleton<RebusPostgresSchemaInitializer>();
+        }
 
         builder.Services.AddOptions<DurableMessagingOptions>()
             .Bind(builder.Configuration.GetSection("Messaging"))
@@ -84,6 +91,19 @@ public static class TransportConfiguration
         return builder;
     }
 
+    private static void RegisterExistingModuleMessageHandlerAdapters(IServiceCollection services)
+    {
+        var adapter = new RebusModuleMessageTransportAdapter();
+        foreach (Type messageType in services
+            .Select(service => service.ImplementationInstance)
+            .OfType<ModuleMessageHandlerRegistration>()
+            .Select(registration => registration.MessageType)
+            .Distinct())
+        {
+            adapter.RegisterHandlerAdapter(services, messageType);
+        }
+    }
+
     private static RebusConfigurer ConfigureInternalTransport(
         RebusConfigurer configure,
         IServiceProvider serviceProvider,
@@ -125,9 +145,28 @@ public static class TransportConfiguration
                 configuration,
                 options,
                 queueName),
+            RebusInternalTransport.AzureServiceBus => ConfigureAzureServiceBusInternalTransport(
+                configure,
+                configuration,
+                options,
+                queueName),
             _ => throw new InvalidOperationException(
                 $"Unsupported Rebus internal transport '{internalTransport}'.")
         };
+    }
+
+    private static RebusConfigurer ConfigureAzureServiceBusInternalTransport(
+        RebusConfigurer configure,
+        IConfiguration configuration,
+        RebusTransportOptions options,
+        string queueName)
+    {
+        string connectionString = configuration.GetConnectionString(options.AzureServiceBus.ConnectionStringName)
+            ?? throw new InvalidOperationException(
+                $"Connection string '{options.AzureServiceBus.ConnectionStringName}' is required for Rebus Azure Service Bus transport.");
+
+        configure.Transport(t => t.UseAzureServiceBus(connectionString, queueName));
+        return configure;
     }
 
     private static RebusConfigurer ConfigurePostgresInternalTransport(
@@ -152,7 +191,7 @@ public static class TransportConfiguration
             connectionProvider,
             options.Postgres.SubscriptionTable,
             isCentralized: true,
-            automaticallyCreateTables: true,
+            automaticallyCreateTables: options.Postgres.AutoCreateSubscriptionTable,
             schemaName: options.Postgres.TransportSchema));
         return configure;
     }
@@ -161,7 +200,9 @@ public static class TransportConfiguration
         RebusTransportOptions source,
         RebusTransportOptions target)
     {
+        target.InternalTransport = source.InternalTransport;
         target.QueuePrefix = source.QueuePrefix;
         target.Postgres = source.Postgres;
+        target.AzureServiceBus = source.AzureServiceBus;
     }
 }

@@ -7,8 +7,8 @@ The shipped local platform includes:
 - PostgreSQL for the generated product database.
 - Redis for BFF/session ticket storage.
 - Keycloak for local OpenID Connect authentication.
-- Migrator for applying module-owned migrations and explicit initial-admin
-  setup.
+- Migrator for bootstrapping transport infrastructure, applying module-owned
+  migrations, and explicit initial-admin setup.
 - Host API.
 - Admin and web Vite app resources.
 - Named local data volumes for PostgreSQL, Redis, and Keycloak.

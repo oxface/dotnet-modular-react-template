@@ -10,7 +10,7 @@ using ModularTemplate.Identity.Access;
 using Bondstone.Commands;
 using Bondstone.EntityFrameworkCore.Persistence;
 using Bondstone.EntityFrameworkCore.Postgres.Persistence;
-using Bondstone.Transport.Rebus;
+using Bondstone.Messaging;
 
 namespace ModularTemplate.Identity.Infrastructure;
 

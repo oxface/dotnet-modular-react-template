@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Bondstone.Messaging;
 using Rebus.ServiceProvider;
 
 namespace Bondstone.Transport.Rebus;

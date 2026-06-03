@@ -5,6 +5,18 @@ its `DbContext`, its schema, and its application behavior. Other modules should
 interact with it through contracts or durable messages, not through its domain
 entities, infrastructure project, EF sets, or tables.
 
+The durable messaging topology is module-bounded at rest and connected only at
+the transport/routing edge:
+
+- each module owns its persistence context, schema, outbox rows, inbox rows,
+  and dead-lettered outbox rows;
+- Bondstone owns module message identities, handler registrations, command
+  boundaries, source outbox writes, and receive-side inbox execution;
+- transport adapters route source outbox messages to target module inboxes or
+  event subscribers;
+- integration-event fan-out is a routing concern, while each subscriber still
+  handles the message inside its own module transaction.
+
 ## Choosing A Pattern
 
 Use the smallest communication pattern that matches the consistency need.
@@ -36,9 +48,11 @@ reliability boundary.
 ### Cross-Module Synchronous Reads
 
 Use a query contract from the target module's `.Contracts` project when one
-module needs immediate read-side data from another module. Contracts should
-return DTOs or read models, not EF entities, aggregates, provider SDK types,
-`ClaimsPrincipal`, or Host HTTP concepts.
+module needs immediate read-side data from another module. This is an
+intentional coupling to the target module's application API, so prefer it for
+small read dependencies and avoid using contracts as a backdoor around durable
+handoff. Contracts should return DTOs or read models, not EF entities,
+aggregates, provider SDK types, `ClaimsPrincipal`, or Host HTTP concepts.
 
 ### Cross-Module Asynchronous Commands
 
@@ -78,8 +92,8 @@ consumer.
 The source module maps selected domain events to integration events through an
 `IIntegrationEventMapper<TDomainEvent>`. The module unit of work writes mapped
 integration events to the same source module outbox as the aggregate changes.
-The outbox worker publishes integration events through Rebus; Rebus
-subscriptions decide which module queues receive them.
+The outbox worker publishes integration events through the configured transport
+adapter; transport subscriptions decide which module queues receive them.
 
 ## Durable Message Lifecycle
 
@@ -91,10 +105,11 @@ Durable cross-module messages move through these stages:
    events, and outbox rows in one transaction
 3. the source module's outbox worker takes its PostgreSQL advisory lock and
    claims pending rows with `FOR UPDATE SKIP LOCKED`
-4. `RebusOutboxTransport` deserializes the stable message identity and sends or
-   publishes the message through Rebus
-5. Rebus delivers the message to the target module queue or event subscribers
-6. the module-scoped Rebus adapter opens the receiving module unit of work
+4. the transport adapter deserializes the stable message identity and sends or
+   publishes the message
+5. transport routing delivers the message to the target module queue or event
+   subscribers
+6. the module-scoped transport adapter opens the receiving module unit of work
 7. the adapter records a target-module inbox row per message id and stable
    message identity, then delegates to the target handler
 8. target handlers may call module application behavior owned by the receiving module
@@ -120,9 +135,9 @@ recognize already-applied work.
 
 Outbox rows capture the current .NET `Activity` trace context in metadata.
 Outbox dispatch writes standard W3C `traceparent`, `tracestate`, and `baggage`
-headers to Rebus messages when trace metadata is available. Receive-side Rebus
-handlers start a consumer `Activity` from those headers so follow-up durable
-commands and integration events stay in the same distributed trace. The
+headers to transport messages when trace metadata is available. Receive-side
+transport handlers start a consumer `Activity` from those headers so follow-up
+durable commands and integration events stay in the same distributed trace. The
 incoming message id is added as causation baggage when it is a GUID, and the
 incoming operation id is carried as operation baggage when present. New module
 transactions that do not start from an incoming message start a Bondstone
@@ -163,33 +178,48 @@ after the duplicate-delivery window is no longer needed.
 The template does not ship those replay, archival, or cleanup workflows by
 default.
 
-## Rebus Boundary
+## Transport Boundary
 
-Rebus owns transport, routing, pub/sub delivery, and receive-side handler
-dispatch. Transport registration creates one bus, queue, and subscription
-startup service per configured module, and the module-scoped Rebus adapter owns
-the receiving module transaction because transport delivery starts outside the
-Bondstone command pipeline.
-Rebus handlers should stay thin and delegate meaningful state changes to
-target-module application behavior; receiving module command calls participate
-inside that transaction when they are used. Do not call another module's write
-command from inside a receiving module transaction; use another durable command
-or integration event for cross-module follow-up work. The template owns both the
-source-side outbox and the receive-side inbox so outgoing messages commit
-atomically with source module state and duplicate deliveries are suppressed per
-receiving module and message identity.
+The transport adapter owns routing, pub/sub delivery, and receive-side handler
+dispatch. The generated template uses Rebus with PostgreSQL as the default
+local transport and exposes Azure Service Bus as a broker-backed alternative.
+Transport registration creates one bus, queue, and subscription startup service
+per configured module, and the module-scoped transport adapter owns the
+receiving module transaction because transport delivery starts outside the
+Bondstone command pipeline. Transport handlers should stay thin and delegate
+meaningful state changes to target-module application behavior; receiving
+module command calls participate inside that transaction when they are used. Do
+not call another module's write command from inside a receiving module
+transaction; use another durable command or integration event for cross-module
+follow-up work. The template owns both the source-side outbox and the
+receive-side inbox so outgoing messages commit atomically with source module
+state and duplicate deliveries are suppressed per receiving module and message
+identity.
 
-The generated transport is Rebus over PostgreSQL, which fits the local
-modular-monolith topology and reuses the product database dependency. The
-Migrator creates the configured transport schema; Host startup does not run
-transport DDL. External broker transports are product decisions and should bring
-their own deployment resources and verification.
+Rebus over PostgreSQL fits the local modular-monolith topology and reuses the
+product database dependency, but it is a local/default transport rather than the
+recommended production broker for every product. The Rebus adapter also exposes
+Azure Service Bus through `UseAzureServiceBusInternalTransport`, which gives
+production products a broker-backed transport path while keeping Bondstone
+message contracts, outbox, inbox, route resolution, and module handler
+registration unchanged. Azure Service Bus requires the Standard tier because
+the Rebus transport uses topics.
+
+When the PostgreSQL transport is used, the Migrator creates the configured
+transport schema and centralized subscription table when the transport
+migration scope is run. Rebus PostgreSQL transport table creation remains
+adapter-owned until a product or framework decision replaces it with explicit
+Migrator-owned transport DDL. Production products should run transport DDL
+through Migrator or deployment migrations and make Host startup validate
+transport readiness rather than creating infrastructure implicitly. External
+broker transports are product decisions and should bring their own deployment
+resources and verification.
 
 Messages MUST use stable message identities, not CLR type names, for persisted
-outbox rows and Rebus message type headers. Use `MessageIdentityAttribute` and
-register message assemblies through `AddModuleMessaging("{module}", ...)`;
-explicit `IMessageTypeRegistry` registration is still available for tests or
-unusual composition.
+outbox rows and transport message type headers. Use `MessageIdentityAttribute`
+and register message assemblies through
+`AddModuleMessaging("{module}", ...)`; explicit `IMessageTypeRegistry`
+registration is still available for tests or unusual composition.
 Event identities should name the fact, not the CLR type. Prefer
 `{aggregate}.{event}.{version}` for integration events derived from aggregate
 facts, such as `local-user.created.v1`. Durable command identities should name
@@ -200,19 +230,21 @@ Module infrastructure registrations should call
 contain durable messages or module message handlers: usually the module
 assembly, its `.Contracts` assembly, and its `.Infrastructure` assembly. This
 scans stable message identities and registers module-scoped
-`IModuleMessageHandler<T>` handlers behind a Rebus adapter. Each receiving
-module should register one module message handler per message identity. If a
-module needs several internal reactions to the same event, keep the Rebus handler
-as the single transport adapter and fan out to module-local services inside that
-handler. This is an intentional template simplification: internal reactions
-share the receiving module transaction, retry, and failure outcome. Products
-that need independent retry loops or transactions for multiple reactions should
-introduce separate product handlers or a richer message-runtime decision before
-adding that behavior. The inbox key uses the stable transport message id plus
-the stable message identity. Event subscribers should also call
+`IModuleMessageHandler<T>` handlers as Bondstone module messaging metadata. The
+configured transport adapter consumes that metadata to expose transport
+handlers and subscriptions. Each receiving module should register one module
+message handler per message identity. If a module needs several internal
+reactions to the same event, keep the module message handler as the single
+receive adapter and fan out to module-local services inside that handler. This
+is an intentional template simplification: internal reactions share the
+receiving module transaction, retry, and failure outcome. Products that need
+independent retry loops or transactions for multiple reactions should introduce
+separate product handlers or a richer message-runtime decision before adding
+that behavior. The inbox key uses the stable transport message id plus the
+stable message identity. Event subscribers should also call
 `AddModuleMessaging("{module}", ...)`; registering an
 `IModuleMessageHandler<TEvent>` for an integration event automatically registers
-the module's Rebus subscription for that event. Publishing an event with no
+the module's transport subscription for that event. Publishing an event with no
 subscribers is allowed.
 
 Module infrastructure registrations should call
@@ -224,7 +256,9 @@ Bondstone command handlers can call `AddModulePersistence<{Module}DbContext>("{m
 and run custom handlers through `IModuleBoundary`. Both paths register the
 module persistence resolver plus the module-owned unit of work, boundary
 executor, inbox executor, outbox writer, and outbox worker used by durable
-messaging. A command type that is not mapped to any module persistence
+messaging. Known command callers should inject
+`IModuleCommandExecutor<TCommand, TResult>` rather than the runtime-typed
+command bus. A command type that is not mapped to any module persistence
 registration fails in the Bondstone command pipeline. Mark a command with
 `NonPersistentCommandAttribute` only for platform or explicitly non-persistent
 work.
@@ -257,9 +291,10 @@ When adding a module:
 3. put provider-neutral contracts and DTOs in `{Module}.Contracts`
 4. put EF Core, repositories, query implementations, and adapters in
    `{Module}.Infrastructure`
-5. create `{Module}DbContext` implementing `IModuleDbContext`
-6. configure the module schema, migrations history table, and
-   `ApplyOutboxConfiguration("{module}")` for domain events, inbox, and outbox
+5. create `{Module}DbContext` inheriting `ModuleDbContext<{Module}DbContext>`
+   or implementing `IModuleDbContext` directly
+6. configure the module schema, migrations history table, and module messaging
+   persistence hook for domain events, inbox, and outbox
 7. call `AddModulePersistence<{Module}DbContext>("{module}", ...)`
    from module infrastructure with marker types from assemblies that contain
    persistent Bondstone command handlers for that module, or omit command
@@ -269,7 +304,8 @@ When adding a module:
 9. add module command handler assembly markers to the Host and Migrator
    `AddModuleCommands` configuration when the module has command handlers
 10. add the module name to `Messaging:Modules`
-11. add the module context to the Migrator
+11. ensure the module Infrastructure project is composed by the Migrator; module
+    DbContext migrations are discovered through `AddModulePersistence`
 12. add module docs and focused tests
 
 ## Adding A Durable Command
@@ -301,7 +337,7 @@ When adding a module:
    events are written to that source module's outbox.
 5. Implement `IModuleMessageHandler<TEvent>` handlers in subscriber modules.
 6. Register subscriber module handlers with `AddModuleMessaging`; integration
-   event handlers automatically add the module's Rebus subscription.
+   event handlers automatically add the module's transport subscription.
 
 Generated products should add tests for real communication workflows as those
 workflows appear.

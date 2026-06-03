@@ -32,9 +32,6 @@ namespace ModularTemplate.Products.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("MetadataJson")
-                        .HasColumnType("jsonb");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(256)

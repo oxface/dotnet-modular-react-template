@@ -4,5 +4,4 @@ public sealed record ProductDetails(
     Guid ProductId,
     string Name,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc,
-    string? MetadataJson);
+    DateTimeOffset UpdatedAtUtc);

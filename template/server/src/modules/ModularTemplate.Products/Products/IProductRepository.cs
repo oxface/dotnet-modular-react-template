@@ -1,6 +1,4 @@
-using ModularTemplate.Products.Products;
-
-namespace ModularTemplate.Products;
+namespace ModularTemplate.Products.Products;
 
 public interface IProductRepository
 {

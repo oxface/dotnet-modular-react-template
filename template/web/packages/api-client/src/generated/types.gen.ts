@@ -25,7 +25,6 @@ export type ProductDetails = {
     name: string;
     createdAtUtc: string;
     updatedAtUtc: string;
-    metadataJson: null | string;
 };
 
 export type GetCurrentUserData = {

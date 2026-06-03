@@ -1,8 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using Bondstone.Messaging;
 
-namespace Bondstone.EntityFrameworkCore.Outbox;
+namespace Bondstone.Messaging;
 
 public sealed class DurableRequestSender(
     IDurableCommandSender durableCommandSender,

@@ -17,7 +17,6 @@ Before editing, read:
 - `docs/architecture/server.md`
 - `docs/architecture/intermodule-communication.md`
 - `docs/modules/README.md`
-- `openspec/config.yaml`
 
 If the module adds product behavior, persistence behavior, APIs, orchestration,
 durable messaging, auth/session behavior, migrations, or frontend surfaces,

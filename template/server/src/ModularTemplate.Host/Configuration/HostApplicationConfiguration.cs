@@ -1,6 +1,7 @@
 using System.Reflection;
 using ModularTemplate.Host.Features.Auth;
 using ModularTemplate.ServiceDefaults;
+using Bondstone.EntityFrameworkCore.Outbox;
 using Bondstone.Transport.Rebus;
 
 namespace ModularTemplate.Host.Configuration;
@@ -34,16 +35,28 @@ public static class HostApplicationConfiguration
         return builder;
     }
 
-    public static WebApplicationBuilder AddModularTemplateHost(this WebApplicationBuilder builder)
+    public static WebApplicationBuilder AddModularTemplateHost(
+        this WebApplicationBuilder builder,
+        HostApplicationMode mode = HostApplicationMode.Runtime)
     {
         builder.AddServiceDefaults();
-        builder.AddRebusTransport(transport =>
-            transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
+
+        if (mode == HostApplicationMode.Runtime)
+        {
+            builder.AddRebusTransport(transport =>
+                transport.UsePostgresInternalTransport(builder.Configuration.GetSection("Messaging:Rebus")));
+        }
+
         builder.AddHostAuthentication();
         builder.AddProblemDetails();
         builder.Services.AddOpenApi();
         builder.Services.AddModularTemplateModules();
         builder.Services.AddModularCommandHandling();
+
+        if (mode == HostApplicationMode.OpenApiDocumentGeneration)
+        {
+            builder.Services.RemoveOpenApiRuntimeHostedServices();
+        }
 
         return builder;
     }
@@ -68,6 +81,19 @@ public static class HostApplicationConfiguration
         if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
         {
             builder.Configuration[key] = value;
+        }
+    }
+
+    private static void RemoveOpenApiRuntimeHostedServices(this IServiceCollection services)
+    {
+        for (int index = services.Count - 1; index >= 0; index--)
+        {
+            Type? implementationType = services[index].ImplementationType;
+            if (implementationType?.IsGenericType == true
+                && implementationType.GetGenericTypeDefinition() == typeof(OutboxDispatcherBackgroundService<>))
+            {
+                services.RemoveAt(index);
+            }
         }
     }
 }

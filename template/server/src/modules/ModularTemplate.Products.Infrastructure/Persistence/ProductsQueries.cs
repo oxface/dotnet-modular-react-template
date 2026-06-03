@@ -14,8 +14,7 @@ public sealed class ProductsQueries(ProductsDbContext dbContext) : IProductsQuer
                 x.Id,
                 x.Name,
                 x.CreatedAtUtc,
-                x.UpdatedAtUtc,
-                x.MetadataJson))
+                x.UpdatedAtUtc))
             .SingleOrDefaultAsync(cancellationToken);
     }
 }

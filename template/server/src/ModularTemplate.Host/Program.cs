@@ -4,7 +4,7 @@ var builder = WebApplication.CreateBuilder(args);
 HostApplicationMode mode = HostApplicationConfiguration.DetectHostApplicationMode();
 
 builder.ConfigureHostApplicationMode(mode);
-builder.AddModularTemplateHost();
+builder.AddModularTemplateHost(mode);
 var app = builder.Build();
 app.UseModularTemplateHost();
 

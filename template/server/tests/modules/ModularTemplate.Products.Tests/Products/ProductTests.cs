@@ -10,10 +10,9 @@ public sealed class ProductTests
     [Trait("Category", "Unit")]
     public void Create_WhenProductIsCreated_SetsValuesAndRecordsDomainEvent()
     {
-        Product product = Product.Create("Document Library", "{\"color\":\"green\"}");
+        Product product = Product.Create("Document Library");
 
         product.Name.ShouldBe("Document Library");
-        product.MetadataJson.ShouldBe("{\"color\":\"green\"}");
         product.DomainEvents.Single().ShouldBeOfType<ProductCreatedDomainEvent>();
     }
 

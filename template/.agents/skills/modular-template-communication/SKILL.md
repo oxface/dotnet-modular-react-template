@@ -17,25 +17,24 @@ Before editing, read:
 - `docs/architecture/server.md`
 - `docs/architecture/intermodule-communication.md`
 - `docs/modules/README.md`
-- `openspec/config.yaml`
 
 If the change adds product behavior, durable messaging behavior, orchestration,
 persistence, APIs, or runtime infrastructure, confirm there is accepted
-OpenSpec scope or a durable architecture decision.
+scope in stable docs or a durable architecture decision.
 
 ## Pick The Pattern
 
 Use this decision order:
 
-1. Same-module command or query: use Mediator or a module-local service.
+1. Same-module command or query: use Bondstone command handlers or a module-local service.
 2. Cross-module synchronous read: add a query contract to the target module's
    `.Contracts` project.
 3. Cross-module asynchronous request to a specific module: add a durable
    command and handler.
 4. Cross-module fact consumed by zero or more modules: add an integration event,
    mapper, subscriber registration, and handler.
-5. Long-running observable workflow: include an `OperationId` and expose status
-   through operation/read-model state and query contracts.
+5. Long-running observable workflow: include a `DurableOperationId` and expose
+   status through operation/read-model state and query contracts.
 
 Do not use durable commands as request/response APIs. A durable command returns
 acceptance only; results are observed later through state.
@@ -54,44 +53,43 @@ acceptance only; results are observed later through state.
 
 1. Define a command implementing `IDurableCommand`.
 2. Put it in a module Contracts project unless it is truly platform-wide.
-3. Register the command CLR type with a stable message type name in
-   `IMessageTypeRegistry`.
-4. Submit through `IDurableCommandSubmitter` with `SourceModule` and
-   `TargetModule`.
-5. Include `OperationId` when a caller needs later progress/result observation.
-6. Implement `IDurableCommandHandler<TCommand>` in the target module.
-7. Keep the handler return type as `Task`, not `Task<T>`.
-8. Make the handler mutate only the target module context. If it needs more
+3. Add `DurableCommandIdentityAttribute` with a stable, versioned message
+   identity.
+4. Register message assemblies with `AddModuleMessaging("{module}", ...)`.
+5. Send through `IDurableCommandSender` inside the source module unit of work.
+6. Include `DurableOperationId` when a caller needs later progress/result
+   observation.
+7. Implement `IModuleMessageHandler<TCommand>` in the target module.
+8. Keep the handler return type as `Task`, not `Task<T>`.
+9. Make the handler mutate only the target module context. If it needs more
    cross-module work, submit another durable command or publish an integration
    event from its own module transaction.
 
 Command shape:
 
 ```csharp
-public sealed record RebuildCatalogProjection(Guid OperationId)
+[DurableCommandIdentity("catalog.rebuild-projection.v1")]
+public sealed record RebuildCatalogProjection(Guid DurableOperationId)
     : IDurableCommand;
 ```
 
 Submission shape:
 
 ```csharp
-CommandSubmission submission = durableCommandSubmitter.Submit(
-    new RebuildCatalogProjection(operationId),
-    new DurableCommandSubmissionOptions(
-        SourceModule: "identity",
-        TargetModule: "catalog",
-        OperationId: operationId));
+CommandSubmission submission = durableCommandSender.Send(
+    new RebuildCatalogProjection(durableOperationId),
+    targetModule: "catalog",
+    durableOperationId: durableOperationId);
 ```
 
 Handler shape:
 
 ```csharp
 public sealed class RebuildCatalogProjectionHandler
-    : IDurableCommandHandler<RebuildCatalogProjection>
+    : IModuleMessageHandler<RebuildCatalogProjection>
 {
     public Task HandleAsync(
-        RebuildCatalogProjection command,
-        MessageContext context,
+        RebuildCatalogProjection message,
         CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
@@ -105,15 +103,18 @@ public sealed class RebuildCatalogProjectionHandler
 2. Add an `IIntegrationEvent` only when a real subscriber exists.
 3. Put the event contract where consumers can reference it without depending on
    source-module internals.
-4. Register the event CLR type with a stable message type name.
+4. Add `IntegrationEventIdentityAttribute` with a stable, versioned message
+   identity.
 5. Add an `IIntegrationEventMapper<TDomainEvent>` in the source module.
-6. Register subscribers through `ILocalSubscriptionRegistry`.
-7. Implement `IIntegrationEventHandler<TEvent>` in each subscriber module.
+6. Register message assemblies with `AddModuleMessaging("{module}", ...)`.
+7. Implement `IModuleMessageHandler<TEvent>` in each subscriber module.
+8. If one module has multiple handlers for the same event, add a distinct
+   `IntegrationEventHandlerIdentityAttribute` to each handler.
 
 Event names should be stable and versioned, for example:
 
 ```text
-ModularTemplate.catalog.item-created.v1
+catalog.item-created.v1
 ```
 
 Do not rename persisted message type names casually. Add a `v2` message for
@@ -130,7 +131,7 @@ Cover these when relevant:
 - query contract caller uses only the target module contract
 - durable command submission writes to the source module outbox
 - durable command returns acceptance only
-- operation id reaches `MessageContext`
+- durable operation id reaches Bondstone diagnostics baggage
 - handler success commits target state and inbox status together
 - handler failure rolls back target state and records retry/dead-letter status
 - integration event with no subscribers is marked processed
@@ -140,8 +141,9 @@ Cover these when relevant:
 ## Rebus Boundary
 
 Business modules should not depend on Rebus directly. Use
-`IDurableCommandSubmitter`, `IDurableCommandHandler<T>`,
-`IIntegrationEventMapper<TDomainEvent>`, and `IIntegrationEventHandler<TEvent>`.
+`IDurableCommandSender`, `IModuleMessageHandler<T>`,
+`IIntegrationEventMapper<TDomainEvent>`, and stable message identity
+attributes.
 
 Rebus-specific changes belong in shared Infrastructure/Transport. Treat new
 Rebus features such as sagas, native pub/sub subscription management,

@@ -5,6 +5,7 @@ using ModularTemplate.Identity.Infrastructure.Persistence;
 using ModularTemplate.Identity.Infrastructure.Tests.Support;
 using Bondstone.EntityFrameworkCore.Outbox;
 using Bondstone.EntityFrameworkCore.Persistence;
+using Bondstone.EntityFrameworkCore.Postgres.Outbox;
 using Bondstone.Messaging;
 using Shouldly;
 
@@ -215,6 +216,7 @@ public sealed class DurableMessagingTests(PostgreSqlFixture postgreSqlFixture)
             dbContext,
             transport,
             outboxDispatchLock,
+            new PostgresOutboxClaimHandler(),
             options,
             new ConfiguredRetryDelayPolicy(options),
             NullLogger<OutboxDispatcher<IdentityDbContext>>.Instance);

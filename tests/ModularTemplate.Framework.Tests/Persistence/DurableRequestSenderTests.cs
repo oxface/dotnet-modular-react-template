@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Bondstone.EntityFrameworkCore.Outbox;
 using Bondstone.Messaging;
 using Microsoft.Extensions.Options;
 using NSubstitute;

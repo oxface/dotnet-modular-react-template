@@ -18,6 +18,16 @@ public static class MessagingServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddDurableRequestPolling(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddOptions<DurableRequestOptions>();
+        services.TryAddScoped<IDurableRequestSender, DurableRequestSender>();
+
+        return services;
+    }
+
     public static IServiceCollection AddModuleMessaging(
         this IServiceCollection services,
         string moduleName,

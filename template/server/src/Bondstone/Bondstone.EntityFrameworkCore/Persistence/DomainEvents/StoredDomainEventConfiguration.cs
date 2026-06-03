@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Bondstone.EntityFrameworkCore.Persistence.DomainEvents;
 
-public sealed class StoredDomainEventConfiguration(string schema)
+public sealed class StoredDomainEventConfiguration(
+    string schema)
     : IEntityTypeConfiguration<StoredDomainEvent>
 {
     public void Configure(EntityTypeBuilder<StoredDomainEvent> builder)
@@ -15,8 +16,7 @@ public sealed class StoredDomainEventConfiguration(string schema)
         builder.Property(x => x.AggregateId).HasMaxLength(128).IsRequired();
         builder.Property(x => x.EventType).HasMaxLength(256).IsRequired();
         builder.Property(x => x.EventVersion).IsRequired();
-        builder.Property(x => x.Payload).HasColumnType("jsonb").IsRequired();
-        builder.Property(x => x.Metadata).HasColumnType("jsonb");
+        builder.Property(x => x.Payload).IsRequired();
         builder.HasIndex(x => x.EventType);
         builder.HasIndex(x => new { x.AggregateType, x.AggregateId });
     }

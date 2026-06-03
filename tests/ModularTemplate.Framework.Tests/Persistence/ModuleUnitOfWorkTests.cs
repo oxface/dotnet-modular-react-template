@@ -221,6 +221,26 @@ public sealed class ModuleUnitOfWorkTests
 
     [Fact]
     [Trait("Category", "Unit")]
+    public async Task ModuleCommandExecutor_WhenMultipleHandlersAreRegistered_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddModuleCommands();
+        services.AddScoped<IModuleCommandHandler<TestCommand, TestResult>>(_ => new TestCommandHandler());
+        services.AddScoped<IModuleCommandHandler<TestCommand, TestResult>>(_ => new TestCommandHandler());
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IModuleCommandExecutor<TestCommand, TestResult> commandExecutor =
+            serviceProvider.GetRequiredService<IModuleCommandExecutor<TestCommand, TestResult>>();
+
+        InvalidOperationException exception = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await commandExecutor.SendAsync(new TestCommand(), CancellationToken.None));
+
+        exception.Message.ShouldContain("Multiple module command handlers");
+        exception.Message.ShouldContain(typeof(TestCommand).FullName!);
+    }
+
+    [Fact]
+    [Trait("Category", "Unit")]
     public async Task ModuleCommandBus_WhenHandlerAndPipelineAreRegistered_DelegatesToTypedExecutor()
     {
         var services = new ServiceCollection();

@@ -7,6 +7,8 @@ Generated-product documentation lives under `template/docs/`.
 
 - [template-decisions.md](template-decisions.md) records factory decisions that
   should not become product ADR history.
+- [template-offload.md](template-offload.md) records the planned pause and
+  future split between this initializer and Bondstone packages.
 - [testing.md](testing.md) records release validation, packed-CLI testing, npm
   publication checks, and generated-product smoke expectations.
 

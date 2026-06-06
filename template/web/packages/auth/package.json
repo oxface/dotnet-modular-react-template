@@ -15,7 +15,7 @@
   "dependencies": {
     "@modular-template/api-client": "workspace:*",
     "@modular-template/ui": "workspace:*",
-    "@tanstack/react-query": "5.100.10",
+    "@tanstack/react-query": "5.100.14",
     "react": "19.2.6"
   },
   "devDependencies": {
